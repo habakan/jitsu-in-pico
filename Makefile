@@ -191,8 +191,12 @@ build/psbt/own_mixed_nwu.ur: parser/tests/ur_vectors.json build/psbt/own_p2wpkh_
 check-psbt: build/host-classic/psbt_host build/psbt/own_p2wpkh_1in.psbt build/psbt/own_mixed_nwu.ur
 	rm -f build/psbt/*.signed
 	for f in build/psbt/own_*.psbt; do echo "== $$f"; build/host-classic/psbt_host sign $$f $${f%.psbt}.signed || true; done
-	build/host-classic/psbt_host sign build/psbt/own_mixed_nwu.ur build/psbt/own_mixed_nwu_ur.out
+	build/host-classic/psbt_host sign build/psbt/own_mixed_nwu.ur build/psbt/own_mixed_nwu_ur.out build/psbt/qr
 	cmp build/psbt/own_mixed_nwu_ur.out build/psbt/own_mixed_nwu.signed && echo "UR path matches the binary PSBT path"
+	# 署名済み PSBT の UR（混ぜたパートを含む）を読み戻すと、署名済み PSBT そのものに戻ること
+	build/host-classic/psbt_host ur2bin build/psbt/own_mixed_nwu_ur.out.ur build/psbt/roundtrip.out
+	cmp build/psbt/roundtrip.out build/psbt/own_mixed_nwu.signed && echo "signed PSBT survives the UR round trip"
+	uv run -q tools/check_qr_screen.py build/psbt/qr build/psbt/own_mixed_nwu_ur.out.ur
 	uv run -q tools/check_signed_psbt.py build/psbt
 .PHONY: check-psbt
 
@@ -208,7 +212,7 @@ check-qemu-psbt: build/parser_wasm.h build/signer_wasm.h build/font8x16.h build/
 .PHONY: check-qemu-psbt
 
 build/test_ui: ui/tests/test_ui.c ui/ui.c ui/ui.h build/font8x16.h core/core.h
-	cc -O2 -Wall -Wextra -Icore -Iparser/include -Iui -Ibuild -o $@ ui/tests/test_ui.c ui/ui.c $(CORE_SRC) \
+	cc -O2 -Wall -Wextra -Icore -Iparser/include -Iui -Ibuild -I$(QRGEN) -o $@ ui/tests/test_ui.c ui/ui.c $(QRGEN)/qrcodegen.c $(CORE_SRC) \
 	  signer/secp256k1_unity.c -I$(SECP)/include $(SECP_DEFS) -Wno-unused-function
 
 check-ui: build/test_ui

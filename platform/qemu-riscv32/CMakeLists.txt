@@ -35,10 +35,10 @@ target_link_libraries(signer.elf m)
 
 # parser.wasm + ネイティブ中核の一巡（make check-qemu-psbt）
 set(SECP ${ROOT}/third_party/secp256k1)
-add_executable(psbt.elf ${ROOT}/host/psbt_main.c ${ROOT}/runtime/host-abi/parser_host.c ${ROOT}/ui/ui.c ${ROOT}/core/core.c ${ROOT}/core/address.c ${ROOT}/core/bip32.c
+add_executable(psbt.elf ${ROOT}/host/psbt_main.c ${ROOT}/runtime/host-abi/parser_host.c ${ROOT}/ui/ui.c ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c ${ROOT}/core/core.c ${ROOT}/core/address.c ${ROOT}/core/bip32.c
   ${ROOT}/core/sighash.c ${ROOT}/parser/src/tx.c ${ROOT}/parser/src/sha256.c ${ROOT}/core/ripemd160.c ${ROOT}/core/sha512.c
   ${ROOT}/core/secp_callbacks.c ${ROOT}/signer/secp256k1_unity.c ${CMAKE_CURRENT_LIST_DIR}/start.S ${WAMR_RUNTIME_LIB_SOURCE})
-target_include_directories(psbt.elf PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/core ${ROOT}/runtime/host-abi ${ROOT}/parser/include ${ROOT}/ui ${SECP}/include)
+target_include_directories(psbt.elf PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/core ${ROOT}/runtime/host-abi ${ROOT}/parser/include ${ROOT}/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include)
 target_compile_definitions(psbt.elf PRIVATE QEMU_BUILD=1 ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1
   ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1 COMB_BLOCKS=2 COMB_TEETH=5)
 # -mcpu=hazard3-rp2350 は QEMU 非対応の Xh3bextm を出すことがあるので、標準拡張だけを指定する

@@ -1,5 +1,5 @@
 /* 実機の初期確認用アプリ。組み込んだテスト用 PSBT を parser.wasm と core に通し、LCD の確認画面を
- * ボタンで全て見てから承認すると署名する。各段階の時間と署名済み PSBT（16 進）を UART に出す。
+ * ボタンで全て見てから承認すると署名し、署名済み PSBT をアニメーション QR で返す（UART にも 16 進で出す）。
  * seed は BIP39 のテストベクタ（abandon ... about）で、資金を扱ってはならない */
 #include <stdio.h>
 #include <string.h>
@@ -16,7 +16,7 @@
 
 #define TEST_MNEMONIC "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
 
-/* parser.wasm の線形メモリ（UR デコーダ込みで約 132KB）もこのプールから取られる。QEMU の実測で最大 147KB */
+/* parser.wasm の線形メモリ（UR の復元と符号化込みで約 132KB）もこのプールから取られる。QEMU の実測で最大 149KB */
 static char pool[160 * 1024];
 static uint8_t parser_wasm_rw[sizeof(parser_wasm)];
 static uint8_t prevtx_arena[PARSER_PSBT_MAX];
@@ -113,9 +113,28 @@ int main(void) {
     if (!parser_host_finalize(sigs, n_sigs, signed_psbt, sizeof(signed_psbt), &out_len))
         return show_message("finalize failed", ""), 1;
     core_unload();
-    show_message("Signed", "PSBT is on UART (hex)");
     printf("signed psbt (%u bytes):\n", (unsigned)out_len);
     for (uint32_t i = 0; i < out_len; i++) printf("%02x%s", signed_psbt[i], (i % 32 == 31) ? "\n" : "");
     printf("\n");
+
+    /* 署名済み PSBT をアニメーション QR（UR）で返す。純粋なパートの後は混ぜたパートが続くので、
+     * ウォレットがいくつか取りこぼしても復元できる。A で終える */
+    if (parser_host_ur_encode_start(out_len, UI_UR_FRAGMENT) <= 0) return show_message("ur encode failed", ""), 1;
+    for (uint64_t next = 0;;) {
+        static char text[1024];
+        if (buttons_poll() == UI_KEY_A) break;
+        if (time_us_64() >= next) {
+            uint16_t line[UI_W];
+            if (!parser_host_ur_encode_next(text, sizeof(text)) || !ui_qr_set(text)) return show_message("qr failed", ""), 1;
+            st7789_begin_frame();
+            for (int y = 0; y < UI_H; y++) {
+                ui_qr_render_line(y, line);
+                st7789_write_line(line);
+            }
+            next = time_us_64() + 250 * 1000;
+        }
+        sleep_ms(10);
+    }
+    show_message("Done", "");
     return 0;
 }

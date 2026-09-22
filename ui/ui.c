@@ -1,6 +1,7 @@
 #include "ui.h"
 #include <string.h>
 #include "font8x16.h"
+#include "qrcodegen.h"
 
 #define RGB565(r, g, b) (uint16_t)(((r) >> 3) << 11 | ((g) >> 2) << 5 | (b) >> 3)
 #define C_TEXT RGB565(230, 230, 230)
@@ -130,5 +131,22 @@ void ui_render_line(const ui_screen_t *s, int y, uint16_t line[UI_W]) {
         uint8_t bits = font8x16[(ch >= 0x20 && ch <= 0x7e ? ch : '?') - 0x20][gy];
         for (int b = 0; b < FONT_W; b++)
             if (bits & (0x80 >> b)) line[c * FONT_W + b] = s->color[row];
+    }
+}
+
+static uint8_t qr[qrcodegen_BUFFER_LEN_FOR_VERSION(UI_QR_MAX_VERSION)];
+
+int ui_qr_set(const char *text) {
+    static uint8_t tmp[qrcodegen_BUFFER_LEN_FOR_VERSION(UI_QR_MAX_VERSION)];
+    return qrcodegen_encodeText(text, tmp, qr, qrcodegen_Ecc_LOW, 1, UI_QR_MAX_VERSION, qrcodegen_Mask_AUTO, true);
+}
+
+void ui_qr_render_line(int y, uint16_t line[UI_W]) {
+    int size = qrcodegen_getSize(qr), scale = UI_W / (size + 8), off = (UI_W - size * scale) / 2;
+    int my = (y - off) / scale;
+    for (int x = 0; x < UI_W; x++) {
+        int mx = (x - off) / scale;
+        int dark = y >= off && x >= off && my < size && mx < size && qrcodegen_getModule(qr, mx, my);
+        line[x] = dark ? 0x0000 : 0xffff;
     }
 }

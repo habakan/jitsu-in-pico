@@ -33,4 +33,13 @@ void ui_review_init(ui_review_t *r, const core_display_t *d);
 int ui_review_key(ui_review_t *r, int key);
 void ui_render_line(const ui_screen_t *s, int y, uint16_t line[UI_W]);
 
+/* 署名済み PSBT を返すアニメーション QR。1 パート 120 byte だと文字列が約 300 文字で QR は v8 前後、
+ * 240 px に 1 モジュール 4 px で収まる */
+#define UI_UR_FRAGMENT 120
+#define UI_QR_MAX_VERSION 12
+/* text を QR にする。収まらなければ 0 */
+int ui_qr_set(const char *text);
+/* 周囲に 4 モジュールの余白を付けて、画面いっぱいに整数倍で拡大する */
+void ui_qr_render_line(int y, uint16_t line[UI_W]);
+
 #endif

@@ -82,6 +82,48 @@ static long assemble_ur(const char *path) {
     return rc > 0 ? rc : -1;
 }
 
+/* 署名済み PSBT を UR にし、純粋なパートの 3 倍（混ぜたパートを含む）を <out>.ur に 1 行ずつ書く。
+ * preview があれば最初の 2 パートの QR 画面も PPM に書く */
+static int write_ur(const char *out_path, uint32_t len, const char *preview) {
+    static char text[4096];
+    char path[256];
+    uint64_t t0 = now(), worst_qr = 0;
+    int32_t seq_len = parser_host_ur_encode_start(len, UI_UR_FRAGMENT);
+    FILE *f;
+
+    snprintf(path, sizeof(path), "%s.ur", out_path);
+    if (seq_len <= 0 || !(f = fopen(path, "w"))) return -1;
+    for (int32_t i = 0; i < 3 * seq_len; i++) {
+        uint64_t t;
+        if (!parser_host_ur_encode_next(text, sizeof(text))) return fclose(f), -1;
+        fprintf(f, "%s\n", text);
+        t = now();
+        if (!ui_qr_set(text)) return fclose(f), -1;
+        t = now() - t;
+        worst_qr = t > worst_qr ? t : worst_qr;
+        if (preview && i < 2) {
+            uint16_t line[UI_W];
+            char ppm[256];
+            FILE *p;
+            snprintf(ppm, sizeof(ppm), "%s_qr_%02d.ppm", preview, (int)i);
+            if (!(p = fopen(ppm, "wb"))) continue;
+            fprintf(p, "P6 %d %d 255\n", UI_W, UI_H);
+            for (int y = 0; y < UI_H; y++) {
+                ui_qr_render_line(y, line);
+                for (int x = 0; x < UI_W; x++) {
+                    uint8_t v = line[x] ? 255 : 0, rgb[3] = {v, v, v};
+                    fwrite(rgb, 1, 3, p);
+                }
+            }
+            fclose(p);
+        }
+    }
+    fclose(f);
+    printf("  ur out: %d pure parts, %s encode+qr total=%llu worst_qr=%llu\n", (int)seq_len, UNIT,
+           (unsigned long long)(now() - t0), (unsigned long long)worst_qr);
+    return 0;
+}
+
 static int sign(const char *in_path, const char *out_path, const char *preview) {
     static plan_t plan;
     core_prevtx_t prev[PLAN_MAX_INPUTS];
@@ -119,6 +161,7 @@ static int sign(const char *in_path, const char *out_path, const char *preview) 
     if (!(f = fopen(out_path, "wb"))) return 1;
     fwrite(file_buf, 1, out_len, f);
     fclose(f);
+    if (write_ur(out_path, out_len, preview) != 0) return printf("ur encode failed\n"), 1;
     printf("  signed %u input(s); %s parse=%llu review=%llu sign=%llu finalize=%llu; pool_highmark=%u\n", n_sigs,
            UNIT, (unsigned long long)(t1 - t0), (unsigned long long)(t2 - t1), (unsigned long long)(t3 - t2),
            (unsigned long long)(t4 - t3), (unsigned)parser_host_pool_highmark());
@@ -133,7 +176,7 @@ int main(int argc, char **argv) {
     static char *qemu_argv[] = {"psbt_host", "sign", "build/psbt/own_mixed_nwu.ur", "build/psbt/own_mixed_nwu.qemu"};
     argc = 4, argv = qemu_argv;
 #endif
-    if (argc < 3) return fprintf(stderr, "usage: %s parse FILE... | sign IN(.psbt|.ur) OUT [PREVIEW_PREFIX]\n", argv[0]), 2;
+    if (argc < 3) return fprintf(stderr, "usage: %s parse FILE... | sign IN(.psbt|.ur) OUT [PREVIEW_PREFIX] | ur2bin IN.ur OUT\n", argv[0]), 2;
     memcpy(parser_wasm_rw, parser_wasm, sizeof(parser_wasm_rw));
     if (!core_init(CORE_MAINNET) || !parser_host_init(parser_wasm_rw, sizeof(parser_wasm_rw), pool, sizeof(pool)))
         return 1;
@@ -141,6 +184,14 @@ int main(int argc, char **argv) {
     if (!core_load_seed(seed)) return 1;
 
     if (!strcmp(argv[1], "sign")) return argc >= 4 ? sign(argv[2], argv[3], argc > 4 ? argv[4] : NULL) : 2;
+    if (!strcmp(argv[1], "ur2bin") && argc == 4) { /* UR（1 行 1 パート）を組み立てて PSBT のバイナリを書く */
+        long len = assemble_ur(argv[2]);
+        FILE *f = len > 0 ? fopen(argv[3], "wb") : NULL;
+        if (!f) return 1;
+        fwrite(file_buf, 1, (size_t)len, f);
+        fclose(f);
+        return 0;
+    }
     for (int i = 2; i < argc; i++) {
         static plan_t plan;
         core_prevtx_t prev[PLAN_MAX_INPUTS];

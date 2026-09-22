@@ -202,7 +202,14 @@ parser.wasm（wasm-psbt-parser）に UR（BCR-2020-005）の復元を入れた�
 - RV32（QEMU）: 混在 PSBT を 60 byte 断片の 19 パートで流すと合計 2,216 万命令、1 パート最大 423 万命令（150MHz で 30〜40ms）。組み立てた PSBT での署名結果はバイナリ PSBT のときとバイト一致
 - `.wasm` は 14KB、import は 0 個のまま。線形メモリの使用量（`__heap_base`）は 88KB から 158KB に増えたが、抽選とシャッフルの作業配列を削って 132KB にした（計算順序は変えていないので参照との一致はそのまま）。QEMU での WAMR プール最大は 147KB、実機アプリのプールは 160KB
 
+### 署名済み PSBT のアニメーション QR 出力
+
+- URへの符号化も parser.wasm に置く（`parser_ur_encode_start` / `parser_ur_encode_next`）。ウォレット（untrusted）へ返す出力の整形なので、署名の安全性には関わらず、TCB の外に出せる。符号化の結果は参照エンコーダ（@ngraveio/bc-ur）とパートごとに一致し、bc-ur の例とも文字単位で一致する（wasm-psbt-parser のテスト）
+- 1 パート 120 byte（約 300 文字、QR は v8 前後）にし、240 px の LCD に 1 モジュール 4 px で出す（`ui_qr_render_line`、周囲に 4 モジュールの余白）。純粋なパートの後に混ぜたパートを出し続けるので、ウォレットが取りこぼしても復元できる
+- 検証: 署名済み PSBT の UR を読み戻すとバイト一致し、LCD の QR 画面を画像にして zxing-cpp で読むとパートの文字列と一致する（`make check-psbt`）
+- RV32（QEMU）: 1 フレームあたり UR 符号化 約 150 万命令 + QR 生成 最大 約 800 万命令。150MHz で 60〜95ms なので 250ms 間隔のアニメーションに間に合う
+- 実機アプリ: FLASH 164KB、RAM 297KB（WAMR プール 160KB、QEMU での最大 149KB）
+
 ## 11. 次の作業
 
-1. 署名済み PSBT を UR にしてアニメーション QR で表示する
-2. 実機（Pico 2）で parser.wasm → core の一巡を動かし、XIP キャッシュ込みの実時間を測る
+1. 実機（Pico 2）で parser.wasm → core の一巡を動かし、XIP キャッシュ込みの実時間を測る

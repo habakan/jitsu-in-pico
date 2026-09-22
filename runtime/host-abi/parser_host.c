@@ -91,6 +91,20 @@ int parser_host_ur_receive(const char *part, uint32_t len, int32_t *rc, uint8_t 
     return copy_out(a[0], (uint32_t)*rc, psbt);
 }
 
+int32_t parser_host_ur_encode_start(uint32_t len, uint32_t max_fragment_len) {
+    uint32_t a[2] = {len, max_fragment_len};
+    return call("parser_ur_encode_start", 2, a) ? (int32_t)a[0] : -1;
+}
+
+int parser_host_ur_encode_next(char *text, size_t cap) {
+    uint32_t a[1] = {0}, off[1] = {0};
+    if (!call("parser_ur_encode_next", 0, a) || (int32_t)a[0] <= 0 || a[0] >= cap || !call("parser_input", 0, off))
+        return 0;
+    if (!copy_out(off[0], a[0], text)) return 0;
+    text[a[0]] = 0;
+    return 1;
+}
+
 uint32_t parser_host_pool_highmark(void) {
     mem_alloc_info_t mi;
     wasm_runtime_get_mem_alloc_info(&mi);
