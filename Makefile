@@ -33,8 +33,24 @@ deps:
 	curl -sL -o third_party/rv.zip $(RISCV_TC_URL) && unzip -q third_party/rv.zip -d third_party/riscv-toolchain && rm third_party/rv.zip
 .PHONY: deps
 
-build/signer_wasm.h: build/bitcoin-signer.wasm
-	cd build && xxd -i -n signer_wasm bitcoin-signer.wasm > signer_wasm.h
+# AOT=1 では wamrc で RV32 ネイティブにした .aot を Flash に置いて XIP 実行する。--bounds-checks=1 は MMU 無しでの線形メモリ保護。
+# XIP の既定は i64 の乗算・シフトまで関数呼び出しにするが、rv32 で libgcc 呼び出しになるのは除算・剰余だけなので絞る
+AOT     ?= 0
+WAMRC   := build/wamrc/wamrc
+WAMRC_FLAGS ?= --target=riscv32 --target-abi=ilp32 --cpu=generic-rv32 --cpu-features=+m,+a,+c,+zba,+zbb,+zbs \
+  --bounds-checks=1 --xip --enable-builtin-intrinsics=i64.div_s,i64.div_u,i64.rem_s,i64.rem_u,i32.const,f32.common,f64.common
+SIGNER_BIN := build/bitcoin-signer.$(if $(filter 1,$(AOT)),aot,wasm)
+
+$(WAMRC):
+	cmake -S third_party/wasm-micro-runtime/wamr-compiler -B build/wamrc -G Ninja -DCMAKE_BUILD_TYPE=Release \
+	  -DWAMR_BUILD_WITH_CUSTOM_LLVM=1 -DLLVM_DIR=/opt/homebrew/opt/llvm@18/lib/cmake/llvm >/dev/null
+	ninja -C build/wamrc >/dev/null
+
+build/bitcoin-signer.aot: build/bitcoin-signer.wasm $(WAMRC)
+	$(WAMRC) $(WAMRC_FLAGS) -o $@ $< >/dev/null
+
+build/signer_wasm.h: $(SIGNER_BIN)
+	xxd -i -n signer_wasm $< $(if $(filter 1,$(AOT)),| sed 's/^unsigned char/const unsigned char/') > $@
 
 build/native: host/native.c signer/signer.c signer/sha512.c signer/secp256k1_unity.c
 	mkdir -p build && cc -O2 -Wall -Wno-unused-function -I$(SECP)/include $(SECP_DEFS) -o $@ $^
@@ -54,17 +70,17 @@ RISCV_TC ?= $(CURDIR)/third_party/riscv-toolchain
 build/rp2350/signer.elf: build/signer_wasm.h host/wamr_main.c platform/rp2350/CMakeLists.txt runtime/wamr-platform/rp2350/rp2350_platform.c
 	cmake -S platform/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DPICO_SDK_PATH=$(CURDIR)/third_party/pico-sdk -DPICO_TOOLCHAIN_PATH=$(RISCV_TC) \
-	  -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
+	  -DWAMR_BUILD_AOT=$(AOT) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/rp2350
 
 POOL_KB ?= 128
 FAST    ?= 0
-QEMU_DIR := build/qemu-fast$(FAST)-$(POOL_KB)
+QEMU_DIR := build/qemu-fast$(FAST)-aot$(AOT)-$(POOL_KB)
 $(QEMU_DIR)/signer.elf: build/signer_wasm.h host/wamr_main.c platform/qemu-riscv32/CMakeLists.txt runtime/wamr-platform/rp2350/rp2350_platform.c
 	cmake -S platform/qemu-riscv32 -B $(QEMU_DIR) -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
 	  -DCMAKE_C_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc -DCMAKE_ASM_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc \
-	  -DPOOL_KB=$(POOL_KB) -DWAMR_BUILD_FAST_INTERP=$(FAST) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
+	  -DPOOL_KB=$(POOL_KB) -DWAMR_BUILD_FAST_INTERP=$(FAST) -DWAMR_BUILD_AOT=$(AOT) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C $(QEMU_DIR) >/dev/null
 
 QEMU_CPU := rv32,f=off,d=off,zfa=off,zba=on,zbb=on,zbs=on,zbkb=on,zcb=on,zcmp=on,zcmt=off

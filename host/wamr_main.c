@@ -89,7 +89,12 @@ int main(void) {
     if (!wasm_runtime_full_init(&args)) return 1;
     wasm_runtime_register_natives("env", natives, sizeof(natives) / sizeof(natives[0]));
 
-    wasm_module_t mod = wasm_runtime_load(signer_wasm, signer_wasm_len, err, sizeof(err));
+#ifdef QEMU_BUILD
+    /* XIP で Flash に置けるかの確認用。ローダが元バイナリへ書き込むかを実行後に比べる */
+    static unsigned char orig[sizeof(signer_wasm)];
+    memcpy(orig, signer_wasm, sizeof(orig));
+#endif
+    wasm_module_t mod = wasm_runtime_load((uint8_t *)signer_wasm, signer_wasm_len, err, sizeof(err));
     if (!mod) { printf("load: %s\n", err); return 1; }
     wasm_module_inst_t inst = wasm_runtime_instantiate(mod, 4096, 0, err, sizeof(err));
     if (!inst) { printf("instantiate: %s\n", err); return 1; }
@@ -130,6 +135,7 @@ int main(void) {
     wasm_runtime_get_mem_alloc_info(&mi);
     printf("wasm_size %u\npool_highmark %u\n", signer_wasm_len, mi.highmark_size);
 #ifdef QEMU_BUILD
+    printf("binary_modified %s\n", memcmp(orig, signer_wasm, sizeof(orig)) ? "yes" : "no");
     uint32_t *p = qemu_stack;
     while (p < qemu_stack_top && *p == 0xdeadbeef) p++;
     printf("native_stack_used %u\n", (unsigned)((char *)qemu_stack_top - (char *)p));

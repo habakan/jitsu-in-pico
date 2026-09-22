@@ -42,5 +42,6 @@ void *os_mremap(void *old_addr, size_t old_size, size_t new_size)
     return os_mremap_slow(old_addr, old_size, new_size);
 }
 void os_dcache_flush(void) {}
-void os_icache_flush(void *start, size_t len) { (void)start; (void)len; }
+/* AOT でロードしたコードを実行する前に命令フェッチ側へ反映させる */
+void os_icache_flush(void *start, size_t len) { (void)start; (void)len; __asm__ volatile("fence.i" ::: "memory"); }
 os_raw_file_handle os_invalid_raw_handle(void) { return -1; }

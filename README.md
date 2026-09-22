@@ -6,3 +6,4 @@ Raspberry Pi Pico 2 (RP2350 / RISC-V) 上で動く、署名ロジックを WASM 
 メモリ・速度の実現性検証: [docs/feasibility.md](docs/feasibility.md)
 QR 読み書きの実現性検証: [docs/qr-feasibility.md](docs/qr-feasibility.md)
 BIP39 / BIP32 の速度検証: [docs/kdf-feasibility.md](docs/kdf-feasibility.md)
+WAMR AOT (XIP) の検証: [docs/aot-feasibility.md](docs/aot-feasibility.md)
