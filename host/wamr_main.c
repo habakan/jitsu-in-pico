@@ -45,9 +45,10 @@ static void hex(const char *label, const unsigned char *p) {
 #ifdef QEMU_BUILD
 extern uint32_t qemu_stack[], qemu_stack_top[];
 /* crt0 が BSS ごとスタックを消すので、main 入口で未使用部分を塗って使用量を測る */
-static void paint_stack(void) {
-    uint32_t marker, *p = qemu_stack;
-    while (p < &marker - 64) *p++ = 0xdeadbeef;
+static void __attribute__((noinline)) paint_stack(void) {
+    uint32_t *sp, *p = qemu_stack;
+    __asm__ volatile("mv %0, sp" : "=r"(sp));
+    while (p < sp - 64) *p++ = 0xdeadbeef;
 }
 #endif
 

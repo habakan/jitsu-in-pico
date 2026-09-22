@@ -26,6 +26,8 @@ deps:
 	cd third_party && git clone --depth 1 https://github.com/bitcoin-core/secp256k1.git
 	cd third_party && git clone --depth 1 -b WAMR-2.4.3 https://github.com/bytecodealliance/wasm-micro-runtime.git
 	cd third_party && git clone --depth 1 -b 2.3.1 https://github.com/raspberrypi/pico-sdk.git
+	cd third_party && git clone --depth 1 https://github.com/dlbeer/quirc.git
+	cd third_party && git clone --depth 1 https://github.com/nayuki/QR-Code-generator.git
 	curl -sL -o third_party/rv.zip $(RISCV_TC_URL) && unzip -q third_party/rv.zip -d third_party/riscv-toolchain && rm third_party/rv.zip
 .PHONY: deps
 
@@ -79,3 +81,35 @@ check-qemu-native: build/qemu-native.elf
 	qemu-system-riscv32 -M virt -cpu $(QEMU_CPU) -m 64M -nographic -bios none -semihosting -icount shift=0 \
 	  -kernel $< </dev/null
 .PHONY: check-qemu-native
+
+# 既定はパッチ適用版。QUIRC=third_party/quirc/lib で素の quirc と比較できる
+QUIRC   ?= build/quirc/lib
+QUIRC_DEFS ?= -DQUIRC_FLOAT_TYPE=float -DQUIRC_USE_TGMATH
+build/quirc/lib/identify.c: qr/quirc-fixed-point-fitness.patch
+	rm -rf build/quirc && mkdir -p build/quirc && cp -r third_party/quirc/lib build/quirc/
+	patch -s -d build/quirc -p1 < $<
+QRGEN   := third_party/QR-Code-generator/c
+build/qr_frames.h: tools/gen_qr_frames.py
+	mkdir -p build && uv run -q $< $@
+
+# -O2 だと Hazard3 独自の Xh3bextm 命令が出て QEMU で落ちるため、標準拡張だけを指定する
+QEMU_MARCH := -march=rv32imac_zicsr_zifencei_zba_zbb_zbs_zbkb_zcb_zcmp -mabi=ilp32
+build/qemu-qr.elf: host/qr_bench.c build/qr_frames.h platform/qemu-riscv32/start.S $(QUIRC)/identify.c
+	$(RISCV_TC)/bin/riscv32-pico-elf-gcc $(QEMU_MARCH) -O2 -DQEMU_BUILD=1 -Wall \
+	  $(QUIRC_DEFS) -I$(QUIRC) -I$(QRGEN) -Ibuild --specs=semihost.specs -Wl,--section-start=.qemu_start=0x80000000 \
+	  -Wl,-Ttext=0x80001000 -Wl,-e,qemu_start -Wl,--gc-sections -o $@ \
+	  host/qr_bench.c $(wildcard $(QUIRC)/*.c) $(QRGEN)/qrcodegen.c platform/qemu-riscv32/start.S -lm
+
+check-qemu-qr: build/qemu-qr.elf
+	qemu-system-riscv32 -M virt -cpu $(QEMU_CPU) -m 64M -nographic -bios none -semihosting -icount shift=0 \
+	  -kernel $< </dev/null
+.PHONY: check-qemu-qr
+
+# 読取可否は Mac ネイティブで quirc と zxing-cpp を比べる（命令数は check-qemu-qr で測る）
+build/qr_bench_mac: host/qr_bench.c build/qr_frames.h $(QUIRC)/identify.c
+	cc -O2 -Wall $(QUIRC_DEFS) -I$(QUIRC) -I$(QRGEN) -Ibuild -o $@ host/qr_bench.c $(QUIRC)/*.c $(QRGEN)/qrcodegen.c
+
+check-qr-mac: build/qr_bench_mac
+	build/qr_bench_mac | awk '{print $$1, $$4}'
+	uv run -q tools/zxing_check.py build/qr_frames | sed 's/^/zxing /'
+.PHONY: check-qr-mac
