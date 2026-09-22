@@ -23,7 +23,8 @@ static int zero_rng(uint8_t *buf, size_t len) { memset(buf, 0, len); return 1; }
 
 /* 生の取引から plan を組む。スクリプトと額は utxo 側から与える（parser.wasm の代役） */
 typedef struct { plan_t *p; } build_t;
-static int b_in(void *c, uint32_t i, const uint8_t prevout[36], uint32_t seq) {
+static int b_in(void *c, uint32_t i, const uint8_t prevout[36], size_t script_sig_len, uint32_t seq) {
+    (void)script_sig_len;
     plan_t *p = ((build_t *)c)->p;
     if (i >= PLAN_MAX_INPUTS) return 0;
     memcpy(p->inputs[i].prev_txid, prevout, 32);

@@ -277,9 +277,17 @@ static int sign_input(const plan_t *p, unsigned i, core_rng_t rng, core_sig_t *s
 
     s->input = (uint8_t)i;
     if (ok && spk_type(&in->spk) == SPK_P2WPKH) {
-        ok = sighash_bip143_p2wpkh(p, i, digest)
-          && secp256k1_ecdsa_sign(ctx, &sig, digest, node.key, NULL, NULL)
-          && secp256k1_ecdsa_signature_serialize_der(ctx, s->sig, &len, &sig)
+        /* Bitcoin Core と同じ low-R grinding: R が 0x80 未満になるまで counter を RFC6979 の追加データにして引き直す */
+        uint8_t extra[32] = {0}, compact[64];
+        uint32_t counter = 0;
+        ok = sighash_bip143_p2wpkh(p, i, digest);
+        do {
+            ok = ok && secp256k1_ecdsa_sign(ctx, &sig, digest, node.key, NULL, counter ? extra : NULL)
+                    && secp256k1_ecdsa_signature_serialize_compact(ctx, compact, &sig);
+            counter++;
+            for (int k = 0; k < 4; k++) extra[k] = (uint8_t)(counter >> (8 * k));
+        } while (ok && compact[0] >= 0x80);
+        ok = ok && secp256k1_ecdsa_signature_serialize_der(ctx, s->sig, &len, &sig)
           && bip32_pubkey(ctx, node.key, s->pubkey);
         s->sig[len] = 0x01;
         s->sig_len = (uint8_t)(len + 1);

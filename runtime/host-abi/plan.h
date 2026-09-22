@@ -21,7 +21,7 @@ typedef struct {
 
 typedef struct {
     uint8_t depth;
-    uint32_t fingerprint;
+    uint32_t fingerprint; /* HASH160(master pubkey) の先頭 4 byte を big endian で読んだ値（73c5da0a なら 0x73c5da0a） */
     uint32_t path[PLAN_MAX_DEPTH];
 } plan_keypath_t;
 
@@ -50,6 +50,15 @@ typedef struct {
     plan_output_t outputs[PLAN_MAX_OUTPUTS];
 } plan_t;
 
+/* ネイティブが作った署名。ホストが parser.wasm の署名バッファに書き、parser.wasm が PSBT に挿入する */
+typedef struct {
+    uint8_t input;
+    uint8_t pubkey[33]; /* P2WPKH は圧縮公開鍵。P2TR は先頭 0x00 + x-only 出力鍵 */
+    uint8_t sig_len;
+    uint8_t sig[73];    /* ECDSA は DER + sighash byte、Schnorr は 64 か 65 byte */
+} plan_sig_t;
+
+_Static_assert(sizeof(plan_sig_t) == 108, "plan_sig_t layout");
 _Static_assert(sizeof(plan_input_t) == 176, "plan_input_t layout");
 _Static_assert(sizeof(plan_output_t) == 136, "plan_output_t layout");
 _Static_assert(offsetof(plan_t, inputs) == 24, "plan_t layout");

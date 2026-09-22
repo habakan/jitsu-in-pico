@@ -1,6 +1,6 @@
 # Architecture B: 解析器を WASM に隔離し、鍵と署名はネイティブに置く
 
-Version 0.2 | 2026-09-22 | 状態: §8 決定済み、ネイティブ中核を実装（§10）
+Version 0.3 | 2026-09-22 | 状態: §8 決定済み、ネイティブ中核と parser.wasm を実装（§10）
 
 design.md §3・§7・§8 は、署名ロジック全体を `bitcoin-signer.wasm` に入れる案（案 A）で書かれている。
 本書はそれを置き換える案 B を定義する。判断事項が決まったら design.md に反映する。
@@ -31,13 +31,13 @@ Camera ─> quirc (native) ─> QR payload bytes
              │ UR / BBQr 復元 → CBOR → PSBT 解析     │
              │ → Transaction Plan（固定長レコード）  │
              └───────────────┬──────────────────────┘
-                             │ host_submit_plan(ptr, len)
+                             │ ホストが plan と non_witness_utxo を検証付きでコピー
                              ▼
              ┌──────── signing core (native) ───────┐
              │ Plan 検証 → 鍵導出と所有確認          │
              │ → 表示モデル生成 → sighash → 署名     │
              └───────────────┬──────────────────────┘
-                             │ 署名一覧（pubkey, sig）
+                             │ ホストが署名一覧（plan_sig_t）を書き込む
                              ▼
              parser.wasm: 元 PSBT に partial_sig を挿入して直列化
                              │
@@ -45,8 +45,8 @@ Camera ─> quirc (native) ─> QR payload bytes
                      qrcodegen (native) ─> LCD
 ```
 
-parser.wasm の import は `host_submit_plan` と、PSBT の再直列化に使う `host_take_signatures` の 2 個だけにする。
-乱数、確認、表示、鍵に関わる import は持たせない。
+parser.wasm は import を 1 個も持たない。受け渡しはすべて、parser.wasm がエクスポートするバッファをホストが読み書きして行う。
+ホストは parser.wasm が返したアドレスと長さを `wasm_runtime_validate_app_addr` で線形メモリ内か確かめてからコピーする。
 
 ## 4. 責務の分担
 
@@ -93,7 +93,7 @@ parser.wasm が元 PSBT と違う Plan を出しても、ユーザーが見る�
 
 1. **SegWit v0 入力の `non_witness_utxo`:** SegWit v0 の署名対象を含み、入力が 2 個以上なら全入力で必須。1 入力なら不要（嘘の額で作った署名は無効になるだけ）。ネイティブの最小 tx パーサ（`core/tx.c`）で txid・vout・額・スクリプトを確かめる
 2. **初期対象:** P2WPKH（BIP84）と P2TR（BIP86、スクリプトツリー無し）
-3. **parser.wasm のランタイム:** インタプリタ。速度は解析器の実装後に測る
+3. **parser.wasm のランタイム:** インタプリタ。実装後に RV32 で測り、PSBT 解析 270 万命令、署名挿入 4 万命令（§10）で十分と確認した
 4. **multisig:** 初期版には入れない
 
 ## 9. Plan の形式（案）
@@ -177,8 +177,23 @@ typedef struct {
 - 攻撃シナリオ: review 後の plan 差し替え（display と sign の両方）、偽のお釣り、自分宛て、index 上限、別アカウントのお釣り、鍵とスクリプトの不一致、許可しない sighash type、未使用領域の非ゼロ、出力超過、手数料攻撃（元の取引なし・嘘の額・誤った vout・誤った txid）
 - 実装を 5 箇所わざと壊し（BIP143 の hash type、BIP341 の spend_type、手数料攻撃の判定、bech32m の定数、base58 の先頭ゼロ）、それぞれテストが失敗することを確認した
 
+### parser.wasm（`parser/psbt.c`）
+
+- PSBT v0（BIP174）を `plan_t` にし、ネイティブが作った署名を各入力マップの終端の直前に挿入する。他のバイト列は元のまま残す
+- `.wasm` は 7KB、import 0 個。入出力バッファ（`PSBT_MAX` 32KB）を持つので線形メモリは 2 ページ
+- 解釈するフィールドは厳密に検査する: 重複キー、型ごとのキー / 値の長さ、v2 専用フィールド、unsigned tx の scriptSig / witness、`non_witness_utxo` の txid と `witness_utxo` との一致、末尾の余り
+- 解釈しないフィールド（MuSig2 など）は素通しする。公開鍵が曲線上にあるかは見ない（ネイティブは PSBT の公開鍵を使わず、自分で導出する）
+- 自分の鍵の候補は、ホストから受け取った master fingerprint（秘密ではない）に一致する導出情報だけ。最終化済み・署名済みの入力と、スクリプトツリー付きの P2TR には署名しない
+- ECDSA は Bitcoin Core と同じ low-R grinding を入れた（`core/core.c`）。embit の署名とバイト一致させるため
+
+検証（`make check-psbt`、`make check-qemu-psbt`）:
+
+- embit で組んだ自分の seed 向け PSBT 6 件（P2WPKH 1 / 2 入力、P2TR 2 入力、混在、他人の入力入り、`non_witness_utxo` 無しの 2 入力）を一巡させ、署名済み PSBT を embit で独立に検証した（`tools/check_signed_psbt.py`）。ECDSA は embit 自身の署名とバイト一致、Schnorr は embit の BIP341 sighash で検証が通る。`non_witness_utxo` 無しの 2 入力は `CORE_ERR_PREVTX_MISSING` で拒否される
+- Bitcoin Core の `test/functional/data/rpc_psbt.json`（invalid 84 件、valid 48 件。base64 が壊れた 2 件は対象外）で trap は 0 件。invalid は MuSig2 フィールドの 15 件を除き全て拒否。valid は 31 件受理、PSBT v2 の 14 件と utxo 無し 2 件と入力 0 個 1 件を拒否（`tools/check_rpc_results.py`）
+- RV32（QEMU）で混在 PSBT を一巡: parse 2.72M、review 17.1M、sign 14.5M、finalize 0.04M 命令。署名済み PSBT は Mac と RV32 でバイト一致
+
 ## 11. 次の作業
 
-1. parser.wasm: PSBT v0（BIP174。v2 の BIP370 は対象外）から plan への変換と、署名の PSBT への挿入。BIP174 のテストベクタで検証
-2. `host_submit_plan` / `host_take_signatures` をホストに実装し、parser.wasm → core → parser.wasm を一巡させる
-3. UR（`crypto-psbt`）の復元を parser.wasm に入れる
+1. UR（`crypto-psbt`）の復元と CBOR を parser.wasm に入れ、アニメーション QR の断片から PSBT を組み立てる
+2. 署名済み PSBT を UR にしてアニメーション QR で表示する
+3. 実機（Pico 2）で parser.wasm → core の一巡を動かし、XIP キャッシュ込みの実時間を測る

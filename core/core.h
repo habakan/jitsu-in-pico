@@ -55,12 +55,7 @@ typedef struct {
     core_display_output_t outputs[PLAN_MAX_OUTPUTS];
 } core_display_t;
 
-typedef struct {
-    uint8_t input;
-    uint8_t pubkey[33]; /* P2TR は先頭 1 byte を除いた x-only 鍵 */
-    uint8_t sig_len;
-    uint8_t sig[73];    /* ECDSA は DER + sighash byte、Schnorr は 64 か 65 byte */
-} core_sig_t;
+typedef plan_sig_t core_sig_t;
 
 typedef int (*core_rng_t)(uint8_t *buf, size_t len);
 

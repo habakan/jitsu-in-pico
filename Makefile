@@ -156,3 +156,42 @@ check-qemu-core: build/qemu-test-core.elf
 	qemu-system-riscv32 -M virt -cpu $(QEMU_CPU) -m 64M -nographic -bios none -semihosting \
 	  -kernel $< </dev/null
 .PHONY: check-qemu-core
+
+# parser.wasm（鍵なし、import なし）。PSBT_MAX 32KB の入出力バッファを持つので線形メモリは 2 ページ
+PARSER_SRC := parser/psbt.c core/tx.c core/sha256.c
+build/parser.wasm: $(PARSER_SRC) core/*.h runtime/host-abi/plan.h
+	mkdir -p build
+	$(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs -Oz -Wall -Wextra \
+	  -Icore -Iruntime/host-abi -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all -Wl,-z,stack-size=16384 \
+	  -Wl,--export=__heap_base -Wl,--export=__data_end -Wl,--initial-memory=131072 -Wl,--max-memory=131072 \
+	  -o $@ $(PARSER_SRC) -lc $(RTLIB)/libclang_rt.builtins.a
+
+build/parser_wasm.h: build/parser.wasm
+	xxd -i -n parser_wasm $< > $@
+
+build/psbt/own_p2wpkh_1in.psbt: tools/gen_psbt_vectors.py test-vectors/rpc_psbt.json
+	rm -rf build/psbt && uv run -q $< test-vectors/rpc_psbt.json build/psbt
+
+build/host-classic/psbt_host: build/parser_wasm.h build/signer_wasm.h host/psbt_main.c host/CMakeLists.txt $(CORE_SRC)
+	cmake -S host -B build/host-classic -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DWAMR_BUILD_FAST_INTERP=0 \
+	  -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
+	ninja -C build/host-classic psbt_host >/dev/null
+
+check-psbt: build/host-classic/psbt_host build/psbt/own_p2wpkh_1in.psbt
+	rm -f build/psbt/*.signed
+	for f in build/psbt/own_*.psbt; do echo "== $$f"; build/host-classic/psbt_host sign $$f $${f%.psbt}.signed || true; done
+	uv run -q tools/check_signed_psbt.py build/psbt
+	build/host-classic/psbt_host parse build/psbt/rpc_*.psbt > build/psbt/rpc_results.txt
+	python3 tools/check_rpc_results.py test-vectors/rpc_psbt.json build/psbt/rpc_results.txt
+.PHONY: check-psbt
+
+check-qemu-psbt: build/parser_wasm.h build/signer_wasm.h build/psbt/own_p2wpkh_1in.psbt
+	cmake -S platform/qemu-riscv32 -B build/qemu-psbt -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
+	  -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+	  -DCMAKE_C_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc -DCMAKE_ASM_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc \
+	  -DPOOL_KB=64 -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
+	ninja -C build/qemu-psbt psbt.elf >/dev/null
+	qemu-system-riscv32 -M virt -cpu $(QEMU_CPU) -m 64M -nographic -bios none -semihosting -icount shift=0 \
+	  -kernel build/qemu-psbt/psbt.elf </dev/null
+	cmp build/psbt/own_mixed_nwu.qemu build/psbt/own_mixed_nwu.signed && echo "qemu output matches host"
+.PHONY: check-qemu-psbt
