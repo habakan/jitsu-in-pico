@@ -101,12 +101,10 @@ check-qemu-native: build/qemu-native.elf
 	  -kernel $< </dev/null
 .PHONY: check-qemu-native
 
-# 既定はパッチ適用版。QUIRC=third_party/quirc/lib で素の quirc と比較できる
-QUIRC   ?= build/quirc/lib
-QUIRC_DEFS ?= -DQUIRC_FLOAT_TYPE=float -DQUIRC_USE_TGMATH
-build/quirc/lib/identify.c: qr/quirc-fixed-point-fitness.patch
-	rm -rf build/quirc && mkdir -p build/quirc && cp -r third_party/quirc/lib build/quirc/
-	patch -s -d build/quirc -p1 < $<
+# 既定は自前のフォーク（submodule、mcu ブランチ）の固定小数点版。
+# 上流と比べるときは QUIRC=third_party/quirc/lib QUIRC_DEFS= を渡す
+QUIRC   ?= qr/quirc/lib
+QUIRC_DEFS ?= -DQUIRC_FIXED_POINT_FITNESS -DQUIRC_FLOAT_TYPE=float -DQUIRC_USE_TGMATH
 QRGEN   := third_party/QR-Code-generator/c
 build/qr_frames.h: tools/gen_qr_frames.py
 	mkdir -p build && uv run -q $< $@

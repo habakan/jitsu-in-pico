@@ -1,3 +1,7 @@
 [submodule "parser"]
 	path = parser
 	url = git@github.com:habakan/wasm-psbt-parser.git
+[submodule "qr/quirc"]
+	path = qr/quirc
+	url = git@github.com:habakan/quirc.git
+	branch = mcu
