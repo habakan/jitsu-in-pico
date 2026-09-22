@@ -17,5 +17,6 @@ set(WAMR_BUILD_SIMD 0)
 set(WAMR_BUILD_REF_TYPES 0)
 include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
 
-add_executable(signer_wamr wamr_main.c ${WAMR_RUNTIME_LIB_SOURCE})
-target_include_directories(signer_wamr PRIVATE ${SIGNER_WASM_H_DIR})
+add_executable(signer_wamr wamr_main.c ../signer/sha512.c ${WAMR_RUNTIME_LIB_SOURCE})
+target_include_directories(signer_wamr PRIVATE ${SIGNER_WASM_H_DIR} ../signer)
+target_compile_definitions(signer_wamr PRIVATE POOL_KB=256)

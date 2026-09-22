@@ -6,15 +6,17 @@ COMB    ?= -DCOMB_BLOCKS=2 -DCOMB_TEETH=5
 SECP_DEFS := -DENABLE_MODULE_EXTRAKEYS=1 -DENABLE_MODULE_SCHNORRSIG=1 -DECMULT_WINDOW_SIZE=2 \
              -DUSE_EXTERNAL_DEFAULT_CALLBACKS=1 $(COMB)
 RTLIB   ?= /opt/homebrew/opt/wasi-runtimes/share/wasi-runtimes/lib/wasm32-unknown-wasip1
-CFLAGS  := -Oz -Wall -Wno-unused-function -I$(SECP)/include $(SECP_DEFS)
+# SHA512_HOST=1 で SHA-512 圧縮関数をホストの import にする
+SHA512_HOST ?= 0
+CFLAGS  := -Oz -Wall -Wno-unused-function -I$(SECP)/include $(SECP_DEFS) $(if $(filter 1,$(SHA512_HOST)),-DSHA512_HOST_COMPRESS)
 STACK   ?= 16384
 
-build/bitcoin-signer.wasm: signer/signer.c signer/secp256k1_unity.c
+build/bitcoin-signer.wasm: signer/signer.c signer/sha512.c signer/secp256k1_unity.c
 	mkdir -p build
 	$(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs $(CFLAGS) \
 	  -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all -Wl,-z,stack-size=$(STACK) \
 	  -Wl,--export=__heap_base -Wl,--export=__data_end -Wl,--initial-memory=65536 -Wl,--max-memory=65536 \
-	  -o $@ signer/signer.c signer/secp256k1_unity.c -lc $(RTLIB)/libclang_rt.builtins.a
+	  -o $@ signer/signer.c signer/sha512.c signer/secp256k1_unity.c -lc $(RTLIB)/libclang_rt.builtins.a
 
 clean:
 	rm -rf build
@@ -34,7 +36,7 @@ deps:
 build/signer_wasm.h: build/bitcoin-signer.wasm
 	cd build && xxd -i -n signer_wasm bitcoin-signer.wasm > signer_wasm.h
 
-build/native: host/native.c signer/signer.c signer/secp256k1_unity.c
+build/native: host/native.c signer/signer.c signer/sha512.c signer/secp256k1_unity.c
 	mkdir -p build && cc -O2 -Wall -Wno-unused-function -I$(SECP)/include $(SECP_DEFS) -o $@ $^
 
 build/host-%/signer_wamr: build/signer_wasm.h host/wamr_main.c host/CMakeLists.txt
@@ -72,7 +74,7 @@ check-qemu: $(QEMU_DIR)/signer.elf
 .PHONY: check-qemu
 
 # 比較用: WASM を通さず同じ signer を RV32 ネイティブで動かす
-build/qemu-native.elf: host/native.c signer/signer.c signer/secp256k1_unity.c platform/qemu-riscv32/start.S
+build/qemu-native.elf: host/native.c signer/signer.c signer/sha512.c signer/secp256k1_unity.c platform/qemu-riscv32/start.S
 	$(RISCV_TC)/bin/riscv32-pico-elf-gcc -mcpu=hazard3-rp2350 -Os -DQEMU_BUILD=1 -Wall -Wno-unused-function \
 	  -I$(SECP)/include $(SECP_DEFS) --specs=semihost.specs -Wl,--section-start=.qemu_start=0x80000000 \
 	  -Wl,-Ttext=0x80001000 -Wl,-e,qemu_start -Wl,--gc-sections -o $@ $^

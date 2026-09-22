@@ -6,3 +6,10 @@ static const unsigned char TV_IN[96] = {
     0xA4,0x09,0x38,0x22,0x29,0x9F,0x31,0xD0,0x08,0x2E,0xFA,0x98,0xEC,0x4E,0x6C,0x89,
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0x01,
 };
+
+/* BIP39 公式ベクタの 12 / 24 単語。24 単語は 128 byte を超え、HMAC の長鍵経路を通る */
+#define TV_MN12 "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
+#define TV_MN24 "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon " \
+                "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art"
+/* BIP84 の最初の受取アドレス m/84'/0'/0'/0/0 */
+static const uint32_t TV_PATH[5] = {0x80000054, 0x80000000, 0x80000000, 0, 0};
