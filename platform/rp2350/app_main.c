@@ -16,8 +16,8 @@
 
 #define TEST_MNEMONIC "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
 
-/* parser.wasm の線形メモリ（UR デコーダ込みで約 158KB）もこのプールから取られる */
-static char pool[192 * 1024];
+/* parser.wasm の線形メモリ（UR デコーダ込みで約 132KB）もこのプールから取られる。QEMU の実測で最大 147KB */
+static char pool[160 * 1024];
 static uint8_t parser_wasm_rw[sizeof(parser_wasm)];
 static uint8_t prevtx_arena[PARSER_PSBT_MAX];
 static uint8_t signed_psbt[PARSER_PSBT_MAX + 2048];
