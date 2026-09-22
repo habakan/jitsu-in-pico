@@ -1,0 +1,28 @@
+# RP2350 実機の代わりに QEMU virt で同じ RV32 WAMR を動かし、32bit でのメモリ量と命令数を測る
+cmake_minimum_required(VERSION 3.13)
+project(signer_qemu C ASM)
+set(ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
+
+set(WAMR_ROOT_DIR ${ROOT}/third_party/wasm-micro-runtime)
+set(SHARED_PLATFORM_CONFIG ${ROOT}/runtime/wamr-platform/rp2350/shared_platform.cmake)
+set(WAMR_BUILD_PLATFORM rp2350)
+set(WAMR_BUILD_TARGET RISCV32_ILP32)
+set(WAMR_BUILD_INTERP 1)
+if(NOT DEFINED WAMR_BUILD_FAST_INTERP)
+  set(WAMR_BUILD_FAST_INTERP 0)
+endif()
+set(WAMR_BUILD_AOT 0)
+set(WAMR_BUILD_LIBC_BUILTIN 0)
+set(WAMR_BUILD_LIBC_WASI 0)
+set(WAMR_BUILD_SIMD 0)
+set(WAMR_BUILD_REF_TYPES 0)
+set(WAMR_DISABLE_HW_BOUND_CHECK 1)
+include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
+
+add_executable(signer.elf ${ROOT}/host/wamr_main.c ${CMAKE_CURRENT_LIST_DIR}/start.S ${WAMR_RUNTIME_LIB_SOURCE})
+target_compile_definitions(signer.elf PRIVATE QEMU_BUILD=1 POOL_KB=${POOL_KB})
+target_compile_options(signer.elf PRIVATE -mcpu=hazard3-rp2350 -Os)
+target_include_directories(signer.elf PRIVATE ${SIGNER_WASM_H_DIR})
+target_link_options(signer.elf PRIVATE -mcpu=hazard3-rp2350 --specs=semihost.specs
+  -Wl,--section-start=.qemu_start=0x80000000 -Wl,-Ttext=0x80001000 -Wl,-e,qemu_start -Wl,--gc-sections)
+target_link_libraries(signer.elf m)
