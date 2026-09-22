@@ -27,6 +27,17 @@ for name, path, kind in (("P2WPKH_0_0", "m/84h/0h/0h/0/0", "wpkh"), ("P2WPKH_0_1
 # BIP86 の文書に載っている m/86'/0'/0'/0/0 の scriptPubKey と一致することを確かめる
 assert spks["P2TR_0_0"].hex() == "5120a60869f0dbcf1dc659c9cecbaf8050135ea9e8cdc487053f1dc6880949dc684c"
 
+# base58check の期待値（P2PKH / P2SH、mainnet / testnet）
+from embit.networks import NETWORKS
+out.append("static const struct { uint8_t len; uint8_t spk[25]; int testnet; const char *addr; } TV_B58[] = {")
+for spk_hex in ("76a9148280b37df378db99f66f85c95a783a76ac7a6d5988ac", "a914" + "00" * 19 + "0187",
+                "76a914" + "00" * 20 + "88ac"):
+    spk = bytes.fromhex(spk_hex)
+    for testnet, net in ((0, "main"), (1, "test")):
+        addr = script.Script(spk).address(NETWORKS[net])
+        out.append(f"    {{{len(spk)}, {c_bytes(spk)}, {testnet}, \"{addr}\"}},")
+out.append("};")
+
 d = json.load(open(sys.argv[1]))["keyPathSpending"][0]
 raw = bytes.fromhex(d["given"]["rawUnsignedTx"])
 out.append(f"static const uint8_t TV341_TX[{len(raw)}] = {c_bytes(raw)};")

@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "core.h"
+#include "address.h"
 #include "hash.h"
 #include "sighash.h"
 #include "tx.h"
@@ -163,7 +164,17 @@ static void test_review_and_sign(void) {
     /* P2WPKH 1 入力、外部 + お釣り */
     base_plan(&p);
     CHECK(core_review(&p, NULL, &r) == CORE_OK, "p2wpkh review");
-    CHECK(r.fee == 1000 && !r.is_change[0] && r.is_change[1] && r.n_sign == 1, "p2wpkh change/fee");
+    CHECK(r.fee == 1000 && r.owner[0] == CORE_OUT_EXTERNAL && r.owner[1] == CORE_OUT_CHANGE && r.n_sign == 1,
+          "p2wpkh change/fee");
+    {
+        core_display_t d;
+        char btc[21];
+        CHECK(core_display(&p, &r, &d) == CORE_OK && d.fee == 1000 && d.spend == 60000 && d.n_outputs == 2
+              && d.outputs[1].owner == CORE_OUT_CHANGE && d.outputs[1].text_kind == CORE_TEXT_ADDRESS
+              && d.outputs[0].text_kind == CORE_TEXT_ADDRESS && !strncmp(d.outputs[0].text, "bc1q", 4), "display");
+        core_format_btc(d.spend, btc);
+        CHECK(!strcmp(btc, "0.00060000"), "format %s", btc);
+    }
     CHECK(core_sign(&p, zero_rng, sigs, &n) == CORE_OK && n == 1, "p2wpkh sign");
     {
         secp256k1_pubkey pub;
@@ -184,13 +195,44 @@ static void test_review_and_sign(void) {
     /* お釣りを名乗るがスクリプトが外部 */
     base_plan(&p);
     p.outputs[0].key = p.outputs[1].key;
-    CHECK(core_review(&p, NULL, &r) == CORE_OK && !r.is_change[0], "fake change is external");
+    CHECK(core_review(&p, NULL, &r) == CORE_OK && r.owner[0] == CORE_OUT_EXTERNAL, "fake change is external");
+
+    /* 受取チェーンへの出力は自分宛て。手数料以外は支出にならない */
+    base_plan(&p);
+    set_spk(&p.outputs[0].spk, TV_SPK_P2WPKH_0_1, 22);
+    set_key(&p.outputs[0].key, 84 | H, H, H, 0, 1);
+    {
+        core_display_t d;
+        CHECK(core_review(&p, NULL, &r) == CORE_OK && r.owner[0] == CORE_OUT_SELF && core_display(&p, &r, &d) == CORE_OK
+              && d.spend == 0 && !strcmp(d.outputs[0].text, "bc1qnjg0jd8228aq7egyzacy8cys3knf9xvrerkf9g"),
+              "self transfer");
+    }
+
+    /* index の上限を超えるものは自分のアドレスとみなさない */
+    base_plan(&p);
+    p.outputs[1].key.path[4] = 100000;
+    CHECK(core_review(&p, NULL, &r) == CORE_OK && r.owner[1] == CORE_OUT_EXTERNAL, "change index cap");
+
+    /* OP_RETURN と非標準スクリプトは 16 進で全体を見せる */
+    base_plan(&p);
+    {
+        static const uint8_t opret[6] = {0x6a, 0x04, 0xde, 0xad, 0xbe, 0xef}, odd[3] = {0x51, 0x01, 0x02};
+        core_display_t d;
+        set_spk(&p.outputs[0].spk, opret, 6);
+        p.n_outputs = 3;
+        set_spk(&p.outputs[2].spk, odd, 3);
+        CHECK(core_review(&p, NULL, &r) == CORE_OK && core_display(&p, &r, &d) == CORE_OK
+              && d.outputs[0].text_kind == CORE_TEXT_OP_RETURN && !strcmp(d.outputs[0].text, "04deadbeef")
+              && d.outputs[2].text_kind == CORE_TEXT_SCRIPT && !strcmp(d.outputs[2].text, "510102"), "opreturn/script");
+        p.outputs[0].amount = 0;
+        CHECK(core_display(&p, &r, &d) == CORE_ERR_NOT_REVIEWED, "display needs same plan");
+    }
 
     /* 別アカウントの change はお釣りとみなさない */
     base_plan(&p);
     set_spk(&p.outputs[1].spk, TV_SPK_P2WPKH_ACCT1_1_0, 22);
     set_key(&p.outputs[1].key, 84 | H, H, 1 | H, 1, 0);
-    CHECK(core_review(&p, NULL, &r) == CORE_OK && !r.is_change[1], "other account change is external");
+    CHECK(core_review(&p, NULL, &r) == CORE_OK && r.owner[1] == CORE_OUT_EXTERNAL, "other account change is external");
 
     /* 自分の fingerprint を名乗るのに鍵とスクリプトが一致しない */
     base_plan(&p);
@@ -256,7 +298,7 @@ static void test_review_and_sign(void) {
     p.outputs[0].amount = 139000;
     set_spk(&p.outputs[0].spk, TV_SPK_P2TR_1_0, 34);
     set_key(&p.outputs[0].key, 86 | H, H, H, 1, 0);
-    CHECK(core_review(&p, NULL, &r) == CORE_OK && r.is_change[0] && r.n_sign == 2, "p2tr review");
+    CHECK(core_review(&p, NULL, &r) == CORE_OK && r.owner[0] == CORE_OUT_CHANGE && r.n_sign == 2, "p2tr review");
     CHECK(core_sign(&p, zero_rng, sigs, &n) == CORE_OK && n == 2, "p2tr sign");
     for (unsigned i = 0; i < n; i++) {
         secp256k1_xonly_pubkey xpub;
@@ -274,10 +316,47 @@ static void test_review_and_sign(void) {
     secp256k1_context_destroy(ctx);
 }
 
+static void test_address(void) {
+    static const struct { const char *addr, *spk; } v350[] = {
+        {"bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4", "0014751e76e8199196d454941c45d1b3a323f1433bd6"},
+        {"tb1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3q0sl5k7", "00201863143c14c5166804bd19203356da136c985678cd4d27a1b8c6329604903262"},
+        {"bc1pw508d6qejxtdg4y5r3zarvary0c5xw7kw508d6qejxtdg4y5r3zarvary0c5xw7kt5nd6y", "5128751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6"},
+        {"bc1sw50qgdz25j", "6002751e"},
+        {"bc1zw508d6qejxtdg4y5r3zarvaryvaxxpcs", "5210751e76e8199196d454941c45d1b3a323"},
+        {"tb1qqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesrxh6hy", "0020000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433"},
+        {"tb1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c", "5120000000c4a5cad46221b2a187905e5266362b99d5e91c6ce24d165dab93e86433"},
+        {"bc1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqzk5jj0", "512079be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"},
+    };
+    /* BIP350 の無効例に対応するスクリプト: 1 byte / 41 byte のプログラム、v0 の 16 byte、push 長の不一致 */
+    static const char *bad[] = {"510175", "5129751e76e8199196d454941c45d1b3a323f1433bd6751e76e8199196d454941c45d1b3a323f1433bd6aa",
+                                "0010751e76e8199196d454941c45d1b3a323", "0015751e76e8199196d454941c45d1b3a323f1433bd6"};
+    uint8_t spk[64];
+    char out[ADDRESS_MAX];
+
+    for (unsigned i = 0; i < sizeof(v350) / sizeof(v350[0]); i++) {
+        size_t n = strlen(v350[i].spk) / 2;
+        unhex(v350[i].spk, spk);
+        CHECK(address_encode(spk, n, v350[i].addr[0] == 't', out) && !strcmp(out, v350[i].addr),
+              "bip350 %u: %s", i, out);
+    }
+    for (unsigned i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+        unhex(bad[i], spk);
+        CHECK(!address_encode(spk, strlen(bad[i]) / 2, 0, out), "invalid program %u encoded as %s", i, out);
+    }
+    for (unsigned i = 0; i < sizeof(TV_B58) / sizeof(TV_B58[0]); i++)
+        CHECK(address_encode(TV_B58[i].spk, TV_B58[i].len, TV_B58[i].testnet, out) && !strcmp(out, TV_B58[i].addr),
+              "base58 %u: %s != %s", i, out, TV_B58[i].addr);
+    CHECK(address_encode(TV_SPK_P2WPKH_0_0, 22, 0, out) && !strcmp(out, "bc1qcr8te4kr609gcawutmrza0j4xv80jy8z306fyu"),
+          "bip84 address");
+    CHECK(address_encode(TV_SPK_P2TR_0_0, 34, 0, out)
+          && !strcmp(out, "bc1p5cyxnuxmeuwuvkwfem96lqzszd02n6xdcjrs20cac6yqjjwudpxqkedrcr"), "bip86 address");
+}
+
 int main(void) {
     if (!core_init(CORE_MAINNET)) return 1;
     test_bip143();
     test_bip341();
+    test_address();
     test_review_and_sign();
     printf("%d/%d checks passed\n", checks - failures, checks);
     return failures != 0;

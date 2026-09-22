@@ -133,7 +133,7 @@ check-qr-mac: build/qr_bench_mac
 .PHONY: check-qr-mac
 
 # 案 B のネイティブ署名中核（docs/architecture-b.md）
-CORE_SRC := core/core.c core/bip32.c core/sighash.c core/tx.c core/sha256.c core/ripemd160.c core/sha512.c \
+CORE_SRC := core/core.c core/address.c core/bip32.c core/sighash.c core/tx.c core/sha256.c core/ripemd160.c core/sha512.c \
             core/secp_callbacks.c
 build/core_vectors.h: tools/gen_core_vectors.py test-vectors/bip341-wallet-test-vectors.json
 	mkdir -p build && uv run -q $< test-vectors/bip341-wallet-test-vectors.json $@

@@ -3,6 +3,7 @@
 #include "wipe.h"
 #include "bip32.h"
 #include "hash.h"
+#include "address.h"
 #include "sighash.h"
 #include "tx.h"
 #include "secp256k1_extrakeys.h"
@@ -11,7 +12,7 @@
 
 #define H 0x80000000u
 #define MAX_MONEY 2100000000000000ull
-#define MAX_CHANGE_INDEX 100000 /* お釣りアドレスの index 上限。外れた値は外部出力として表示する */
+#define MAX_ADDRESS_INDEX 100000 /* 自分のアドレスと認める index の上限。外れた値は外部出力として表示する */
 
 static uint8_t ctx_mem[256] __attribute__((aligned(16)));
 static secp256k1_context *ctx;
@@ -124,25 +125,25 @@ static int prevtx_ok(const plan_input_t *in, const core_prevtx_t *prev) {
     return tx_parse(prev->raw, prev->len, &v, &info) && m.found && !memcmp(info.txid, in->prev_txid, 32);
 }
 
-/* お釣りと認めるのは、署名する入力と同じアカウント配下の change チェーンで、スクリプトが一致するものだけ */
-static int is_change(const plan_t *p, const core_review_t *r, const plan_output_t *o) {
+/* 自分の出力と認めるのは、署名する入力と同じアカウント配下の受取（0）/ お釣り（1）チェーンで、スクリプトが一致するものだけ */
+static int output_owner(const plan_t *p, const core_review_t *r, const plan_output_t *o) {
     const plan_keypath_t *k = &o->key;
     int type = spk_type(&o->spk);
     bip32_node_t node;
     uint32_t purpose = type == SPK_P2WPKH ? (84 | H) : type == SPK_P2TR ? (86 | H) : 0;
 
     if (!purpose || k->depth != 5 || k->path[0] != purpose || k->path[1] != ((uint32_t)network | H)
-        || !(k->path[2] & H) || k->path[3] != 1 || k->path[4] >= MAX_CHANGE_INDEX)
-        return 0;
+        || !(k->path[2] & H) || k->path[3] > 1 || k->path[4] >= MAX_ADDRESS_INDEX)
+        return CORE_OUT_EXTERNAL;
     for (unsigned i = 0; i < p->n_inputs; i++) {
         const plan_keypath_t *ik = &p->inputs[i].key;
         if (r->will_sign[i] && ik->depth == 5 && !memcmp(ik->path, k->path, 3 * sizeof(uint32_t))) {
             int ok = owns(k, &o->spk, &node);
             wipe(&node, sizeof(node));
-            return ok;
+            return !ok ? CORE_OUT_EXTERNAL : k->path[3] ? CORE_OUT_CHANGE : CORE_OUT_SELF;
         }
     }
-    return 0;
+    return CORE_OUT_EXTERNAL;
 }
 
 int core_init(core_network_t net) {
@@ -212,13 +213,56 @@ int core_review(const plan_t *p, const core_prevtx_t prev[PLAN_MAX_INPUTS], core
     for (unsigned i = 0; i < p->n_outputs; i++) {
         r->total_out += p->outputs[i].amount;
         if (r->total_out > MAX_MONEY) return CORE_ERR_FORMAT;
-        r->is_change[i] = (uint8_t)is_change(p, r, &p->outputs[i]);
+        r->owner[i] = (uint8_t)output_owner(p, r, &p->outputs[i]);
     }
     if (r->total_out > r->total_in) return CORE_ERR_FEE;
     r->fee = r->total_in - r->total_out;
 
     sha256((const uint8_t *)p, sizeof(*p), reviewed_hash);
     reviewed = 1;
+    return CORE_OK;
+}
+
+static void to_hex(const uint8_t *b, size_t n, char *out) {
+    static const char hx[] = "0123456789abcdef";
+    for (size_t i = 0; i < n; i++) out[2 * i] = hx[b[i] >> 4], out[2 * i + 1] = hx[b[i] & 15];
+    out[2 * n] = 0;
+}
+
+void core_format_btc(uint64_t sats, char out[21]) {
+    char t[21];
+    int n = 0, o = 0;
+    for (uint64_t v = sats; n < 9 || v; v /= 10) t[n++] = (char)('0' + v % 10);
+    while (n) {
+        out[o++] = t[--n];
+        if (n == 8) out[o++] = '.';
+    }
+    out[o] = 0;
+}
+
+int core_display(const plan_t *p, const core_review_t *r, core_display_t *d) {
+    uint8_t h[32];
+    sha256((const uint8_t *)p, sizeof(*p), h);
+    memset(d, 0, sizeof(*d));
+    if (!reviewed || memcmp(h, reviewed_hash, 32)) return CORE_ERR_NOT_REVIEWED;
+    d->fee = r->fee;
+    d->n_outputs = p->n_outputs;
+    for (unsigned i = 0; i < p->n_outputs; i++) {
+        const plan_script_t *s = &p->outputs[i].spk;
+        core_display_output_t *o = &d->outputs[i];
+        o->amount = p->outputs[i].amount;
+        o->owner = r->owner[i];
+        if (o->owner == CORE_OUT_EXTERNAL) d->spend += o->amount;
+        if (address_encode(s->bytes, s->len, network == CORE_TESTNET, o->text)) {
+            o->text_kind = CORE_TEXT_ADDRESS;
+        } else if (s->len && s->bytes[0] == 0x6a) {
+            o->text_kind = CORE_TEXT_OP_RETURN;
+            to_hex(s->bytes + 1, s->len - 1u, o->text);
+        } else {
+            o->text_kind = CORE_TEXT_SCRIPT;
+            to_hex(s->bytes, s->len, o->text);
+        }
+    }
     return CORE_OK;
 }
 

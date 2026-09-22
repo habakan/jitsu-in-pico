@@ -154,7 +154,8 @@ typedef struct {
 
 | ファイル | 内容 |
 |---|---|
-| `core/core.c` | §6 の検証（`core_review`）と署名（`core_sign`）。review した plan の SHA-256 を記録し、sign 時に一致しなければ署名しない |
+| `core/core.c` | §6 の検証（`core_review`）、確認画面モデル（`core_display`）、署名（`core_sign`）。review した plan の SHA-256 を記録し、display / sign 時に一致しなければ拒否する |
+| `core/address.c` | scriptPubKey からのアドレス生成。P2PKH / P2SH は base58check、witness v0 は bech32、v1〜v16 は bech32m。標準形でなければ生成しない |
 | `core/sighash.c` | BIP143（P2WPKH、SIGHASH_ALL）と BIP341 key path（7 種類の hash type） |
 | `core/tx.c` | 最小 tx パーサ。非最短 varint と末尾の余りを拒否。txid は witness を除いて計算 |
 | `core/bip32.c` | BIP32 導出（案 A の `signer.c` と共有） |
@@ -164,19 +165,20 @@ typedef struct {
 
 - 自分の fingerprint を名乗らない入力は署名しない（額は手数料計算にだけ使う）。名乗るのに鍵とスクリプトが一致しなければ plan 全体を拒否する
 - sighash type は P2WPKH が `ALL` のみ、P2TR が `DEFAULT` と `ALL` のみ
-- お釣りと認めるのは `m/84'|86' / coin' / account' / 1 / i`（coin はネットワーク設定、`i < 100000`）で、署名する入力と同じアカウントかつスクリプトが一致するもの。それ以外は外部出力として扱う
+- 自分の出力と認めるのは `m/84'|86' / coin' / account' / {0|1} / i`（coin はネットワーク設定、`i < 100000`）で、署名する入力と同じアカウントかつスクリプトが一致するもの。chain 1 はお釣り、chain 0 は自分宛て（SeedSigner の self-transfer 確認に相当）。それ以外は外部出力として扱う
+- 確認画面の文字列はすべて plan のバイト列からネイティブが作る。アドレスにできないスクリプトは、OP_RETURN ならデータ部、それ以外はスクリプト全体を 16 進で見せる。支出額（`spend`）は外部出力の合計
 
-テスト（45 項目、Mac と RV32 の両方で通過）:
+テスト（71 項目、Mac と RV32 の両方で通過）:
 
 - BIP143 の P2WPKH 例: sighash と RFC6979 署名（DER）が文書と一致
 - BIP341 wallet test vectors の key path 7 件: sighash と Schnorr 署名が一致（全 hash type）
 - BIP84 / BIP86: `abandon ... about` から導出した鍵で review と署名が通り、署名が検証できる。期待スクリプトは embit で独立に計算し、BIP86 文書の値とも照合（`tools/gen_core_vectors.py`）
-- 攻撃シナリオ: review 後の plan 差し替え、偽のお釣り、別アカウントのお釣り、鍵とスクリプトの不一致、許可しない sighash type、未使用領域の非ゼロ、出力超過、手数料攻撃（元の取引なし・嘘の額・誤った vout・誤った txid）
-- 実装を 3 箇所わざと壊し（BIP143 の hash type、BIP341 の spend_type、手数料攻撃の判定）、それぞれテストが失敗することを確認した
+- アドレス: BIP350 の有効ベクタ 8 件、無効なプログラム長（1 / 41 byte、v0 の 16 / 21 byte）を生成しないこと、base58check（期待値は embit）、BIP84 / BIP86 の既知アドレス
+- 攻撃シナリオ: review 後の plan 差し替え（display と sign の両方）、偽のお釣り、自分宛て、index 上限、別アカウントのお釣り、鍵とスクリプトの不一致、許可しない sighash type、未使用領域の非ゼロ、出力超過、手数料攻撃（元の取引なし・嘘の額・誤った vout・誤った txid）
+- 実装を 5 箇所わざと壊し（BIP143 の hash type、BIP341 の spend_type、手数料攻撃の判定、bech32m の定数、base58 の先頭ゼロ）、それぞれテストが失敗することを確認した
 
 ## 11. 次の作業
 
-1. アドレス文字列の生成（bech32 / bech32m / base58check）と確認画面モデル
-2. parser.wasm: PSBT v0（BIP174。v2 の BIP370 は対象外）から plan への変換と、署名の PSBT への挿入。BIP174 のテストベクタで検証
-3. `host_submit_plan` / `host_take_signatures` をホストに実装し、parser.wasm → core → parser.wasm を一巡させる
-4. UR（`crypto-psbt`）の復元を parser.wasm に入れる
+1. parser.wasm: PSBT v0（BIP174。v2 の BIP370 は対象外）から plan への変換と、署名の PSBT への挿入。BIP174 のテストベクタで検証
+2. `host_submit_plan` / `host_take_signatures` をホストに実装し、parser.wasm → core → parser.wasm を一巡させる
+3. UR（`crypto-psbt`）の復元を parser.wasm に入れる

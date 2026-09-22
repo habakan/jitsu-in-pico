@@ -30,12 +30,30 @@ typedef struct {
     size_t len;
 } core_prevtx_t;
 
+/* 出力の持ち主。CHANGE / SELF はネイティブが鍵を再導出してスクリプトの一致を確かめたものだけ */
+enum { CORE_OUT_EXTERNAL = 0, CORE_OUT_CHANGE, CORE_OUT_SELF };
+
 typedef struct {
     uint64_t total_in, total_out, fee;
-    uint8_t is_change[PLAN_MAX_OUTPUTS];
+    uint8_t owner[PLAN_MAX_OUTPUTS];
     uint8_t will_sign[PLAN_MAX_INPUTS];
     uint8_t n_sign;
 } core_review_t;
+
+/* 確認画面に出す内容。文字列はすべてネイティブが plan のバイト列から作る */
+enum { CORE_TEXT_ADDRESS = 0, CORE_TEXT_OP_RETURN, CORE_TEXT_SCRIPT };
+
+typedef struct {
+    uint64_t amount;
+    uint8_t owner, text_kind;
+    char text[2 * PLAN_MAX_SPK + 1]; /* アドレス、または OP_RETURN のデータ / スクリプト全体の 16 進 */
+} core_display_output_t;
+
+typedef struct {
+    uint64_t fee, spend; /* spend は外部出力の合計。自分宛て・お釣りは含めない */
+    uint8_t n_outputs;
+    core_display_output_t outputs[PLAN_MAX_OUTPUTS];
+} core_display_t;
 
 typedef struct {
     uint8_t input;
@@ -51,6 +69,9 @@ int core_load_seed(const uint8_t seed[64]);
 void core_unload(void);
 uint32_t core_fingerprint(void);
 int core_review(const plan_t *p, const core_prevtx_t prev[PLAN_MAX_INPUTS], core_review_t *r);
+int core_display(const plan_t *p, const core_review_t *r, core_display_t *d);
 int core_sign(const plan_t *p, core_rng_t rng, core_sig_t sigs[PLAN_MAX_INPUTS], unsigned *n_sigs);
+/* 8 桁の小数で BTC 表記にする（例: 60000 -> "0.00060000"） */
+void core_format_btc(uint64_t sats, char out[21]);
 
 #endif
