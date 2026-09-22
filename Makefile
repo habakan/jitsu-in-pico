@@ -8,15 +8,15 @@ SECP_DEFS := -DENABLE_MODULE_EXTRAKEYS=1 -DENABLE_MODULE_SCHNORRSIG=1 -DECMULT_W
 RTLIB   ?= /opt/homebrew/opt/wasi-runtimes/share/wasi-runtimes/lib/wasm32-unknown-wasip1
 # SHA512_HOST=1 で SHA-512 圧縮関数をホストの import にする
 SHA512_HOST ?= 0
-CFLAGS  := -Oz -Wall -Wno-unused-function -I$(SECP)/include $(SECP_DEFS) $(if $(filter 1,$(SHA512_HOST)),-DSHA512_HOST_COMPRESS)
+CFLAGS  := -Oz -Wall -Wno-unused-function -Icore -I$(SECP)/include $(SECP_DEFS) $(if $(filter 1,$(SHA512_HOST)),-DSHA512_HOST_COMPRESS)
 STACK   ?= 16384
 
-build/bitcoin-signer.wasm: signer/signer.c signer/sha512.c signer/secp256k1_unity.c
+build/bitcoin-signer.wasm: signer/signer.c core/sha512.c core/bip32.c core/secp_callbacks.c signer/secp256k1_unity.c
 	mkdir -p build
 	$(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs $(CFLAGS) \
 	  -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all -Wl,-z,stack-size=$(STACK) \
 	  -Wl,--export=__heap_base -Wl,--export=__data_end -Wl,--initial-memory=65536 -Wl,--max-memory=65536 \
-	  -o $@ signer/signer.c signer/sha512.c signer/secp256k1_unity.c -lc $(RTLIB)/libclang_rt.builtins.a
+	  -o $@ signer/signer.c core/sha512.c core/bip32.c core/secp_callbacks.c signer/secp256k1_unity.c -lc $(RTLIB)/libclang_rt.builtins.a
 
 clean:
 	rm -rf build
@@ -52,8 +52,8 @@ build/bitcoin-signer.aot: build/bitcoin-signer.wasm $(WAMRC)
 build/signer_wasm.h: $(SIGNER_BIN)
 	xxd -i -n signer_wasm $< $(if $(filter 1,$(AOT)),| sed 's/^unsigned char/const unsigned char/') > $@
 
-build/native: host/native.c signer/signer.c signer/sha512.c signer/secp256k1_unity.c
-	mkdir -p build && cc -O2 -Wall -Wno-unused-function -I$(SECP)/include $(SECP_DEFS) -o $@ $^
+build/native: host/native.c signer/signer.c core/sha512.c core/bip32.c core/secp_callbacks.c signer/secp256k1_unity.c
+	mkdir -p build && cc -O2 -Wall -Wno-unused-function -Icore -I$(SECP)/include $(SECP_DEFS) -o $@ $^
 
 build/host-%/signer_wamr: build/signer_wasm.h host/wamr_main.c host/CMakeLists.txt
 	cmake -S host -B build/host-$* -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
@@ -90,9 +90,9 @@ check-qemu: $(QEMU_DIR)/signer.elf
 .PHONY: check-qemu
 
 # 比較用: WASM を通さず同じ signer を RV32 ネイティブで動かす
-build/qemu-native.elf: host/native.c signer/signer.c signer/sha512.c signer/secp256k1_unity.c platform/qemu-riscv32/start.S
+build/qemu-native.elf: host/native.c signer/signer.c core/sha512.c core/bip32.c core/secp_callbacks.c signer/secp256k1_unity.c platform/qemu-riscv32/start.S
 	$(RISCV_TC)/bin/riscv32-pico-elf-gcc -mcpu=hazard3-rp2350 -Os -DQEMU_BUILD=1 -Wall -Wno-unused-function \
-	  -I$(SECP)/include $(SECP_DEFS) --specs=semihost.specs -Wl,--section-start=.qemu_start=0x80000000 \
+	  -Icore -I$(SECP)/include $(SECP_DEFS) --specs=semihost.specs -Wl,--section-start=.qemu_start=0x80000000 \
 	  -Wl,-Ttext=0x80001000 -Wl,-e,qemu_start -Wl,--gc-sections -o $@ $^
 
 check-qemu-native: build/qemu-native.elf
@@ -131,3 +131,28 @@ check-qr-mac: build/qr_bench_mac
 	build/qr_bench_mac | awk '{print $$1, $$4}'
 	uv run -q tools/zxing_check.py build/qr_frames | sed 's/^/zxing /'
 .PHONY: check-qr-mac
+
+# 案 B のネイティブ署名中核（docs/architecture-b.md）
+CORE_SRC := core/core.c core/bip32.c core/sighash.c core/tx.c core/sha256.c core/ripemd160.c core/sha512.c \
+            core/secp_callbacks.c
+build/core_vectors.h: tools/gen_core_vectors.py test-vectors/bip341-wallet-test-vectors.json
+	mkdir -p build && uv run -q $< test-vectors/bip341-wallet-test-vectors.json $@
+
+build/test_core: core/tests/test_core.c $(CORE_SRC) core/*.h runtime/host-abi/plan.h build/core_vectors.h signer/secp256k1_unity.c
+	cc -O2 -Wall -Wextra -Wno-unused-function -Icore -Iruntime/host-abi -Ibuild -I$(SECP)/include $(SECP_DEFS) \
+	  -o $@ core/tests/test_core.c $(CORE_SRC) signer/secp256k1_unity.c
+
+check-core: build/test_core
+	build/test_core
+.PHONY: check-core
+
+build/qemu-test-core.elf: core/tests/test_core.c $(CORE_SRC) core/*.h runtime/host-abi/plan.h build/core_vectors.h platform/qemu-riscv32/start.S
+	$(RISCV_TC)/bin/riscv32-pico-elf-gcc $(QEMU_MARCH) -O2 -Wall -Wno-unused-function -Icore -Iruntime/host-abi -Ibuild \
+	  -I$(SECP)/include $(SECP_DEFS) --specs=semihost.specs -Wl,--section-start=.qemu_start=0x80000000 \
+	  -Wl,-Ttext=0x80001000 -Wl,-e,qemu_start -Wl,--gc-sections -o $@ \
+	  core/tests/test_core.c $(CORE_SRC) signer/secp256k1_unity.c platform/qemu-riscv32/start.S
+
+check-qemu-core: build/qemu-test-core.elf
+	qemu-system-riscv32 -M virt -cpu $(QEMU_CPU) -m 64M -nographic -bios none -semihosting \
+	  -kernel $< </dev/null
+.PHONY: check-qemu-core

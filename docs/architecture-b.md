@@ -1,6 +1,6 @@
 # Architecture B: 解析器を WASM に隔離し、鍵と署名はネイティブに置く
 
-Version 0.1 | 2026-09-22 | 状態: ドラフト（§8 の判断事項が未決）
+Version 0.2 | 2026-09-22 | 状態: §8 決定済み、ネイティブ中核を実装（§10）
 
 design.md §3・§7・§8 は、署名ロジック全体を `bitcoin-signer.wasm` に入れる案（案 A）で書かれている。
 本書はそれを置き換える案 B を定義する。判断事項が決まったら design.md に反映する。
@@ -89,15 +89,12 @@ parser.wasm が元 PSBT と違う Plan を出しても、ユーザーが見る�
 - **parser.wasm の停止しない入力（無限ループ）。** WAMR の命令数制限の有無を確認する。無ければ UI 側のタイムアウトで中断する
 - **WAMR 自体の脆弱性。** 線形メモリの境界チェックが破られると、隔離の前提が崩れる。インタプリタと AOT のどちらを使うかで、TCB が変わる（§8-3）
 
-## 8. 判断事項
+## 8. 決定事項（2026-09-22）
 
-1. **SegWit v0 入力の `non_witness_utxo`**
-   - (a) 必須にし、ネイティブの最小限の tx パーサ（varint と出力の位置の特定だけ）で txid と額を確かめる。安全だが PSBT が大きくなり、UR のフレーム数が増える
-   - (b) 入力が 1 個なら不要、2 個以上なら必須
-   - (c) 不要にして警告だけ出す
-2. **初期対象のスクリプト種別:** P2WPKH のみか、P2TR（BIP86）も含めるか
-3. **parser.wasm のランタイム:** インタプリタ（TCB が小さい、解析なら速度は足りる見込み）か AOT XIP（速いが LLVM がビルド時の TCB に入る）
-4. **multisig の時期:** 初期版から入れるか。入れる場合、descriptor の確認画面とセッション中の保持方法（stateless なので毎回読み込むのか）も決める
+1. **SegWit v0 入力の `non_witness_utxo`:** SegWit v0 の署名対象を含み、入力が 2 個以上なら全入力で必須。1 入力なら不要（嘘の額で作った署名は無効になるだけ）。ネイティブの最小 tx パーサ（`core/tx.c`）で txid・vout・額・スクリプトを確かめる
+2. **初期対象:** P2WPKH（BIP84）と P2TR（BIP86、スクリプトツリー無し）
+3. **parser.wasm のランタイム:** インタプリタ。速度は解析器の実装後に測る
+4. **multisig:** 初期版には入れない
 
 ## 9. Plan の形式（案）
 
@@ -146,13 +143,40 @@ typedef struct {
 } plan_t;
 ```
 
+- 確定版は `runtime/host-abi/plan.h`（`_Static_assert` でサイズとオフセットを固定）
 - 上限 16 入力 / 16 出力で 5,016 byte（入力 176、出力 136 byte）。RAM への影響は小さい
 - 入出力数の上限は仮置き。SeedSigner / Krux の上限と実際の PSBT を見て決める
 - §8-1 で (a) か (b) を選んだ場合、`non_witness_utxo` は Plan とは別のバッファで渡す（上限は PSBT 全体の上限と揃える）
 
-## 10. 次の作業
+## 10. 実装状況
 
-1. §8 の判断
-2. Plan の形式を `runtime/host-abi/plan.h` に確定し、ネイティブの復号器と検証（§6）を書く
-3. parser.wasm に PSBT 解析（P2WPKH から）を実装し、Bitcoin Core / BIP174 のテストベクタで Plan を検証する
-4. BIP143 / BIP341 の sighash をネイティブで実装し、署名を Bitcoin Core のテストベクタと照合する
+`core/` にネイティブ中核を実装した（`make check-core`、`make check-qemu-core`）。
+
+| ファイル | 内容 |
+|---|---|
+| `core/core.c` | §6 の検証（`core_review`）と署名（`core_sign`）。review した plan の SHA-256 を記録し、sign 時に一致しなければ署名しない |
+| `core/sighash.c` | BIP143（P2WPKH、SIGHASH_ALL）と BIP341 key path（7 種類の hash type） |
+| `core/tx.c` | 最小 tx パーサ。非最短 varint と末尾の余りを拒否。txid は witness を除いて計算 |
+| `core/bip32.c` | BIP32 導出（案 A の `signer.c` と共有） |
+| `core/sha256.c` `ripemd160.c` `sha512.c` | ハッシュ。秘密値の消去は `core/wipe.h`（volatile 経由）で最適化に消されないようにした |
+
+`core_review` が採る方針（§6 の具体化）:
+
+- 自分の fingerprint を名乗らない入力は署名しない（額は手数料計算にだけ使う）。名乗るのに鍵とスクリプトが一致しなければ plan 全体を拒否する
+- sighash type は P2WPKH が `ALL` のみ、P2TR が `DEFAULT` と `ALL` のみ
+- お釣りと認めるのは `m/84'|86' / coin' / account' / 1 / i`（coin はネットワーク設定、`i < 100000`）で、署名する入力と同じアカウントかつスクリプトが一致するもの。それ以外は外部出力として扱う
+
+テスト（45 項目、Mac と RV32 の両方で通過）:
+
+- BIP143 の P2WPKH 例: sighash と RFC6979 署名（DER）が文書と一致
+- BIP341 wallet test vectors の key path 7 件: sighash と Schnorr 署名が一致（全 hash type）
+- BIP84 / BIP86: `abandon ... about` から導出した鍵で review と署名が通り、署名が検証できる。期待スクリプトは embit で独立に計算し、BIP86 文書の値とも照合（`tools/gen_core_vectors.py`）
+- 攻撃シナリオ: review 後の plan 差し替え、偽のお釣り、別アカウントのお釣り、鍵とスクリプトの不一致、許可しない sighash type、未使用領域の非ゼロ、出力超過、手数料攻撃（元の取引なし・嘘の額・誤った vout・誤った txid）
+- 実装を 3 箇所わざと壊し（BIP143 の hash type、BIP341 の spend_type、手数料攻撃の判定）、それぞれテストが失敗することを確認した
+
+## 11. 次の作業
+
+1. アドレス文字列の生成（bech32 / bech32m / base58check）と確認画面モデル
+2. parser.wasm: PSBT v0（BIP174。v2 の BIP370 は対象外）から plan への変換と、署名の PSBT への挿入。BIP174 のテストベクタで検証
+3. `host_submit_plan` / `host_take_signatures` をホストに実装し、parser.wasm → core → parser.wasm を一巡させる
+4. UR（`crypto-psbt`）の復元を parser.wasm に入れる

@@ -5,16 +5,14 @@
 #include "secp256k1_extrakeys.h"
 #include "secp256k1_schnorrsig.h"
 #include "sha512.h"
+#include "bip32.h"
+#include "wipe.h"
 
 #ifdef __wasm__
 #define EXPORT(name) __attribute__((export_name(#name))) name
 #else
 #define EXPORT(name) name
 #endif
-
-/* USE_EXTERNAL_DEFAULT_CALLBACKS: stdio/abort を引き込まないため */
-void secp256k1_default_illegal_callback_fn(const char *msg, void *data) { (void)msg; (void)data; __builtin_trap(); }
-void secp256k1_default_error_callback_fn(const char *msg, void *data) { (void)msg; (void)data; __builtin_trap(); }
 
 static unsigned char ctx_mem[256] __attribute__((aligned(16)));
 static secp256k1_context *ctx;
@@ -69,42 +67,14 @@ int EXPORT(signer_seed_from_mnemonic)(unsigned mn_len, unsigned pass_len) {
 
 /* seed から in[] のパスで秘密鍵を導出し、圧縮公開鍵 33 byte を io+96 に書く */
 int EXPORT(signer_bip32_derive)(unsigned depth) {
-    unsigned char key[32], chain[32], data[37], I[64], ser[33];
-    size_t serlen = 33;
-    secp256k1_pubkey pub;
-    hmac_sha512_ctx h;
-    int ok = 1;
-
-    hmac_sha512_init(&h, (const unsigned char *)"Bitcoin seed", 12);
-    sha512_update(&h.inner, seed, 64);
-    hmac_sha512_final(&h, I);
-    memcpy(key, I, 32);
-    memcpy(chain, I + 32, 32);
-    for (unsigned d = 0; ok && d < depth; d++) {
-        uint32_t idx;
-        memcpy(&idx, in + 4 * d, 4);
-        if (idx & 0x80000000u) {
-            data[0] = 0;
-            memcpy(data + 1, key, 32);
-        } else {
-            serlen = 33;
-            ok = secp256k1_ec_pubkey_create(ctx, &pub, key)
-              && secp256k1_ec_pubkey_serialize(ctx, data, &serlen, &pub, SECP256K1_EC_COMPRESSED);
-        }
-        for (int i = 0; i < 4; i++) data[33 + i] = (unsigned char)(idx >> (24 - 8 * i));
-        hmac_sha512_init(&h, chain, 32);
-        sha512_update(&h.inner, data, 37);
-        hmac_sha512_final(&h, I);
-        ok = ok && secp256k1_ec_seckey_tweak_add(ctx, key, I);
-        memcpy(chain, I + 32, 32);
-    }
-    ok = ok && secp256k1_ec_pubkey_create(ctx, &pub, key)
-            && secp256k1_ec_pubkey_serialize(ctx, ser, &serlen, &pub, SECP256K1_EC_COMPRESSED);
-    if (ok) memcpy(io + 96, ser, 33);
-    memset(key, 0, sizeof(key));
-    memset(chain, 0, sizeof(chain));
-    memset(data, 0, sizeof(data));
-    memset(I, 0, sizeof(I));
-    memset(&h, 0, sizeof(h));
+    uint32_t path[16];
+    bip32_node_t master, node;
+    int ok;
+    if (depth > 16) return 0;
+    memcpy(path, in, 4 * depth);
+    ok = bip32_master(seed, &master) && bip32_derive(ctx, &master, path, depth, &node)
+      && bip32_pubkey(ctx, node.key, io + 96);
+    wipe(&master, sizeof(master));
+    wipe(&node, sizeof(node));
     return ok;
 }

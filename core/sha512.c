@@ -1,5 +1,6 @@
 #include "sha512.h"
 #include <string.h>
+#include "wipe.h"
 
 static const uint64_t K[80] = {
     0x428a2f98d728ae22, 0x7137449123ef65cd, 0xb5c0fbcfec4d3b2f, 0xe9b5dba58189dbbc, 0x3956c25bf348b538,
@@ -41,7 +42,7 @@ void host_sha512_compress(uint64_t *s, const unsigned char *block);
 #define compress sha512_compress
 #endif
 
-void sha512_compress(uint64_t *s, const unsigned char *block) {
+void sha512_compress(uint64_t s[8], const unsigned char block[128]) {
     uint64_t w[80], a = s[0], b = s[1], c = s[2], d = s[3], e = s[4], f = s[5], g = s[6], h = s[7];
     for (int i = 0; i < 16; i++) w[i] = load_be(block + 8 * i);
     for (int i = 16; i < 80; i++) {
@@ -102,7 +103,7 @@ void hmac_sha512_init(hmac_sha512_ctx *h, const unsigned char *key, size_t keyle
     for (int i = 0; i < 128; i++) k[i] ^= 0x36 ^ 0x5c;
     sha512_init(&h->outer);
     sha512_update(&h->outer, k, 128);
-    memset(k, 0, sizeof(k));
+    wipe(k, sizeof(k));
 }
 
 void hmac_sha512_final(hmac_sha512_ctx *h, unsigned char out[64]) {
@@ -110,7 +111,7 @@ void hmac_sha512_final(hmac_sha512_ctx *h, unsigned char out[64]) {
     sha512_final(&h->inner, t);
     sha512_update(&h->outer, t, 64);
     sha512_final(&h->outer, out);
-    memset(t, 0, sizeof(t));
+    wipe(t, sizeof(t));
 }
 
 /* BIP39 用に dklen = 64（1 ブロック）固定。内外パッド後の状態を使い回して圧縮回数を半分にする */
@@ -131,7 +132,7 @@ void pbkdf2_hmac_sha512(const unsigned char *pw, size_t pwlen, const unsigned ch
         hmac_sha512_final(&h, u);
         for (int j = 0; j < 64; j++) out[j] ^= u[j];
     }
-    memset(&base, 0, sizeof(base));
-    memset(&h, 0, sizeof(h));
-    memset(u, 0, sizeof(u));
+    wipe(&base, sizeof(base));
+    wipe(&h, sizeof(h));
+    wipe(u, sizeof(u));
 }

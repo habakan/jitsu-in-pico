@@ -28,10 +28,10 @@ include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
 # runtime_lib.cmake が -std=gnu99 を足すが、pico-sdk は static_assert に C11 が要る
 string(REPLACE "-std=gnu99" "-std=gnu11" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 
-add_executable(signer ${ROOT}/host/wamr_main.c ${ROOT}/signer/sha512.c ${WAMR_RUNTIME_LIB_SOURCE})
+add_executable(signer ${ROOT}/host/wamr_main.c ${ROOT}/core/sha512.c ${WAMR_RUNTIME_LIB_SOURCE})
 # QEMU 実測の highmark 33.5KB (classic interp) に余裕を持たせた値
 target_compile_definitions(signer PRIVATE PICO_BUILD=1 POOL_KB=48)
-target_include_directories(signer PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/signer)
+target_include_directories(signer PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/core)
 target_link_libraries(signer pico_stdlib)
 pico_enable_stdio_uart(signer 1)
 pico_enable_stdio_usb(signer 0)

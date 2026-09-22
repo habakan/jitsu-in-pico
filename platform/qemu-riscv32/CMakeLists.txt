@@ -25,10 +25,10 @@ set(WAMR_BUILD_REF_TYPES 0)
 set(WAMR_DISABLE_HW_BOUND_CHECK 1)
 include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
 
-add_executable(signer.elf ${ROOT}/host/wamr_main.c ${ROOT}/signer/sha512.c ${CMAKE_CURRENT_LIST_DIR}/start.S ${WAMR_RUNTIME_LIB_SOURCE})
+add_executable(signer.elf ${ROOT}/host/wamr_main.c ${ROOT}/core/sha512.c ${CMAKE_CURRENT_LIST_DIR}/start.S ${WAMR_RUNTIME_LIB_SOURCE})
 target_compile_definitions(signer.elf PRIVATE QEMU_BUILD=1 POOL_KB=${POOL_KB})
 target_compile_options(signer.elf PRIVATE -mcpu=hazard3-rp2350 -Os)
-target_include_directories(signer.elf PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/signer)
+target_include_directories(signer.elf PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/core)
 target_link_options(signer.elf PRIVATE -mcpu=hazard3-rp2350 --specs=semihost.specs
   -Wl,--section-start=.qemu_start=0x80000000 -Wl,-Ttext=0x80001000 -Wl,-e,qemu_start -Wl,--gc-sections)
 target_link_libraries(signer.elf m)
