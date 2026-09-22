@@ -182,13 +182,21 @@ build/host-classic/psbt_host: build/parser_wasm.h build/signer_wasm.h build/font
 	  -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/host-classic psbt_host >/dev/null
 
-check-psbt: build/host-classic/psbt_host build/psbt/own_p2wpkh_1in.psbt
+# 解析器リポジトリの UR ベクタ（参照エンコーダの出力）から、混在 PSBT の 60 byte 断片版を 1 行 1 パートで書き出す。
+# 純粋なパートを 3 つに 1 つ落として、混ぜたパートでの復元も通す
+build/psbt/own_mixed_nwu.ur: parser/tests/ur_vectors.json build/psbt/own_p2wpkh_1in.psbt
+	python3 -c "import json,re; v=[x for x in json.load(open('$<'))['vectors'] if x['name']=='own_mixed_nwu' and x['fragment_len']==60][0]; \
+	  print('\n'.join(p for p in v['parts'] if not (int(re.match(r'UR:[A-Z-]+/(\d+)', p).group(1)) <= v['seq_len'] and int(re.match(r'UR:[A-Z-]+/(\d+)', p).group(1)) % 3 == 0)))" > $@
+
+check-psbt: build/host-classic/psbt_host build/psbt/own_p2wpkh_1in.psbt build/psbt/own_mixed_nwu.ur
 	rm -f build/psbt/*.signed
 	for f in build/psbt/own_*.psbt; do echo "== $$f"; build/host-classic/psbt_host sign $$f $${f%.psbt}.signed || true; done
+	build/host-classic/psbt_host sign build/psbt/own_mixed_nwu.ur build/psbt/own_mixed_nwu_ur.out
+	cmp build/psbt/own_mixed_nwu_ur.out build/psbt/own_mixed_nwu.signed && echo "UR path matches the binary PSBT path"
 	uv run -q tools/check_signed_psbt.py build/psbt
 .PHONY: check-psbt
 
-check-qemu-psbt: build/parser_wasm.h build/signer_wasm.h build/font8x16.h build/psbt/own_p2wpkh_1in.psbt
+check-qemu-psbt: build/parser_wasm.h build/signer_wasm.h build/font8x16.h build/psbt/own_mixed_nwu.ur
 	cmake -S platform/qemu-riscv32 -B build/qemu-psbt -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
 	  -DCMAKE_C_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc -DCMAKE_ASM_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc \

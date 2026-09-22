@@ -192,8 +192,19 @@ typedef struct {
 - Bitcoin Core の `test/functional/data/rpc_psbt.json`（invalid 84 件、valid 48 件。base64 が壊れた 2 件は対象外）で trap は 0 件。invalid は MuSig2 フィールドの 15 件を除き全て拒否。valid は 31 件受理、PSBT v2 の 14 件と utxo 無し 2 件と入力 0 個 1 件を拒否（wasm-psbt-parser の `make test`。本体では `make check-parser`）
 - RV32（QEMU）で混在 PSBT を一巡: parse 2.72M、review 17.1M、sign 14.5M、finalize 0.04M 命令。署名済み PSBT は Mac と RV32 でバイト一致
 
+### UR（アニメーション QR）の復元
+
+parser.wasm（wasm-psbt-parser）に UR（BCR-2020-005）の復元を入れた。ファウンテン符号の復元も untrusted な入力の処理なので、サンドボックス内に置く。
+
+- `parser_ur_reset` / `parser_ur_receive(len)` / `parser_ur_progress`。完成すると PSBT が入力バッファに置かれ、そのまま `parser_parse` できる。受け付ける型は `crypto-psbt` と `psbt`
+- どの断片を混ぜたかを決める Xoshiro256**・alias sampler・シャッフルは、bc-ur（Blockchain Commons）のテストの期待値と全て一致（ネイティブ、ASan / UBSan 付きで 1,148 項目）。1 パート落として逆順に流すと、参照デコーダ（@ngraveio/bc-ur 1.1.13）と同じ 16 パートで完成する
+- 参照エンコーダで作った自分用 PSBT の UR（`crypto-psbt` / `psbt`、断片 60 / 150 / 5000 byte）を、純粋なパートを 3 つに 1 つ落として流し、元の PSBT に戻ることを確かめた
+- RV32（QEMU）: 混在 PSBT を 60 byte 断片の 19 パートで流すと合計 2,216 万命令、1 パート最大 423 万命令（150MHz で 30〜40ms）。組み立てた PSBT での署名結果はバイナリ PSBT のときとバイト一致
+- `.wasm` は 14KB、import は 0 個のまま。線形メモリの使用量（`__heap_base`）は 88KB から 158KB に増え、QEMU での WAMR プール最大は 173KB。実機アプリのプールを 128KB から 192KB にした（RAM 324KB / 512KB）
+- 残課題: 抽選用の作業配列（パート数の上限 1024 に合わせた約 40KB）に重複があり、約 20KB 減らせる見込み。QR 読み取り（約 120KB）を足すと RAM が約 440KB になるので、その前に削る
+
 ## 11. 次の作業
 
-1. UR（`crypto-psbt`）の復元と CBOR を parser.wasm に入れ、アニメーション QR の断片から PSBT を組み立てる
-2. 署名済み PSBT を UR にしてアニメーション QR で表示する
+1. 署名済み PSBT を UR にしてアニメーション QR で表示する
+2. UR デコーダの作業配列を削って RAM を空ける
 3. 実機（Pico 2）で parser.wasm → core の一巡を動かし、XIP キャッシュ込みの実時間を測る

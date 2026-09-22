@@ -77,6 +77,20 @@ int parser_host_finalize(const core_sig_t *sigs, unsigned n, uint8_t *out, size_
     return call("parser_output", 0, a) && copy_out(a[0], *out_len, out);
 }
 
+int parser_host_ur_reset(void) {
+    uint32_t a[1] = {0};
+    return call("parser_ur_reset", 0, a);
+}
+
+int parser_host_ur_receive(const char *part, uint32_t len, int32_t *rc, uint8_t *psbt, size_t cap) {
+    uint32_t a[1] = {len};
+    if (len > PARSER_PSBT_MAX || !copy_in("parser_input", part, len) || !call("parser_ur_receive", 1, a)) return 0;
+    *rc = (int32_t)a[0];
+    if (*rc <= 0) return 1;
+    if ((size_t)*rc > cap || !call("parser_input", 0, a)) return 0;
+    return copy_out(a[0], (uint32_t)*rc, psbt);
+}
+
 uint32_t parser_host_pool_highmark(void) {
     mem_alloc_info_t mi;
     wasm_runtime_get_mem_alloc_info(&mi);

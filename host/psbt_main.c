@@ -58,6 +58,30 @@ static void write_screens(const core_display_t *d, const char *prefix) {
 
 static int zero_rng(uint8_t *b, size_t n) { memset(b, 0, n); return 1; } /* 検査用。実機は TRNG */
 
+/* 1 行 1 パートの UR を流して PSBT を組み立て、file_buf に置く。長さを返し、失敗は -1 */
+static long assemble_ur(const char *path) {
+    static char line[PARSER_PSBT_MAX];
+    FILE *f = fopen(path, "r");
+    int32_t rc = 0;
+    unsigned parts = 0;
+    uint64_t t0 = now(), max_part = 0;
+
+    if (!f || !parser_host_ur_reset()) return -1;
+    while (rc <= 0 && fgets(line, sizeof(line), f)) {
+        size_t n = strcspn(line, "\r\n");
+        uint64_t t = now();
+        if (!n) continue;
+        if (!parser_host_ur_receive(line, (uint32_t)n, &rc, file_buf, sizeof(file_buf))) break;
+        t = now() - t;
+        max_part = t > max_part ? t : max_part;
+        parts++;
+    }
+    fclose(f);
+    printf("  ur: %u parts, %s total=%llu max_per_part=%llu\n", parts, UNIT, (unsigned long long)(now() - t0),
+           (unsigned long long)max_part);
+    return rc > 0 ? rc : -1;
+}
+
 static int sign(const char *in_path, const char *out_path, const char *preview) {
     static plan_t plan;
     core_prevtx_t prev[PLAN_MAX_INPUTS];
@@ -67,7 +91,8 @@ static int sign(const char *in_path, const char *out_path, const char *preview) 
     unsigned n_sigs;
     uint32_t rc = 0, out_len;
     uint64_t t0 = now(), t1, t2, t3, t4;
-    long len = read_file(in_path);
+    size_t ext = strlen(in_path);
+    long len = ext > 3 && !strcmp(in_path + ext - 3, ".ur") ? assemble_ur(in_path) : read_file(in_path);
     char btc[21];
     int err;
     FILE *f;
@@ -105,10 +130,10 @@ int main(int argc, char **argv) {
 
 #ifdef QEMU_BUILD
     /* libgloss の crt0 は semihosting のコマンドラインを渡さないので固定する */
-    static char *qemu_argv[] = {"psbt_host", "sign", "build/psbt/own_mixed_nwu.psbt", "build/psbt/own_mixed_nwu.qemu"};
+    static char *qemu_argv[] = {"psbt_host", "sign", "build/psbt/own_mixed_nwu.ur", "build/psbt/own_mixed_nwu.qemu"};
     argc = 4, argv = qemu_argv;
 #endif
-    if (argc < 3) return fprintf(stderr, "usage: %s parse FILE... | sign IN OUT [PREVIEW_PREFIX]\n", argv[0]), 2;
+    if (argc < 3) return fprintf(stderr, "usage: %s parse FILE... | sign IN(.psbt|.ur) OUT [PREVIEW_PREFIX]\n", argv[0]), 2;
     memcpy(parser_wasm_rw, parser_wasm, sizeof(parser_wasm_rw));
     if (!core_init(CORE_MAINNET) || !parser_host_init(parser_wasm_rw, sizeof(parser_wasm_rw), pool, sizeof(pool)))
         return 1;

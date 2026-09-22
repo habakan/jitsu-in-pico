@@ -17,6 +17,10 @@ int parser_host_parse(const uint8_t *psbt, uint32_t len, uint32_t fingerprint, u
 /* 署名を parser.wasm に渡して署名済み PSBT を out に受け取る。成功なら 1 */
 int parser_host_finalize(const core_sig_t *sigs, unsigned n, uint8_t *out, size_t cap, uint32_t *out_len);
 
+/* アニメーション QR の 1 パート（QR の文字列）を渡す。parser_ur_receive の戻り値を *rc に入れる。
+ * *rc > 0 なら PSBT が揃っていて、psbt に *rc バイトを写す */
+int parser_host_ur_reset(void);
+int parser_host_ur_receive(const char *part, uint32_t len, int32_t *rc, uint8_t *psbt, size_t cap);
 /* WAMR プールの最大使用量。プールの大きさを決めるための計測用 */
 uint32_t parser_host_pool_highmark(void);
 
