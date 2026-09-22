@@ -55,3 +55,17 @@ pico_enable_stdio_uart(app 1)
 pico_enable_stdio_usb(app 0)
 target_link_options(app PRIVATE -Wl,--print-memory-usage)
 pico_add_extra_outputs(app)
+
+# カメラの初期確認（make build/rp2350/camera_test.elf）。PIO で Y を拾い、自前フォークの quirc で読む
+set(QUIRC ${ROOT}/qr/quirc/lib)
+add_executable(camera_test ${CMAKE_CURRENT_LIST_DIR}/camera_test.c ${CMAKE_CURRENT_LIST_DIR}/camera.c
+  ${CMAKE_CURRENT_LIST_DIR}/camera_ov7670.c ${CMAKE_CURRENT_LIST_DIR}/st7789.c
+  ${QUIRC}/decode.c ${QUIRC}/identify.c ${QUIRC}/quirc.c ${QUIRC}/version_db.c)
+pico_generate_pio_header(camera_test ${CMAKE_CURRENT_LIST_DIR}/camera.pio)
+target_compile_definitions(camera_test PRIVATE QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH)
+target_include_directories(camera_test PRIVATE ${CMAKE_CURRENT_LIST_DIR} ${QUIRC})
+target_link_libraries(camera_test pico_stdlib hardware_pio hardware_dma hardware_i2c hardware_spi hardware_clocks)
+pico_enable_stdio_uart(camera_test 1)
+pico_enable_stdio_usb(camera_test 0)
+target_link_options(camera_test PRIVATE -Wl,--print-memory-usage)
+pico_add_extra_outputs(camera_test)

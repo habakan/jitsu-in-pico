@@ -230,3 +230,12 @@ build/rp2350/app.elf: build/parser_wasm.h build/signer_wasm.h build/font8x16.h b
 	  -DPICO_SDK_PATH=$(CURDIR)/third_party/pico-sdk -DPICO_TOOLCHAIN_PATH=$(RISCV_TC) \
 	  -DWAMR_BUILD_AOT=0 -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/rp2350 app
+
+build/rp2350/camera_test.elf: platform/rp2350/camera_test.c platform/rp2350/camera.c platform/rp2350/camera.pio \
+  platform/rp2350/camera_ov7670.c platform/rp2350/CMakeLists.txt build/rp2350/app.elf
+	ninja -C build/rp2350 camera_test
+
+# camera.pio を実機なしで確かめる（pioasm が生成した命令語を最小の PIO シミュレータで実行する）
+check-camera-sim: build/rp2350/camera_test.elf
+	python3 tools/sim_dvp_pio.py build/rp2350/camera.pio.h
+.PHONY: check-camera-sim

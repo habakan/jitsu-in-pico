@@ -1,0 +1,84 @@
+#include "camera.h"
+#include "board_pins.h"
+#include "camera.pio.h"
+#include "hardware/clocks.h"
+#include "hardware/dma.h"
+#include "hardware/i2c.h"
+#include "hardware/pio.h"
+#include "pico/time.h"
+
+#define SCCB i2c1
+#define SCCB_BAUD (100 * 1000)
+/* 150MHz / 6 = 25MHz。OV7670 の XCLK は 10〜48MHz */
+#define XCLK_DIV 6
+
+static PIO pio = pio0;
+static uint sm, offset;
+static int dma_ch = -1;
+static const camera_model_t *model;
+
+static bool sccb_write(uint8_t reg, uint8_t val) {
+    uint8_t b[2] = {reg, val};
+    return i2c_write_blocking(SCCB, model->sccb_addr, b, 2, false) == 2;
+}
+
+/* SCCB は repeated start を想定していないので、書いて止めてから読む */
+bool camera_read_reg(uint8_t reg, uint8_t *val) {
+    return i2c_write_blocking(SCCB, model->sccb_addr, &reg, 1, false) == 1 &&
+           i2c_read_blocking(SCCB, model->sccb_addr, val, 1, false) == 1;
+}
+
+bool camera_init(const camera_model_t *m) {
+    model = m;
+    if (m->needs_xclk) clock_gpio_init(PIN_CAM_XCLK, CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_VALUE_CLK_SYS, XCLK_DIV);
+    sleep_ms(10);
+
+    i2c_init(SCCB, SCCB_BAUD);
+    gpio_set_function(PIN_CAM_SIOD, GPIO_FUNC_I2C);
+    gpio_set_function(PIN_CAM_SIOC, GPIO_FUNC_I2C);
+    gpio_pull_up(PIN_CAM_SIOD); /* 基板に 4.7kΩ が無い場合の保険。内蔵は弱いので外付けを推奨 */
+    gpio_pull_up(PIN_CAM_SIOC);
+
+    for (const camera_reg_t *r = m->regs; !(r->reg == 0xff && r->val == 0xff); r++) {
+        if (r->reg == 0xfe) {
+            sleep_ms(r->val);
+            continue;
+        }
+        if (!sccb_write(r->reg, r->val)) return false;
+    }
+
+    offset = pio_add_program(pio, &dvp_y_program);
+    sm = (uint)pio_claim_unused_sm(pio, true);
+    dvp_y_program_init(pio, sm, offset, PIN_CAM_D0);
+    dma_ch = dma_claim_unused_channel(true);
+    return true;
+}
+
+bool camera_capture(uint8_t *buf, uint32_t timeout_ms) {
+    dma_channel_config c = dma_channel_get_default_config((uint)dma_ch);
+    absolute_time_t deadline = make_timeout_time_ms(timeout_ms);
+
+    /* 前のフレームの途中から始めないよう、毎回 SM を先頭（VSYNC 待ち）からやり直す */
+    pio_sm_set_enabled(pio, sm, false);
+    pio_sm_clear_fifos(pio, sm);
+    pio_sm_restart(pio, sm);
+    pio_sm_exec(pio, sm, pio_encode_jmp(offset));
+
+    channel_config_set_transfer_data_size(&c, DMA_SIZE_32);
+    channel_config_set_read_increment(&c, false);
+    channel_config_set_write_increment(&c, true);
+    channel_config_set_dreq(&c, pio_get_dreq(pio, sm, false));
+    dma_channel_configure((uint)dma_ch, &c, buf, &pio->rxf[sm], CAMERA_W * CAMERA_H / 4, true);
+
+    pio_sm_put_blocking(pio, sm, CAMERA_W - 1);
+    pio_sm_set_enabled(pio, sm, true);
+    while (dma_channel_is_busy((uint)dma_ch)) {
+        if (time_reached(deadline)) {
+            dma_channel_abort((uint)dma_ch);
+            pio_sm_set_enabled(pio, sm, false);
+            return false;
+        }
+    }
+    pio_sm_set_enabled(pio, sm, false);
+    return true;
+}

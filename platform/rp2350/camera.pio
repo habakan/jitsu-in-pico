@@ -1,0 +1,38 @@
+; DVP（8bit パラレル）カメラから、YUV422（Y U Y V ...）の Y だけを拾ってグレースケールにする。
+; IN のベースを D0 に置き、D0〜D7、PCLK、HREF、VSYNC がこの順に連番で並ぶ前提（board_pins.h）。
+; 1 行の画素数 - 1 を CPU が TX FIFO に 1 回だけ入れてから起動する。4 画素ごとに autopush し、DMA が受け取る。
+
+.program dvp_y
+.define PUBLIC PCLK 8
+.define PUBLIC HREF 9
+.define PUBLIC VSYNC 10
+    pull block              ; OSR = 1 行の画素数 - 1
+    wait 1 pin VSYNC        ; VSYNC のパルスが終わった所からフレームが始まる
+    wait 0 pin VSYNC
+.wrap_target
+    mov x, osr
+    wait 1 pin HREF         ; 行の先頭
+pixel:
+    wait 1 pin PCLK         ; 1 バイト目（Y）は PCLK の立ち上がりで確定している
+    in pins, 8
+    wait 0 pin PCLK
+    wait 1 pin PCLK         ; 2 バイト目（U か V）は読み捨てる
+    wait 0 pin PCLK
+    jmp x-- pixel
+    wait 0 pin HREF         ; 行の終わりを待ってから次の行へ
+.wrap
+
+% c-sdk {
+#include "hardware/clocks.h"
+
+static inline void dvp_y_program_init(PIO pio, uint sm, uint offset, uint pin_d0) {
+    pio_sm_config c = dvp_y_program_get_default_config(offset);
+    for (uint i = 0; i < 11; i++) pio_gpio_init(pio, pin_d0 + i);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_d0, 11, false);
+    sm_config_set_in_pins(&c, pin_d0);
+    /* 右シフトで 4 バイトたまったら push するので、最初の画素がワードの下位バイトになる */
+    sm_config_set_in_shift(&c, true, true, 32);
+    /* RX を連結すると TX FIFO が無くなり、先頭の pull が永久に止まる。RX 4 段と DMA で足りる */
+    pio_sm_init(pio, sm, offset, &c);
+}
+%}
