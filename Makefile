@@ -30,6 +30,7 @@ deps:
 	cd third_party && git clone --depth 1 -b 2.3.1 https://github.com/raspberrypi/pico-sdk.git
 	cd third_party && git clone --depth 1 https://github.com/dlbeer/quirc.git
 	cd third_party && git clone --depth 1 https://github.com/nayuki/QR-Code-generator.git
+	cd third_party && git clone --depth 1 https://github.com/fcambus/spleen.git
 	curl -sL -o third_party/rv.zip $(RISCV_TC_URL) && unzip -q third_party/rv.zip -d third_party/riscv-toolchain && rm third_party/rv.zip
 .PHONY: deps
 
@@ -172,7 +173,11 @@ build/parser_wasm.h: build/parser.wasm
 build/psbt/own_p2wpkh_1in.psbt: tools/gen_psbt_vectors.py test-vectors/rpc_psbt.json
 	rm -rf build/psbt && uv run -q $< test-vectors/rpc_psbt.json build/psbt
 
-build/host-classic/psbt_host: build/parser_wasm.h build/signer_wasm.h host/psbt_main.c host/CMakeLists.txt $(CORE_SRC)
+build/font8x16.h: tools/gen_font.py
+	mkdir -p build && python3 $< third_party/spleen/spleen-8x16.bdf $@
+
+build/host-classic/psbt_host: build/parser_wasm.h build/signer_wasm.h build/font8x16.h host/psbt_main.c host/CMakeLists.txt \
+  runtime/host-abi/parser_host.c ui/ui.c $(CORE_SRC)
 	cmake -S host -B build/host-classic -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DWAMR_BUILD_FAST_INTERP=0 \
 	  -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/host-classic psbt_host >/dev/null
@@ -185,7 +190,7 @@ check-psbt: build/host-classic/psbt_host build/psbt/own_p2wpkh_1in.psbt
 	python3 tools/check_rpc_results.py test-vectors/rpc_psbt.json build/psbt/rpc_results.txt
 .PHONY: check-psbt
 
-check-qemu-psbt: build/parser_wasm.h build/signer_wasm.h build/psbt/own_p2wpkh_1in.psbt
+check-qemu-psbt: build/parser_wasm.h build/signer_wasm.h build/font8x16.h build/psbt/own_p2wpkh_1in.psbt
 	cmake -S platform/qemu-riscv32 -B build/qemu-psbt -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
 	  -DCMAKE_C_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc -DCMAKE_ASM_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc \
@@ -195,3 +200,24 @@ check-qemu-psbt: build/parser_wasm.h build/signer_wasm.h build/psbt/own_p2wpkh_1
 	  -kernel build/qemu-psbt/psbt.elf </dev/null
 	cmp build/psbt/own_mixed_nwu.qemu build/psbt/own_mixed_nwu.signed && echo "qemu output matches host"
 .PHONY: check-qemu-psbt
+
+build/test_ui: ui/tests/test_ui.c ui/ui.c ui/ui.h build/font8x16.h core/core.h
+	cc -O2 -Wall -Wextra -Icore -Iruntime/host-abi -Iui -Ibuild -o $@ ui/tests/test_ui.c ui/ui.c core/core.c \
+	  core/address.c core/bip32.c core/sighash.c core/tx.c core/sha256.c core/ripemd160.c core/sha512.c \
+	  core/secp_callbacks.c signer/secp256k1_unity.c -I$(SECP)/include $(SECP_DEFS) -Wno-unused-function
+
+check-ui: build/test_ui
+	build/test_ui
+.PHONY: check-ui
+
+build/test_psbt.h: build/psbt/own_p2wpkh_1in.psbt
+	cp build/psbt/own_mixed_nwu.psbt build/test_psbt.bin && cd build && xxd -i -n test_psbt test_psbt.bin \
+	  | sed 's/^unsigned char/const unsigned char/' > test_psbt.h
+
+build/rp2350/app.elf: build/parser_wasm.h build/signer_wasm.h build/font8x16.h build/test_psbt.h \
+  platform/rp2350/app_main.c platform/rp2350/st7789.c platform/rp2350/buttons.c platform/rp2350/CMakeLists.txt \
+  runtime/host-abi/parser_host.c ui/ui.c $(CORE_SRC)
+	cmake -S platform/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
+	  -DPICO_SDK_PATH=$(CURDIR)/third_party/pico-sdk -DPICO_TOOLCHAIN_PATH=$(RISCV_TC) \
+	  -DWAMR_BUILD_AOT=0 -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
+	ninja -C build/rp2350 app

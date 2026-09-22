@@ -1,0 +1,134 @@
+#include "ui.h"
+#include <string.h>
+#include "font8x16.h"
+
+#define RGB565(r, g, b) (uint16_t)(((r) >> 3) << 11 | ((g) >> 2) << 5 | (b) >> 3)
+#define C_TEXT RGB565(230, 230, 230)
+#define C_TITLE RGB565(255, 170, 0)
+#define C_SEND RGB565(255, 110, 80)
+#define C_OURS RGB565(90, 220, 120)
+#define C_HINT RGB565(140, 140, 140)
+#define C_BG RGB565(0, 0, 0)
+
+typedef struct {
+    ui_screen_t *s;
+    int row;
+} writer_t;
+
+static void put(writer_t *w, uint16_t color, const char *text) {
+    if (w->row >= UI_ROWS) return;
+    strncpy(w->s->text[w->row], text, UI_COLS);
+    w->s->text[w->row][UI_COLS] = 0;
+    w->s->color[w->row++] = color;
+}
+
+/* 長い文字列（アドレス、16 進のスクリプト）は途中で切らずに全部折り返す */
+static void put_wrapped(writer_t *w, uint16_t color, const char *text) {
+    size_t n = strlen(text);
+    char chunk[UI_COLS + 1];
+    for (size_t i = 0; i < n; i += UI_COLS) {
+        size_t k = n - i < UI_COLS ? n - i : UI_COLS;
+        memcpy(chunk, text + i, k);
+        chunk[k] = 0;
+        put(w, color, chunk);
+    }
+}
+
+static void put_amount(writer_t *w, uint16_t color, const char *label, uint64_t sats) {
+    char btc[21], line[UI_COLS + 1];
+    size_t n = strlen(label);
+    core_format_btc(sats, btc);
+    memcpy(line, label, n);
+    memcpy(line + n, btc, strlen(btc) + 1);
+    strncat(line, " BTC", UI_COLS - strlen(line));
+    put(w, color, line);
+}
+
+static void put_number(writer_t *w, uint16_t color, const char *label, unsigned v) {
+    char line[UI_COLS + 1];
+    size_t n = strlen(label);
+    memcpy(line, label, n);
+    if (v >= 10) line[n++] = (char)('0' + v / 10);
+    line[n++] = (char)('0' + v % 10);
+    line[n] = 0;
+    put(w, color, line);
+}
+
+static void put_counter(writer_t *w, uint16_t color, const char *label, unsigned a, unsigned b) {
+    char line[UI_COLS + 1];
+    size_t n = strlen(label), o = n;
+    memcpy(line, label, n);
+    if (a >= 10) line[o++] = (char)('0' + a / 10);
+    line[o++] = (char)('0' + a % 10);
+    line[o++] = '/';
+    if (b >= 10) line[o++] = (char)('0' + b / 10);
+    line[o++] = (char)('0' + b % 10);
+    line[o] = 0;
+    put(w, color, line);
+}
+
+void ui_review_init(ui_review_t *r, const core_display_t *d) {
+    static const char *owner[] = {"Send to", "Change", "Self-transfer"};
+    unsigned n_send = 0;
+    writer_t w;
+
+    memset(r, 0, sizeof(*r));
+    for (unsigned i = 0; i < d->n_outputs; i++) n_send += d->outputs[i].owner == CORE_OUT_EXTERNAL;
+
+    w = (writer_t){&r->screens[r->n++], 0};
+    put(&w, C_TITLE, "Review transaction");
+    put(&w, C_TEXT, "");
+    put_amount(&w, C_SEND, "Spend ", d->spend);
+    put_amount(&w, C_TEXT, "Fee   ", d->fee);
+    put(&w, C_TEXT, "");
+    put_number(&w, C_TEXT, "Outputs:  ", d->n_outputs);
+    put_number(&w, C_TEXT, "External: ", n_send);
+    w.row = UI_ROWS - 1;
+    put(&w, C_HINT, "RIGHT: next   A: cancel");
+
+    for (unsigned i = 0; i < d->n_outputs; i++) {
+        const core_display_output_t *o = &d->outputs[i];
+        uint16_t color = o->owner == CORE_OUT_EXTERNAL ? C_SEND : C_OURS;
+        w = (writer_t){&r->screens[r->n++], 0};
+        put_counter(&w, C_TITLE, "Output ", i + 1, d->n_outputs);
+        put(&w, color, owner[o->owner]);
+        put_amount(&w, color, "", o->amount);
+        put(&w, C_TEXT, "");
+        put(&w, C_HINT, o->text_kind == CORE_TEXT_ADDRESS ? "Address:" : o->text_kind == CORE_TEXT_OP_RETURN
+                                                                           ? "OP_RETURN data (hex):" : "Script (hex):");
+        put_wrapped(&w, C_TEXT, o->text);
+        w.row = UI_ROWS - 1;
+        put(&w, C_HINT, "LEFT/RIGHT: prev/next");
+    }
+
+    w = (writer_t){&r->screens[r->n++], 0};
+    put(&w, C_TITLE, "Sign this transaction?");
+    put(&w, C_TEXT, "");
+    put_amount(&w, C_SEND, "Spend ", d->spend);
+    put_amount(&w, C_TEXT, "Fee   ", d->fee);
+    w.row = UI_ROWS - 2;
+    put(&w, C_HINT, "PUSH: sign");
+    put(&w, C_HINT, "A: cancel   LEFT: back");
+    r->seen = 1;
+}
+
+int ui_review_key(ui_review_t *r, int key) {
+    if (key == UI_KEY_A) return UI_REJECTED;
+    if ((key == UI_KEY_RIGHT || key == UI_KEY_DOWN) && r->cur + 1 < r->n) r->cur++;
+    if ((key == UI_KEY_LEFT || key == UI_KEY_UP) && r->cur > 0) r->cur--;
+    r->seen |= 1u << r->cur;
+    if (key == UI_KEY_PUSH && r->cur == r->n - 1 && r->seen == (1u << r->n) - 1) return UI_APPROVED;
+    return UI_PENDING;
+}
+
+void ui_render_line(const ui_screen_t *s, int y, uint16_t line[UI_W]) {
+    int row = y / FONT_H, gy = y % FONT_H;
+    const char *t = s->text[row];
+    for (int x = 0; x < UI_W; x++) line[x] = C_BG;
+    for (int c = 0; c < UI_COLS && t[c]; c++) {
+        unsigned ch = (unsigned char)t[c];
+        uint8_t bits = font8x16[(ch >= 0x20 && ch <= 0x7e ? ch : '?') - 0x20][gy];
+        for (int b = 0; b < FONT_W; b++)
+            if (bits & (0x80 >> b)) line[c * FONT_W + b] = s->color[row];
+    }
+}
