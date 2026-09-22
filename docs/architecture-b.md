@@ -91,7 +91,7 @@ parser.wasm が元 PSBT と違う Plan を出しても、ユーザーが見る�
 
 ## 8. 決定事項（2026-09-22）
 
-1. **SegWit v0 入力の `non_witness_utxo`:** SegWit v0 の署名対象を含み、入力が 2 個以上なら全入力で必須。1 入力なら不要（嘘の額で作った署名は無効になるだけ）。ネイティブの最小 tx パーサ（`core/tx.c`）で txid・vout・額・スクリプトを確かめる
+1. **SegWit v0 入力の `non_witness_utxo`:** SegWit v0 の署名対象を含み、入力が 2 個以上なら全入力で必須。1 入力なら不要（嘘の額で作った署名は無効になるだけ）。ネイティブの最小 tx パーサ（`parser/src/tx.c`、wasm-psbt-parser と共有）で txid・vout・額・スクリプトを確かめる
 2. **初期対象:** P2WPKH（BIP84）と P2TR（BIP86、スクリプトツリー無し）
 3. **parser.wasm のランタイム:** インタプリタ。実装後に RV32 で測り、PSBT 解析 270 万命令、署名挿入 4 万命令（§10）で十分と確認した
 4. **multisig:** 初期版には入れない
@@ -143,7 +143,7 @@ typedef struct {
 } plan_t;
 ```
 
-- 確定版は `runtime/host-abi/plan.h`（`_Static_assert` でサイズとオフセットを固定）
+- 確定版は `parser/include/plan.h`（wasm-psbt-parser 側。`_Static_assert` でサイズとオフセットを固定）
 - 上限 16 入力 / 16 出力で 5,016 byte（入力 176、出力 136 byte）。RAM への影響は小さい
 - 入出力数の上限は仮置き。SeedSigner / Krux の上限と実際の PSBT を見て決める
 - §8-1 で (a) か (b) を選んだ場合、`non_witness_utxo` は Plan とは別のバッファで渡す（上限は PSBT 全体の上限と揃える）
@@ -157,9 +157,9 @@ typedef struct {
 | `core/core.c` | §6 の検証（`core_review`）、確認画面モデル（`core_display`）、署名（`core_sign`）。review した plan の SHA-256 を記録し、display / sign 時に一致しなければ拒否する |
 | `core/address.c` | scriptPubKey からのアドレス生成。P2PKH / P2SH は base58check、witness v0 は bech32、v1〜v16 は bech32m。標準形でなければ生成しない |
 | `core/sighash.c` | BIP143（P2WPKH、SIGHASH_ALL）と BIP341 key path（7 種類の hash type） |
-| `core/tx.c` | 最小 tx パーサ。非最短 varint と末尾の余りを拒否。txid は witness を除いて計算 |
+| `parser/src/tx.c` | 最小 tx パーサ（wasm-psbt-parser と共有）。非最短 varint と末尾の余りを拒否。txid は witness を除いて計算 |
 | `core/bip32.c` | BIP32 導出（案 A の `signer.c` と共有） |
-| `core/sha256.c` `ripemd160.c` `sha512.c` | ハッシュ。秘密値の消去は `core/wipe.h`（volatile 経由）で最適化に消されないようにした |
+| `parser/src/sha256.c`、`core/ripemd160.c` `sha512.c` | ハッシュ。秘密値の消去は `core/wipe.h`（volatile 経由）で最適化に消されないようにした |
 
 `core_review` が採る方針（§6 の具体化）:
 
@@ -177,7 +177,7 @@ typedef struct {
 - 攻撃シナリオ: review 後の plan 差し替え（display と sign の両方）、偽のお釣り、自分宛て、index 上限、別アカウントのお釣り、鍵とスクリプトの不一致、許可しない sighash type、未使用領域の非ゼロ、出力超過、手数料攻撃（元の取引なし・嘘の額・誤った vout・誤った txid）
 - 実装を 5 箇所わざと壊し（BIP143 の hash type、BIP341 の spend_type、手数料攻撃の判定、bech32m の定数、base58 の先頭ゼロ）、それぞれテストが失敗することを確認した
 
-### parser.wasm（`parser/psbt.c`）
+### parser.wasm（`parser/src/psbt.c`、submodule の [wasm-psbt-parser](https://github.com/habakan/wasm-psbt-parser)）
 
 - PSBT v0（BIP174）を `plan_t` にし、ネイティブが作った署名を各入力マップの終端の直前に挿入する。他のバイト列は元のまま残す
 - `.wasm` は 7KB、import 0 個。入出力バッファ（`PSBT_MAX` 32KB）を持つので線形メモリは 2 ページ
@@ -189,7 +189,7 @@ typedef struct {
 検証（`make check-psbt`、`make check-qemu-psbt`）:
 
 - embit で組んだ自分の seed 向け PSBT 6 件（P2WPKH 1 / 2 入力、P2TR 2 入力、混在、他人の入力入り、`non_witness_utxo` 無しの 2 入力）を一巡させ、署名済み PSBT を embit で独立に検証した（`tools/check_signed_psbt.py`）。ECDSA は embit 自身の署名とバイト一致、Schnorr は embit の BIP341 sighash で検証が通る。`non_witness_utxo` 無しの 2 入力は `CORE_ERR_PREVTX_MISSING` で拒否される
-- Bitcoin Core の `test/functional/data/rpc_psbt.json`（invalid 84 件、valid 48 件。base64 が壊れた 2 件は対象外）で trap は 0 件。invalid は MuSig2 フィールドの 15 件を除き全て拒否。valid は 31 件受理、PSBT v2 の 14 件と utxo 無し 2 件と入力 0 個 1 件を拒否（`tools/check_rpc_results.py`）
+- Bitcoin Core の `test/functional/data/rpc_psbt.json`（invalid 84 件、valid 48 件。base64 が壊れた 2 件は対象外）で trap は 0 件。invalid は MuSig2 フィールドの 15 件を除き全て拒否。valid は 31 件受理、PSBT v2 の 14 件と utxo 無し 2 件と入力 0 個 1 件を拒否（wasm-psbt-parser の `make test`。本体では `make check-parser`）
 - RV32（QEMU）で混在 PSBT を一巡: parse 2.72M、review 17.1M、sign 14.5M、finalize 0.04M 命令。署名済み PSBT は Mac と RV32 でバイト一致
 
 ## 11. 次の作業

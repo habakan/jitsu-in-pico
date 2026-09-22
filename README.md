@@ -8,3 +8,6 @@ QR 読み書きの実現性検証: [docs/qr-feasibility.md](docs/qr-feasibility.
 BIP39 / BIP32 の速度検証: [docs/kdf-feasibility.md](docs/kdf-feasibility.md)
 WAMR AOT (XIP) の検証: [docs/aot-feasibility.md](docs/aot-feasibility.md)
 案 B（解析器を WASM に隔離）: [docs/architecture-b.md](docs/architecture-b.md)
+
+PSBT の解析器は別リポジトリ [wasm-psbt-parser](https://github.com/habakan/wasm-psbt-parser) を submodule（`parser/`）で取り込む。
+clone 後は `git submodule update --init` を実行する。

@@ -25,9 +25,9 @@ target_compile_definitions(signer_wamr PRIVATE POOL_KB=256)
 set(ROOT ${CMAKE_CURRENT_LIST_DIR}/..)
 set(SECP ${ROOT}/third_party/secp256k1)
 add_executable(psbt_host psbt_main.c ${ROOT}/runtime/host-abi/parser_host.c ${ROOT}/ui/ui.c ${ROOT}/core/core.c ${ROOT}/core/address.c ${ROOT}/core/bip32.c
-  ${ROOT}/core/sighash.c ${ROOT}/core/tx.c ${ROOT}/core/sha256.c ${ROOT}/core/ripemd160.c ${ROOT}/core/sha512.c
+  ${ROOT}/core/sighash.c ${ROOT}/parser/src/tx.c ${ROOT}/parser/src/sha256.c ${ROOT}/core/ripemd160.c ${ROOT}/core/sha512.c
   ${ROOT}/core/secp_callbacks.c ${ROOT}/signer/secp256k1_unity.c ${WAMR_RUNTIME_LIB_SOURCE})
-target_include_directories(psbt_host PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/core ${ROOT}/runtime/host-abi ${ROOT}/ui ${SECP}/include)
+target_include_directories(psbt_host PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/core ${ROOT}/runtime/host-abi ${ROOT}/parser/include ${ROOT}/ui ${SECP}/include)
 target_compile_definitions(psbt_host PRIVATE ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1 ECMULT_WINDOW_SIZE=2
   USE_EXTERNAL_DEFAULT_CALLBACKS=1 COMB_BLOCKS=2 COMB_TEETH=5)
 target_compile_options(psbt_host PRIVATE -Wno-unused-function)

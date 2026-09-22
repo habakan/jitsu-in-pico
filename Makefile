@@ -134,21 +134,22 @@ check-qr-mac: build/qr_bench_mac
 .PHONY: check-qr-mac
 
 # 案 B のネイティブ署名中核（docs/architecture-b.md）
-CORE_SRC := core/core.c core/address.c core/bip32.c core/sighash.c core/tx.c core/sha256.c core/ripemd160.c core/sha512.c \
+# tx.c / sha256.c は wasm-psbt-parser（submodule）と共有する
+CORE_SRC := core/core.c core/address.c core/bip32.c core/sighash.c parser/src/tx.c parser/src/sha256.c core/ripemd160.c core/sha512.c \
             core/secp_callbacks.c
 build/core_vectors.h: tools/gen_core_vectors.py test-vectors/bip341-wallet-test-vectors.json
 	mkdir -p build && uv run -q $< test-vectors/bip341-wallet-test-vectors.json $@
 
-build/test_core: core/tests/test_core.c $(CORE_SRC) core/*.h runtime/host-abi/plan.h build/core_vectors.h signer/secp256k1_unity.c
-	cc -O2 -Wall -Wextra -Wno-unused-function -Icore -Iruntime/host-abi -Ibuild -I$(SECP)/include $(SECP_DEFS) \
+build/test_core: core/tests/test_core.c $(CORE_SRC) core/*.h parser/include/*.h build/core_vectors.h signer/secp256k1_unity.c
+	cc -O2 -Wall -Wextra -Wno-unused-function -Icore -Iparser/include -Ibuild -I$(SECP)/include $(SECP_DEFS) \
 	  -o $@ core/tests/test_core.c $(CORE_SRC) signer/secp256k1_unity.c
 
 check-core: build/test_core
 	build/test_core
 .PHONY: check-core
 
-build/qemu-test-core.elf: core/tests/test_core.c $(CORE_SRC) core/*.h runtime/host-abi/plan.h build/core_vectors.h platform/qemu-riscv32/start.S
-	$(RISCV_TC)/bin/riscv32-pico-elf-gcc $(QEMU_MARCH) -O2 -Wall -Wno-unused-function -Icore -Iruntime/host-abi -Ibuild \
+build/qemu-test-core.elf: core/tests/test_core.c $(CORE_SRC) core/*.h parser/include/*.h build/core_vectors.h platform/qemu-riscv32/start.S
+	$(RISCV_TC)/bin/riscv32-pico-elf-gcc $(QEMU_MARCH) -O2 -Wall -Wno-unused-function -Icore -Iparser/include -Ibuild \
 	  -I$(SECP)/include $(SECP_DEFS) --specs=semihost.specs -Wl,--section-start=.qemu_start=0x80000000 \
 	  -Wl,-Ttext=0x80001000 -Wl,-e,qemu_start -Wl,--gc-sections -o $@ \
 	  core/tests/test_core.c $(CORE_SRC) signer/secp256k1_unity.c platform/qemu-riscv32/start.S
@@ -158,26 +159,27 @@ check-qemu-core: build/qemu-test-core.elf
 	  -kernel $< </dev/null
 .PHONY: check-qemu-core
 
-# parser.wasm（鍵なし、import なし）。PSBT_MAX 32KB の入出力バッファを持つので線形メモリは 2 ページ
-PARSER_SRC := parser/psbt.c core/tx.c core/sha256.c
-build/parser.wasm: $(PARSER_SRC) core/*.h runtime/host-abi/plan.h
+# parser.wasm は wasm-psbt-parser（submodule）の Makefile でビルドする
+build/parser.wasm: parser/src/*.c parser/include/*.h
 	mkdir -p build
-	$(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs -Oz -Wall -Wextra \
-	  -Icore -Iruntime/host-abi -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all -Wl,-z,stack-size=16384 \
-	  -Wl,--export=__heap_base -Wl,--export=__data_end -Wl,--initial-memory=131072 -Wl,--max-memory=131072 \
-	  -o $@ $(PARSER_SRC) -lc $(RTLIB)/libclang_rt.builtins.a
+	$(MAKE) -C parser build/parser.wasm LLVM=$(LLVM) WASI=$(WASI) RTLIB=$(RTLIB)
+	cp parser/build/parser.wasm $@
+
+check-parser:
+	$(MAKE) -C parser test
+.PHONY: check-parser
 
 build/parser_wasm.h: build/parser.wasm
 	xxd -i -n parser_wasm $< > $@
 
-build/psbt/own_p2wpkh_1in.psbt: tools/gen_psbt_vectors.py test-vectors/rpc_psbt.json
-	rm -rf build/psbt && uv run -q $< test-vectors/rpc_psbt.json build/psbt
+build/psbt/own_p2wpkh_1in.psbt: tools/gen_psbt_vectors.py
+	rm -rf build/psbt && uv run -q $< build/psbt
 
 build/font8x16.h: tools/gen_font.py
 	mkdir -p build && python3 $< third_party/spleen/spleen-8x16.bdf $@
 
 build/host-classic/psbt_host: build/parser_wasm.h build/signer_wasm.h build/font8x16.h host/psbt_main.c host/CMakeLists.txt \
-  runtime/host-abi/parser_host.c ui/ui.c $(CORE_SRC)
+  runtime/host-abi/parser_host.c ui/ui.c $(CORE_SRC) parser/include/*.h
 	cmake -S host -B build/host-classic -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DWAMR_BUILD_FAST_INTERP=0 \
 	  -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/host-classic psbt_host >/dev/null
@@ -186,8 +188,6 @@ check-psbt: build/host-classic/psbt_host build/psbt/own_p2wpkh_1in.psbt
 	rm -f build/psbt/*.signed
 	for f in build/psbt/own_*.psbt; do echo "== $$f"; build/host-classic/psbt_host sign $$f $${f%.psbt}.signed || true; done
 	uv run -q tools/check_signed_psbt.py build/psbt
-	build/host-classic/psbt_host parse build/psbt/rpc_*.psbt > build/psbt/rpc_results.txt
-	python3 tools/check_rpc_results.py test-vectors/rpc_psbt.json build/psbt/rpc_results.txt
 .PHONY: check-psbt
 
 check-qemu-psbt: build/parser_wasm.h build/signer_wasm.h build/font8x16.h build/psbt/own_p2wpkh_1in.psbt
@@ -202,9 +202,8 @@ check-qemu-psbt: build/parser_wasm.h build/signer_wasm.h build/font8x16.h build/
 .PHONY: check-qemu-psbt
 
 build/test_ui: ui/tests/test_ui.c ui/ui.c ui/ui.h build/font8x16.h core/core.h
-	cc -O2 -Wall -Wextra -Icore -Iruntime/host-abi -Iui -Ibuild -o $@ ui/tests/test_ui.c ui/ui.c core/core.c \
-	  core/address.c core/bip32.c core/sighash.c core/tx.c core/sha256.c core/ripemd160.c core/sha512.c \
-	  core/secp_callbacks.c signer/secp256k1_unity.c -I$(SECP)/include $(SECP_DEFS) -Wno-unused-function
+	cc -O2 -Wall -Wextra -Icore -Iparser/include -Iui -Ibuild -o $@ ui/tests/test_ui.c ui/ui.c $(CORE_SRC) \
+	  signer/secp256k1_unity.c -I$(SECP)/include $(SECP_DEFS) -Wno-unused-function
 
 check-ui: build/test_ui
 	build/test_ui
@@ -216,7 +215,7 @@ build/test_psbt.h: build/psbt/own_p2wpkh_1in.psbt
 
 build/rp2350/app.elf: build/parser_wasm.h build/signer_wasm.h build/font8x16.h build/test_psbt.h \
   platform/rp2350/app_main.c platform/rp2350/st7789.c platform/rp2350/buttons.c platform/rp2350/CMakeLists.txt \
-  runtime/host-abi/parser_host.c ui/ui.c $(CORE_SRC)
+  runtime/host-abi/parser_host.c ui/ui.c $(CORE_SRC) parser/include/*.h
 	cmake -S platform/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DPICO_SDK_PATH=$(CURDIR)/third_party/pico-sdk -DPICO_TOOLCHAIN_PATH=$(RISCV_TC) \
 	  -DWAMR_BUILD_AOT=0 -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null

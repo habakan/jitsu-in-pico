@@ -64,3 +64,9 @@ void ripemd160(const uint8_t *p, size_t n, uint8_t out[20]) {
     if (rest == 128) compress(h, blk + 64);
     for (int i = 0; i < 20; i++) out[i] = (uint8_t)(h[i / 4] >> (8 * (i % 4)));
 }
+
+void hash160(const uint8_t *p, size_t n, uint8_t out[20]) {
+    uint8_t t[32];
+    sha256(p, n, t);
+    ripemd160(t, 32, out);
+}

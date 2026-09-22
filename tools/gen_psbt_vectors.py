@@ -1,9 +1,9 @@
 # /// script
 # dependencies = ["embit"]
 # ///
-"""parser.wasm の検査用 PSBT を build/psbt/ に書く。自分の seed 向けの PSBT は embit で組み、
-Bitcoin Core の rpc_psbt.json は invalid / valid をそのままバイナリにする。"""
-import base64, hashlib, json, os, sys
+"""署名までの一巡を検査する PSBT を build/psbt/ に書く。自分の seed 向けの PSBT を embit で組む。
+PSBT の解析器単体の検査（Bitcoin Core の rpc_psbt.json など）は wasm-psbt-parser 側にある。"""
+import hashlib, os, sys
 from embit import bip32, script
 from embit.psbt import PSBT, DerivationPath
 from embit.transaction import Transaction, TransactionInput, TransactionOutput
@@ -12,7 +12,7 @@ MN = " ".join(["abandon"] * 11 + ["about"])
 root = bip32.HDKey.from_seed(hashlib.pbkdf2_hmac("sha512", MN.encode(), b"mnemonic", 2048))
 FP = root.my_fingerprint
 H = 0x80000000
-out_dir = sys.argv[2]
+out_dir = sys.argv[1]
 os.makedirs(out_dir, exist_ok=True)
 
 def key(path):
@@ -69,13 +69,3 @@ build("own_mixed_nwu", [(A + "/0/0", 100000, 0, True), (T + "/0/0", 70000, 1, Tr
       [(None, 100000), (A + "/0/5", 20000), (T + "/1/0", 49000)])
 build("own_with_foreign_input", [(A + "/0/0", 100000, 0, True), (None, 30000, 0, True)],
       [(None, 100000), (A + "/1/0", 29000)])
-
-vectors = json.load(open(sys.argv[1]))
-for kind in ("invalid", "invalid_with_msg", "valid"):
-    for n, v in enumerate(vectors[kind]):
-        b64 = v if isinstance(v, str) else v[0]
-        try:
-            raw = base64.b64decode(b64, validate=True)
-        except Exception:
-            continue  # base64 自体が壊れている例。この経路はバイナリで受け取るので対象外
-        open(os.path.join(out_dir, "rpc_%s_%02d.psbt" % (kind, n)), "wb").write(raw)
