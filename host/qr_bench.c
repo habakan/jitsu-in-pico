@@ -16,6 +16,7 @@ static void __attribute__((noinline)) paint_stack(void) {
     while (p < sp - 64) *p++ = 0xdeadbeef;
 }
 #elif defined(PICO_BUILD)
+#include <malloc.h>
 #include "pico/stdlib.h"
 #define now() time_us_64()
 #define UNIT "us"
@@ -52,7 +53,7 @@ int main(void) {
 #endif
     struct quirc *q = quirc_new();
     if (!q || quirc_resize(q, FRAME_W, FRAME_H) < 0) return 1;
-#ifdef QEMU_BUILD
+#if defined(QEMU_BUILD) || defined(PICO_BUILD)
     printf("quirc_heap %d\n", mallinfo().uordblks);
 #endif
 

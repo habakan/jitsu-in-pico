@@ -67,18 +67,25 @@ v8 の NG は px/module が大きい 220 でも出ており、単調ではない
 - 描画の CPI 2.07 は行バッファへの書き込みが支配的で、コードではなくメモリ側の律速
 - **実測 fps は v5 で 3.6、v8 で 2.2。** 読めないフレームは 30ms で返るので、ピントや露出が合うまでの空振りは軽い
 
-## RAM 見積り
+## RAM 見積り（2026-09-25、実測に更新）
 
-| 項目 | サイズ |
-|---|---|
-| 署名側（WAMR + wasm + pico-sdk、`docs/feasibility.md`） | 97KB |
-| quirc ヒープ（320x240 画像 77KB を含む。カメラの DMA 先に兼用） | 90KB |
-| スタック（`quirc_data` / `datastream` がスタックに載る） | 23KB |
-| qrcodegen 作業領域 | 8KB |
-| LCD 行バッファ | 0.5KB |
-| 合計 | 約 220KB / 512KB |
+読み取りから署名・表示までを 1 つのファームに入れた場合。`app`（parser.wasm + core + UI）の実測に、
+quirc のヒープ（実機の `mallinfo` で 91,548 B）を足したもの。
 
-カメラをダブルバッファにしても +77KB で 300KB 程度。
+| 項目 | サイズ | 出どころ |
+|---|---|---|
+| WAMR プール（parser.wasm の線形メモリと UR の組み立てを含む） | 160KB | 実測の最大 152,792 B に余裕 |
+| PSBT のバッファ（`prevtx_arena` 32KB + `signed_psbt` 34KB） | 66KB | `PSBT_MAX` で決まる |
+| parser.wasm の RAM コピー（interp はロード時に書き換えるため） | 16KB | |
+| quirc ヒープ（320x240 画像 77KB を含む。カメラの DMA 先に兼用） | 90KB | 実機 `mallinfo` |
+| スタック（`quirc_data` / `datastream` がスタックに載る） | 32KB 確保（実測 23KB） | 既定の 2KB では足りない |
+| UI の画面バッファ・qrcodegen・core・secp256k1・pico-sdk ほか | 42KB | `app` の残り |
+| 合計 | **約 406KB / 520KB** | |
+
+- 余りは約 110KB。カメラをダブルバッファにすると +77KB で、ほぼ使い切る
+- **parser.wasm を AOT にすると入らない。** AOT は RAM 展開が必須（XIP は 7 倍遅い、`docs/aot-feasibility.md`）で、
+  プールが 277KB になるため合計 520KB を超える。案 B で解析器をインタプリタのままにする理由がここにもある
+- さらに削るなら、カメラのフレームバッファ（77KB）と UR の組み立てバッファは寿命が重ならないので共有できる
 
 ## 分かった制約と判断事項
 
