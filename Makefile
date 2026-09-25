@@ -32,7 +32,12 @@ deps:
 	cd third_party && git clone --depth 1 https://github.com/nayuki/QR-Code-generator.git
 	cd third_party && git clone --depth 1 https://github.com/fcambus/spleen.git
 	curl -sL -o third_party/rv.zip $(RISCV_TC_URL) && unzip -q third_party/rv.zip -d third_party/riscv-toolchain && rm third_party/rv.zip
-.PHONY: deps
+	$(MAKE) patch-deps
+
+# classic interp の i64.store は 4 byte 境界を前提にしており、Hazard3 では非整列ストアで例外になる
+patch-deps:
+	git -C third_party/wasm-micro-runtime apply $(CURDIR)/patches/wamr-classic-interp-unaligned-i64-store.patch
+.PHONY: deps patch-deps
 
 # AOT=1 では wamrc で RV32 ネイティブにした .aot を Flash に置いて XIP 実行する。--bounds-checks=1 は MMU 無しでの線形メモリ保護。
 # XIP の既定は i64 の乗算・シフトまで関数呼び出しにするが、rv32 で libgcc 呼び出しになるのは除算・剰余だけなので絞る
@@ -71,10 +76,12 @@ RISCV_TC ?= $(CURDIR)/third_party/riscv-toolchain
 build/rp2350/signer.elf: build/signer_wasm.h host/wamr_main.c platform/rp2350/CMakeLists.txt runtime/wamr-platform/rp2350/rp2350_platform.c
 	cmake -S platform/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DPICO_SDK_PATH=$(CURDIR)/third_party/pico-sdk -DPICO_TOOLCHAIN_PATH=$(RISCV_TC) \
-	  -DWAMR_BUILD_AOT=$(AOT) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
+	  -DWAMR_BUILD_AOT=$(AOT) -DPOOL_KB=$(RP2350_POOL_KB) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/rp2350
 
 POOL_KB ?= 128
+RP2350_POOL_KB ?= 48
+PARSER_POOL_KB ?= 256
 FAST    ?= 0
 QEMU_DIR := build/qemu-fast$(FAST)-aot$(AOT)-$(POOL_KB)
 $(QEMU_DIR)/signer.elf: build/signer_wasm.h host/wamr_main.c platform/qemu-riscv32/CMakeLists.txt runtime/wamr-platform/rp2350/rp2350_platform.c
@@ -167,8 +174,17 @@ check-parser:
 	$(MAKE) -C parser test
 .PHONY: check-parser
 
-build/parser_wasm.h: build/parser.wasm
-	xxd -i -n parser_wasm $< > $@
+# PARSER_AOT=1 では parser も wamrc で RV32 ネイティブにする。実機では XIP が 7 倍遅いので RAM 展開のみ
+PARSER_AOT ?= 0
+WAMRC_RAM_FLAGS := --target=riscv32 --target-abi=ilp32 --cpu=generic-rv32 --cpu-features=+m,+a,+c,+zba,+zbb,+zbs \
+  --bounds-checks=1
+PARSER_BIN := build/parser.$(if $(filter 1,$(PARSER_AOT)),aot,wasm)
+
+build/parser.aot: build/parser.wasm $(WAMRC)
+	$(WAMRC) $(WAMRC_RAM_FLAGS) -o $@ $< >/dev/null
+
+build/parser_wasm.h: $(PARSER_BIN)
+	xxd -i -n parser_wasm $< | sed 's/^unsigned char/const unsigned char/' > $@
 
 build/psbt/own_p2wpkh_1in.psbt: tools/gen_psbt_vectors.py
 	rm -rf build/psbt && uv run -q $< build/psbt
@@ -231,6 +247,20 @@ build/rp2350/app.elf: build/parser_wasm.h build/signer_wasm.h build/font8x16.h b
 	  -DWAMR_BUILD_AOT=0 -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/rp2350 app
 
+build/rp2350/psbt_bench.elf: build/parser_wasm.h build/test_psbt.h platform/rp2350/psbt_bench.c \
+  platform/rp2350/CMakeLists.txt runtime/host-abi/parser_host.c ui/ui.c $(CORE_SRC) parser/include/*.h
+	cmake -S platform/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
+	  -DPICO_SDK_PATH=$(CURDIR)/third_party/pico-sdk -DPICO_TOOLCHAIN_PATH=$(RISCV_TC) \
+	  -DWAMR_BUILD_AOT=$(PARSER_AOT) -DPARSER_POOL_KB=$(PARSER_POOL_KB) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
+	ninja -C build/rp2350 psbt_bench
+
+build/rp2350/qr_bench.elf: build/qr_frames.h host/qr_bench.c platform/rp2350/CMakeLists.txt build/rp2350/app.elf
+	ninja -C build/rp2350 qr_bench
+
+build/rp2350/pio_loopback_test.elf: platform/rp2350/pio_loopback_test.c platform/rp2350/dvp_gen.pio \
+  platform/rp2350/camera.pio platform/rp2350/CMakeLists.txt build/rp2350/app.elf
+	ninja -C build/rp2350 pio_loopback_test
+
 build/rp2350/camera_test.elf: platform/rp2350/camera_test.c platform/rp2350/camera.c platform/rp2350/camera.pio \
   platform/rp2350/camera_ov7670.c platform/rp2350/CMakeLists.txt build/rp2350/app.elf
 	ninja -C build/rp2350 camera_test
@@ -239,3 +269,47 @@ build/rp2350/camera_test.elf: platform/rp2350/camera_test.c platform/rp2350/came
 check-camera-sim: build/rp2350/camera_test.elf
 	python3 tools/sim_dvp_pio.py build/rp2350/camera.pio.h
 .PHONY: check-camera-sim
+
+# 実機の立ち上げ: BOOTSEL を押しながら USB を挿すと RP2350 ドライブとして見えるので、そこへ uf2 をコピーする
+# ドライブ名は RP2350 のこともラベル無し（NO NAME）のこともあるので、134MB の FAT16 を探す
+UF2 ?= build/rp2350/signer.uf2
+SECONDS ?= 60
+BOOT_VOL = $$(diskutil list | awk '/Windows_FAT_16/ && /134.2 MB/ {print $$NF}' | head -1 | \
+  xargs -I{} sh -c 'diskutil info {} | sed -n "s/.*Mount Point: *//p"')
+flash: $(UF2)
+	@vol="$(BOOT_VOL)"; test -n "$$vol" \
+	  || (echo "ブートドライブが見えません。BOOTSEL を押しながら USB を挿してください"; false)
+	@vol="$(BOOT_VOL)"; cp $(UF2) "$$vol/" 2>/dev/null \
+	  && echo "$(UF2) を $$vol へ書き込みました（ドライブが外れて再起動します）" \
+	  || (echo "$$vol へ書き込めません。macOS の「プライバシーとセキュリティ → ファイルとフォルダ」で"; \
+	      echo "ターミナルに「リムーバブルボリューム」を許可するか、Finder で $(UF2) をドラッグしてください"; false)
+
+# Debug Probe の UART（115200bps）を受ける。SECONDS=10 のように秒数を指定できる
+monitor:
+	mkdir -p build && uv run -q tools/monitor.py $(SECONDS)
+
+# Debug Probe の SWD で書く。BOOTSEL も USB の抜き差しも要らない。
+# Hazard3 を DAP 経由で叩く riscv ドライバは上流の OpenOCD に無いので、Raspberry Pi のフォークを使う
+# （make deps-openocd でビルドする）
+ELF ?= $(UF2:.uf2=.elf)
+OPENOCD_DIR ?= $(HOME)/work/oss/openocd-rpi
+OPENOCD = $(OPENOCD_DIR)/src/openocd -s $(OPENOCD_DIR)/tcl -f interface/cmsis-dap.cfg \
+  -c "adapter speed 5000" -f target/rp2350-riscv.cfg
+# 上流の OpenOCD は riscv ターゲットを DAP 経由で作れない（rp2350.cfg の -dap が通らない）
+deps-openocd:
+	mkdir -p $(dir $(OPENOCD_DIR))
+	git clone --depth 1 https://github.com/raspberrypi/openocd.git $(OPENOCD_DIR)
+	cd $(OPENOCD_DIR) && git submodule update --init --depth 1 jimtcl src/jtag/drivers/libjaylink \
+	  && ./bootstrap && ./configure --enable-cmsis-dap --enable-internal-jimtcl --disable-werror && $(MAKE) -j8
+.PHONY: deps-openocd
+
+flash-swd: $(ELF)
+	$(OPENOCD) -c "program $(ELF) verify reset exit"
+
+# 書き込み → 受信開始 → リセット。出力を頭から取れる
+run: $(ELF)
+	@mkdir -p build
+	$(OPENOCD) -c "program $(ELF) verify exit" 2>&1 | tail -3
+	@uv run -q tools/monitor.py $(SECONDS) & \
+	  sleep 2; $(OPENOCD) -c "init; reset run; exit" >/dev/null 2>&1; wait
+.PHONY: flash flash-swd monitor run

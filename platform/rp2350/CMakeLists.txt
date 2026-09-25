@@ -29,8 +29,11 @@ include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
 string(REPLACE "-std=gnu99" "-std=gnu11" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 
 add_executable(signer ${ROOT}/host/wamr_main.c ${ROOT}/core/sha512.c ${WAMR_RUNTIME_LIB_SOURCE})
-# QEMU 実測の highmark 33.5KB (classic interp) に余裕を持たせた値
-target_compile_definitions(signer PRIVATE PICO_BUILD=1 POOL_KB=48)
+# プールは QEMU 実測の highmark に余裕を持たせた値。AOT を RAM 展開するときは -DPOOL_KB=320 を渡す
+if(NOT DEFINED POOL_KB)
+  set(POOL_KB 48)
+endif()
+target_compile_definitions(signer PRIVATE PICO_BUILD=1 POOL_KB=${POOL_KB} PICO_STACK_SIZE=0x4000)
 target_include_directories(signer PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/core)
 target_link_libraries(signer pico_stdlib)
 pico_enable_stdio_uart(signer 1)
@@ -38,31 +41,88 @@ pico_enable_stdio_usb(signer 0)
 target_link_options(signer PRIVATE -Wl,--print-memory-usage)
 pico_add_extra_outputs(signer)
 
-# 実機の初期確認用アプリ（make build/rp2350/app.elf）。parser.wasm はインタプリタで動かす
+# 実機の初期確認用アプリ（make build/rp2350/app.elf）。parser.wasm はインタプリタで動かす。
+# app_nolcd は液晶の代わりに UART へ画面の文字を出す（はんだ付け前の確認用）
 set(SECP ${ROOT}/third_party/secp256k1)
-add_executable(app ${CMAKE_CURRENT_LIST_DIR}/app_main.c ${CMAKE_CURRENT_LIST_DIR}/st7789.c
+set(APP_SRC ${CMAKE_CURRENT_LIST_DIR}/app_main.c ${CMAKE_CURRENT_LIST_DIR}/st7789.c
   ${CMAKE_CURRENT_LIST_DIR}/buttons.c ${ROOT}/runtime/host-abi/parser_host.c ${ROOT}/ui/ui.c ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c
   ${ROOT}/core/core.c ${ROOT}/core/address.c ${ROOT}/core/bip32.c ${ROOT}/core/sighash.c ${ROOT}/parser/src/tx.c
   ${ROOT}/parser/src/sha256.c ${ROOT}/core/ripemd160.c ${ROOT}/core/sha512.c ${ROOT}/core/secp_callbacks.c
   ${ROOT}/signer/secp256k1_unity.c ${WAMR_RUNTIME_LIB_SOURCE})
-target_compile_definitions(app PRIVATE PICO_BUILD=1 ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1
-  ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1 COMB_BLOCKS=2 COMB_TEETH=5)
-target_compile_options(app PRIVATE -Wno-unused-function)
-target_include_directories(app PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/core
+foreach(t app app_nolcd)
+  add_executable(${t} ${APP_SRC})
+  target_compile_definitions(${t} PRIVATE PICO_BUILD=1 ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1
+    ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1 COMB_BLOCKS=2 COMB_TEETH=5 PICO_STACK_SIZE=0x8000
+    NO_LCD=$<STREQUAL:${t},app_nolcd>)
+  target_compile_options(${t} PRIVATE -Wno-unused-function)
+  target_include_directories(${t} PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/core
+    ${ROOT}/runtime/host-abi ${ROOT}/parser/include ${ROOT}/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include)
+  target_link_libraries(${t} pico_stdlib pico_rand hardware_spi)
+  pico_enable_stdio_uart(${t} 1)
+  pico_enable_stdio_usb(${t} 0)
+  target_link_options(${t} PRIVATE -Wl,--print-memory-usage)
+  pico_add_extra_outputs(${t})
+endforeach()
+
+set(QUIRC ${ROOT}/qr/quirc/lib)
+set(QUIRC_SRC ${QUIRC}/decode.c ${QUIRC}/identify.c ${QUIRC}/quirc.c ${QUIRC}/version_db.c)
+
+# quirc のデコード時間を実機で測る（make build/rp2350/qr_bench.elf）。カメラの代わりに埋め込んだ画像を使う
+add_executable(qr_bench ${ROOT}/host/qr_bench.c ${QUIRC_SRC} ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c)
+target_compile_definitions(qr_bench PRIVATE PICO_BUILD=1 PICO_STACK_SIZE=0x8000
+  QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH)
+target_include_directories(qr_bench PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/qr/quirc/lib
+  ${ROOT}/third_party/QR-Code-generator/c)
+target_link_libraries(qr_bench pico_stdlib)
+pico_enable_stdio_uart(qr_bench 1)
+pico_enable_stdio_usb(qr_bench 0)
+target_link_options(qr_bench PRIVATE -Wl,--print-memory-usage)
+pico_add_extra_outputs(qr_bench)
+
+# camera.pio の取り込みをカメラ無しで確かめる（make build/rp2350/pio_loopback_test.elf）
+add_executable(pio_loopback_test ${CMAKE_CURRENT_LIST_DIR}/pio_loopback_test.c)
+pico_generate_pio_header(pio_loopback_test ${CMAKE_CURRENT_LIST_DIR}/camera.pio)
+pico_generate_pio_header(pio_loopback_test ${CMAKE_CURRENT_LIST_DIR}/dvp_gen.pio)
+target_include_directories(pio_loopback_test PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_link_libraries(pio_loopback_test pico_stdlib hardware_pio hardware_dma hardware_clocks)
+pico_enable_stdio_uart(pio_loopback_test 1)
+pico_enable_stdio_usb(pio_loopback_test 0)
+pico_add_extra_outputs(pio_loopback_test)
+
+# 配線の確認（make build/rp2350/button_test.elf）
+add_executable(button_test ${CMAKE_CURRENT_LIST_DIR}/button_test.c)
+target_link_libraries(button_test pico_stdlib)
+pico_enable_stdio_uart(button_test 1)
+pico_enable_stdio_usb(button_test 0)
+pico_add_extra_outputs(button_test)
+
+# PSBT 一巡の実機計測（make build/rp2350/psbt_bench.elf）。表示とボタンは使わない
+add_executable(psbt_bench ${CMAKE_CURRENT_LIST_DIR}/psbt_bench.c ${ROOT}/runtime/host-abi/parser_host.c ${ROOT}/ui/ui.c
+  ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c ${ROOT}/core/core.c ${ROOT}/core/address.c ${ROOT}/core/bip32.c
+  ${ROOT}/core/sighash.c ${ROOT}/parser/src/tx.c ${ROOT}/parser/src/sha256.c ${ROOT}/core/ripemd160.c
+  ${ROOT}/core/sha512.c ${ROOT}/core/secp_callbacks.c ${ROOT}/signer/secp256k1_unity.c ${WAMR_RUNTIME_LIB_SOURCE})
+if(NOT DEFINED PARSER_POOL_KB)
+  set(PARSER_POOL_KB 256)
+endif()
+target_compile_definitions(psbt_bench PRIVATE PICO_BUILD=1 POOL_KB=${PARSER_POOL_KB} PICO_STACK_SIZE=0x8000
+  ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1 ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1
+  COMB_BLOCKS=2 COMB_TEETH=5)
+target_compile_options(psbt_bench PRIVATE -Wno-unused-function)
+target_include_directories(psbt_bench PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/core
   ${ROOT}/runtime/host-abi ${ROOT}/parser/include ${ROOT}/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include)
-target_link_libraries(app pico_stdlib pico_rand hardware_spi)
-pico_enable_stdio_uart(app 1)
-pico_enable_stdio_usb(app 0)
-target_link_options(app PRIVATE -Wl,--print-memory-usage)
-pico_add_extra_outputs(app)
+target_link_libraries(psbt_bench pico_stdlib)
+pico_enable_stdio_uart(psbt_bench 1)
+pico_enable_stdio_usb(psbt_bench 0)
+target_link_options(psbt_bench PRIVATE -Wl,--print-memory-usage)
+pico_add_extra_outputs(psbt_bench)
 
 # カメラの初期確認（make build/rp2350/camera_test.elf）。PIO で Y を拾い、自前フォークの quirc で読む
-set(QUIRC ${ROOT}/qr/quirc/lib)
 add_executable(camera_test ${CMAKE_CURRENT_LIST_DIR}/camera_test.c ${CMAKE_CURRENT_LIST_DIR}/camera.c
   ${CMAKE_CURRENT_LIST_DIR}/camera_ov7670.c ${CMAKE_CURRENT_LIST_DIR}/st7789.c
-  ${QUIRC}/decode.c ${QUIRC}/identify.c ${QUIRC}/quirc.c ${QUIRC}/version_db.c)
+  ${QUIRC_SRC})
 pico_generate_pio_header(camera_test ${CMAKE_CURRENT_LIST_DIR}/camera.pio)
-target_compile_definitions(camera_test PRIVATE QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH)
+target_compile_definitions(camera_test PRIVATE QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH
+  PICO_STACK_SIZE=0x8000)
 target_include_directories(camera_test PRIVATE ${CMAKE_CURRENT_LIST_DIR} ${QUIRC})
 target_link_libraries(camera_test pico_stdlib hardware_pio hardware_dma hardware_i2c hardware_spi hardware_clocks)
 pico_enable_stdio_uart(camera_test 1)

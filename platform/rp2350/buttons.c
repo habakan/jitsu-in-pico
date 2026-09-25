@@ -18,6 +18,12 @@ void buttons_init(void) {
     }
 }
 
+unsigned buttons_raw(void) {
+    unsigned v = 0;
+    for (unsigned i = 0; i < N_KEYS; i++) v |= (unsigned)gpio_get(pins[i]) << i;
+    return v;
+}
+
 int buttons_poll(void) {
     int pressed = -1;
     for (unsigned i = 0; i < N_KEYS; i++) {

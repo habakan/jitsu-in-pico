@@ -110,16 +110,38 @@ M12 マウントのレンズで、回してピントを合わせられる見込�
 - 「U」ポート（UART）の RX → GP0、GND → GND。TX は使わない
 - Pico 2 H 本体は、別の USB ケーブルで PC から給電する
 
+## 書き込みと UART
+
+Debug Probe の SWD で書くのが速い。BOOTSEL も USB の抜き差しも要らず、書き込み後にリセットまでできる。
+
+```
+make deps-openocd                            # 一度だけ（Raspberry Pi のフォークをビルド）
+make flash-swd ELF=build/rp2350/app.elf      # 書き込み
+make run ELF=build/rp2350/app.elf SECONDS=90 # 書き込み → 受信開始 → リセット
+make monitor SECONDS=60                      # 受信だけ
+```
+
+上流の OpenOCD（Homebrew の 0.12.0、HEAD とも）は Hazard3 を DAP 経由で扱えず、`target/rp2350.cfg` の
+`target create ... riscv -dap` で落ちる。Raspberry Pi のフォークには `target/rp2350-riscv.cfg` がある。
+
+BOOTSEL からの `.uf2` 書き込み（`make flash`）も残してあるが、macOS のリムーバブルボリューム権限で
+`cp` が弾かれることがあり、その場合は Finder でドラッグする。
+
 ## 初期確認の手順（部品が届いたら）
 
-1. Pico 2 H と Debug Probe だけで `build/rp2350/signer.uf2` を書き、UART（115200bps）に署名の実測時間が出ることを確かめる
-2. 液晶・ジョイスティック・ボタンを配線して `build/rp2350/app.uf2` を書く。テスト用 PSBT の確認画面が出て、全画面を見てから押し込みで署名する。署名済み PSBT は LCD にアニメーション QR（UR）で出るので、Sparrow などのウォレットで読み取れるか確かめる（UART にも 16 進で出る）
-3. カメラを配線して `build/rp2350/camera_test.uf2` を書く。取り込んだ QVGA を LCD に縮小表示し、自前フォークの quirc で QR を読んで、取り込みとデコードの時間、読めた文字列を UART に出す。SCCB で読んだ PID（OV7670 なら 0x76）も出るので、配線の確認に使える
+1. Pico 2 H と Debug Probe だけで `build/rp2350/signer.uf2` を書き、UART（115200bps）に署名の実測時間が出ることを確かめる。`psbt_bench.uf2` で PSBT 一巡の時間も測れる（済、`docs/architecture-b.md` 11 節）
+2. **はんだ付け前**: タクトスイッチ 3 個をブレッドボードに挿し（GP17 = 進む、GP26 = 承認、GP27 = 却下、それぞれ GND へ）、`build/rp2350/app_nolcd.uf2` を書く。液晶の代わりに確認画面の文字が UART に出るので、ボタン操作・画面遷移・承認して署名・UR の出力までを配線なしで確かめられる
+3. 液晶・ジョイスティック・ボタンを配線して `build/rp2350/app.uf2` を書く。テスト用 PSBT の確認画面が出て、全画面を見てから押し込みで署名する。署名済み PSBT は LCD にアニメーション QR（UR）で出るので、Sparrow などのウォレットで読み取れるか確かめる（UART にも 16 進で出る）
+4. カメラを配線して `build/rp2350/camera_test.uf2` を書く。取り込んだ QVGA を LCD に縮小表示し、自前フォークの quirc で QR を読んで、取り込みとデコードの時間、読めた文字列を UART に出す。SCCB で読んだ PID（OV7670 なら 0x76）も出るので、配線の確認に使える
 
 ## カメラの取り込み（`platform/rp2350/camera.*`）
 
 - PIO（`camera.pio`）が YUV422（Y U Y V）の Y だけを拾い、DMA が QVGA のグレースケール（76.8KB）を直接バッファに書く。quirc の画像バッファへそのまま取り込むので、フレームバッファを二重に持たない
 - 毎回 VSYNC 待ちからやり直すので、フレームの途中から始めても次のフレームの先頭から取れる。行の終わりは HREF が下がるのを待つ
+- **カメラ無しで実機検証できる**（`make run ELF=build/rp2350/pio_loopback_test.elf`）。同じ PIO の別ステートマシンに
+  DVP の波形（D0〜D7・PCLK・HREF・VSYNC）を出させ、取り込み側に同じピンを読ませる。PIO の入力はパッドを見るので配線は要らない。
+  2026-09-25 に実機で PCLK 1.5 / 6.25 / 25MHz、フレーム途中からの起動を確認し、取り込んだ画素が生成した Y と全て一致した
+  （25MHz は OV7670 に与える XCLK と同じ速さ。1 フレーム 64x8 の理論値 61µs に対し実測 65µs）
 - XCLK は GP21 のクロック出力（150MHz / 6 = 25MHz）。SCCB は I2C1 の 100kHz
 - センサーの設定は `camera_ov7670.c`（QVGA YUV の定番設定）だけ。OV7675 / OV2640 の設定は部品が決まってから足す。どちらも実機で要調整
 - 実機なしの検証: `make check-camera-sim` が、pioasm の出力を最小の PIO シミュレータで実行する。合成した DVP 波形（VSYNC、HREF、ブランキング、HREF の遅れ、途中からの起動）で、取り込んだ画素が Y と一致する。行末の HREF 待ちを消した版は、HREF が PCLK より遅れる波形で失敗する。電気的なタイミング（データのセットアップ / ホールド）は実機でしか確かめられない

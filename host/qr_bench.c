@@ -15,6 +15,10 @@ static void __attribute__((noinline)) paint_stack(void) {
     __asm__ volatile("mv %0, sp" : "=r"(sp));
     while (p < sp - 64) *p++ = 0xdeadbeef;
 }
+#elif defined(PICO_BUILD)
+#include "pico/stdlib.h"
+#define now() time_us_64()
+#define UNIT "us"
 #else
 #include <time.h>
 static uint64_t now(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint64_t)t.tv_sec * 1000000 + t.tv_nsec / 1000; }
@@ -42,6 +46,9 @@ static void render_qr(const uint8_t *qr) {
 int main(void) {
 #ifdef QEMU_BUILD
     paint_stack();
+#elif defined(PICO_BUILD)
+    stdio_init_all();
+    printf("\nqr_bench: %dx%d\n", FRAME_W, FRAME_H);
 #endif
     struct quirc *q = quirc_new();
     if (!q || quirc_resize(q, FRAME_W, FRAME_H) < 0) return 1;
@@ -88,6 +95,10 @@ int main(void) {
     uint32_t *p = qemu_stack;
     while (p < qemu_stack_top && *p == 0xdeadbeef) p++;
     printf("native_stack_used %u\n", (unsigned)((char *)qemu_stack_top - (char *)p));
+#endif
+#ifdef PICO_BUILD
+    printf("done\n");
+    while (1) tight_loop_contents();
 #endif
     return 0;
 }
