@@ -60,6 +60,26 @@ pico_enable_stdio_usb(app 0)
 target_link_options(app PRIVATE -Wl,--print-memory-usage)
 pico_add_extra_outputs(app)
 
+# PSBT 一巡の実機計測（make build/rp2350/psbt_bench.elf）。表示とボタンは使わない
+add_executable(psbt_bench ${CMAKE_CURRENT_LIST_DIR}/psbt_bench.c ${ROOT}/runtime/host-abi/parser_host.c ${ROOT}/ui/ui.c
+  ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c ${ROOT}/core/core.c ${ROOT}/core/address.c ${ROOT}/core/bip32.c
+  ${ROOT}/core/sighash.c ${ROOT}/parser/src/tx.c ${ROOT}/parser/src/sha256.c ${ROOT}/core/ripemd160.c
+  ${ROOT}/core/sha512.c ${ROOT}/core/secp_callbacks.c ${ROOT}/signer/secp256k1_unity.c ${WAMR_RUNTIME_LIB_SOURCE})
+if(NOT DEFINED PARSER_POOL_KB)
+  set(PARSER_POOL_KB 256)
+endif()
+target_compile_definitions(psbt_bench PRIVATE PICO_BUILD=1 POOL_KB=${PARSER_POOL_KB} PICO_STACK_SIZE=0x8000
+  ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1 ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1
+  COMB_BLOCKS=2 COMB_TEETH=5)
+target_compile_options(psbt_bench PRIVATE -Wno-unused-function)
+target_include_directories(psbt_bench PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/core
+  ${ROOT}/runtime/host-abi ${ROOT}/parser/include ${ROOT}/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include)
+target_link_libraries(psbt_bench pico_stdlib)
+pico_enable_stdio_uart(psbt_bench 1)
+pico_enable_stdio_usb(psbt_bench 0)
+target_link_options(psbt_bench PRIVATE -Wl,--print-memory-usage)
+pico_add_extra_outputs(psbt_bench)
+
 # カメラの初期確認（make build/rp2350/camera_test.elf）。PIO で Y を拾い、自前フォークの quirc で読む
 set(QUIRC ${ROOT}/qr/quirc/lib)
 add_executable(camera_test ${CMAKE_CURRENT_LIST_DIR}/camera_test.c ${CMAKE_CURRENT_LIST_DIR}/camera.c

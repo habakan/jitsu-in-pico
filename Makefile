@@ -81,6 +81,7 @@ build/rp2350/signer.elf: build/signer_wasm.h host/wamr_main.c platform/rp2350/CM
 
 POOL_KB ?= 128
 RP2350_POOL_KB ?= 48
+PARSER_POOL_KB ?= 256
 FAST    ?= 0
 QEMU_DIR := build/qemu-fast$(FAST)-aot$(AOT)-$(POOL_KB)
 $(QEMU_DIR)/signer.elf: build/signer_wasm.h host/wamr_main.c platform/qemu-riscv32/CMakeLists.txt runtime/wamr-platform/rp2350/rp2350_platform.c
@@ -173,8 +174,17 @@ check-parser:
 	$(MAKE) -C parser test
 .PHONY: check-parser
 
-build/parser_wasm.h: build/parser.wasm
-	xxd -i -n parser_wasm $< > $@
+# PARSER_AOT=1 では parser も wamrc で RV32 ネイティブにする。実機では XIP が 7 倍遅いので RAM 展開のみ
+PARSER_AOT ?= 0
+WAMRC_RAM_FLAGS := --target=riscv32 --target-abi=ilp32 --cpu=generic-rv32 --cpu-features=+m,+a,+c,+zba,+zbb,+zbs \
+  --bounds-checks=1
+PARSER_BIN := build/parser.$(if $(filter 1,$(PARSER_AOT)),aot,wasm)
+
+build/parser.aot: build/parser.wasm $(WAMRC)
+	$(WAMRC) $(WAMRC_RAM_FLAGS) -o $@ $< >/dev/null
+
+build/parser_wasm.h: $(PARSER_BIN)
+	xxd -i -n parser_wasm $< | sed 's/^unsigned char/const unsigned char/' > $@
 
 build/psbt/own_p2wpkh_1in.psbt: tools/gen_psbt_vectors.py
 	rm -rf build/psbt && uv run -q $< build/psbt
@@ -236,6 +246,13 @@ build/rp2350/app.elf: build/parser_wasm.h build/signer_wasm.h build/font8x16.h b
 	  -DPICO_SDK_PATH=$(CURDIR)/third_party/pico-sdk -DPICO_TOOLCHAIN_PATH=$(RISCV_TC) \
 	  -DWAMR_BUILD_AOT=0 -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/rp2350 app
+
+build/rp2350/psbt_bench.elf: build/parser_wasm.h build/test_psbt.h platform/rp2350/psbt_bench.c \
+  platform/rp2350/CMakeLists.txt runtime/host-abi/parser_host.c ui/ui.c $(CORE_SRC) parser/include/*.h
+	cmake -S platform/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
+	  -DPICO_SDK_PATH=$(CURDIR)/third_party/pico-sdk -DPICO_TOOLCHAIN_PATH=$(RISCV_TC) \
+	  -DWAMR_BUILD_AOT=$(PARSER_AOT) -DPARSER_POOL_KB=$(PARSER_POOL_KB) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
+	ninja -C build/rp2350 psbt_bench
 
 build/rp2350/camera_test.elf: platform/rp2350/camera_test.c platform/rp2350/camera.c platform/rp2350/camera.pio \
   platform/rp2350/camera_ov7670.c platform/rp2350/CMakeLists.txt build/rp2350/app.elf
