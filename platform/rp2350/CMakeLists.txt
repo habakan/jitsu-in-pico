@@ -100,15 +100,17 @@ pico_add_extra_outputs(button_test)
 add_executable(psbt_bench ${CMAKE_CURRENT_LIST_DIR}/psbt_bench.c ${ROOT}/runtime/host-abi/parser_host.c ${ROOT}/ui/ui.c
   ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c ${ROOT}/core/core.c ${ROOT}/core/address.c ${ROOT}/core/bip32.c
   ${ROOT}/core/sighash.c ${ROOT}/parser/src/tx.c ${ROOT}/parser/src/sha256.c ${ROOT}/core/ripemd160.c
-  ${ROOT}/core/sha512.c ${ROOT}/core/secp_callbacks.c ${ROOT}/signer/secp256k1_unity.c ${WAMR_RUNTIME_LIB_SOURCE})
+  ${ROOT}/core/sha512.c ${ROOT}/core/secp_callbacks.c ${ROOT}/signer/secp256k1_unity.c ${QUIRC_SRC}
+  ${WAMR_RUNTIME_LIB_SOURCE})
 if(NOT DEFINED PARSER_POOL_KB)
   set(PARSER_POOL_KB 256)
 endif()
 target_compile_definitions(psbt_bench PRIVATE PICO_BUILD=1 POOL_KB=${PARSER_POOL_KB} PICO_STACK_SIZE=0x8000
+  QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH
   ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1 ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1
   COMB_BLOCKS=2 COMB_TEETH=5)
 target_compile_options(psbt_bench PRIVATE -Wno-unused-function)
-target_include_directories(psbt_bench PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/core
+target_include_directories(psbt_bench PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/core ${QUIRC}
   ${ROOT}/runtime/host-abi ${ROOT}/parser/include ${ROOT}/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include)
 target_link_libraries(psbt_bench pico_stdlib)
 pico_enable_stdio_uart(psbt_bench 1)

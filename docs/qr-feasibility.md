@@ -75,17 +75,19 @@ quirc のヒープ（実機の `mallinfo` で 91,548 B）を足したもの。
 | 項目 | サイズ | 出どころ |
 |---|---|---|
 | WAMR プール（parser.wasm の線形メモリと UR の組み立てを含む） | 160KB | 実測の最大 152,792 B に余裕 |
-| PSBT のバッファ（`prevtx_arena` 32KB + `signed_psbt` 34KB） | 66KB | `PSBT_MAX` で決まる |
 | parser.wasm の RAM コピー（interp はロード時に書き換えるため） | 16KB | |
-| quirc ヒープ（320x240 画像 77KB を含む。カメラの DMA 先に兼用） | 90KB | 実機 `mallinfo` |
+| 共有ヒープ（読み取り中は quirc、解析〜署名は PSBT のバッファ） | 92KB | 実機 `mallinfo` で 93,696 B |
 | スタック（`quirc_data` / `datastream` がスタックに載る） | 32KB 確保（実測 23KB） | 既定の 2KB では足りない |
 | UI の画面バッファ・qrcodegen・core・secp256k1・pico-sdk ほか | 42KB | `app` の残り |
-| 合計 | **約 406KB / 520KB** | |
+| 合計 | **約 341KB / 520KB** | |
 
-- 余りは約 110KB。カメラをダブルバッファにすると +77KB で、ほぼ使い切る
+- **quirc（90KB）と PSBT のバッファ（`prevtx_arena` 32KB + `signed_psbt` 34KB）は同じヒープを順に使う。**
+  読み取りが終われば quirc は要らず、解析より前に PSBT のバッファは要らない。実機で確かめたところ、
+  quirc を解放してから取り直すとヒープの山は 93,696 B のままで、共有しない場合の 159,232 B に対し 64KB 減る
+  （`make run ELF=build/rp2350/psbt_bench.elf` が両方の段の `mallinfo` を出す）
+- 余りは約 180KB。カメラをダブルバッファにしても +77KB で収まる
 - **parser.wasm を AOT にすると入らない。** AOT は RAM 展開が必須（XIP は 7 倍遅い、`docs/aot-feasibility.md`）で、
   プールが 277KB になるため合計 520KB を超える。案 B で解析器をインタプリタのままにする理由がここにもある
-- さらに削るなら、カメラのフレームバッファ（77KB）と UR の組み立てバッファは寿命が重ならないので共有できる
 
 ## 分かった制約と判断事項
 

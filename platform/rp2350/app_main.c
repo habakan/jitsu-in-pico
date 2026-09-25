@@ -2,6 +2,7 @@
  * ボタンで全て見てから承認すると署名し、署名済み PSBT をアニメーション QR で返す（UART にも 16 進で出す）。
  * seed は BIP39 のテストベクタ（abandon ... about）で、資金を扱ってはならない */
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "pico/stdlib.h"
 #include "pico/rand.h"
@@ -19,8 +20,10 @@
 /* parser.wasm の線形メモリ（UR の復元と符号化込みで約 132KB）もこのプールから取られる。QEMU の実測で最大 149KB */
 static char pool[160 * 1024];
 static uint8_t parser_wasm_rw[sizeof(parser_wasm)];
-static uint8_t prevtx_arena[PARSER_PSBT_MAX];
-static uint8_t signed_psbt[PARSER_PSBT_MAX + 2048];
+/* 読み取り中の quirc（画像 77KB を含む 90KB）と、解析〜署名で使うこの 2 つは同時に要らないので、
+ * 静的に持たず同じヒープから順に取る。カメラを載せたら、読み取りの後に quirc_destroy() を入れる */
+#define SIGNED_PSBT_MAX (PARSER_PSBT_MAX + 2048)
+static uint8_t *prevtx_arena, *signed_psbt;
 static plan_t plan;
 static ui_review_t ui;
 
@@ -77,7 +80,10 @@ int main(void) {
     printf("\nbaremetal-wasm-signer: TEST SEED ONLY\n");
 
     memcpy(parser_wasm_rw, parser_wasm, sizeof(parser_wasm_rw));
-    if (!core_init(CORE_MAINNET) || !parser_host_init(parser_wasm_rw, sizeof(parser_wasm_rw), pool, sizeof(pool)))
+    prevtx_arena = malloc(PARSER_PSBT_MAX);
+    signed_psbt = malloc(SIGNED_PSBT_MAX);
+    if (!prevtx_arena || !signed_psbt || !core_init(CORE_MAINNET)
+        || !parser_host_init(parser_wasm_rw, sizeof(parser_wasm_rw), pool, sizeof(pool)))
         return show_message("init failed", ""), 1;
 
     t = time_us_64();
@@ -89,7 +95,7 @@ int main(void) {
 
     t = time_us_64();
     if (!parser_host_parse(test_psbt, sizeof(test_psbt), core_fingerprint(), &rc, &plan, prev, prevtx_arena,
-                           sizeof(prevtx_arena)) || rc)
+                           PARSER_PSBT_MAX) || rc)
         return printf("parse failed rc=%u\n", (unsigned)rc), show_message("parse failed", ""), 1;
     printf("parse (parser.wasm): %llu us, pool highmark %u\n", (unsigned long long)(time_us_64() - t),
            (unsigned)parser_host_pool_highmark());
@@ -130,7 +136,7 @@ int main(void) {
     if ((err = core_sign(&plan, trng, sigs, &n_sigs)) != CORE_OK)
         return printf("sign err=%d\n", err), show_message("sign failed", ""), 1;
     printf("sign: %llu us (%u inputs)\n", (unsigned long long)(time_us_64() - t), n_sigs);
-    if (!parser_host_finalize(sigs, n_sigs, signed_psbt, sizeof(signed_psbt), &out_len))
+    if (!parser_host_finalize(sigs, n_sigs, signed_psbt, SIGNED_PSBT_MAX, &out_len))
         return show_message("finalize failed", ""), 1;
     core_unload();
     printf("signed psbt (%u bytes):\n", (unsigned)out_len);

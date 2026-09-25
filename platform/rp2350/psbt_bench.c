@@ -1,13 +1,16 @@
 /* 実機で PSBT 一巡の時間を測る。表示もボタンも使わず、組み込んだテスト用 PSBT を
  * parser.wasm → core → parser.wasm と通して UART に時間を出す。インタプリタと AOT の比較用。
  * seed は BIP39 のテストベクタ（abandon ... about）で、資金を扱ってはならない */
+#include <malloc.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include "pico/stdlib.h"
 #include "core.h"
 #include "parser_host.h"
 #include "sha512.h"
 #include "ui.h"
+#include "quirc.h"
 #include "parser_wasm.h"
 #include "test_psbt.h"
 
@@ -24,8 +27,10 @@ static uint8_t parser_wasm_rw[sizeof(parser_wasm)];
 #else
 #define MODE "AOT"
 #endif
-static uint8_t prevtx_arena[PARSER_PSBT_MAX];
-static uint8_t signed_psbt[PARSER_PSBT_MAX + 2048];
+/* 読み取り中の quirc と同じヒープを順に使う（同時には要らない）。ここで確かめたいのは、
+ * quirc を解放したあとに取り直すと、ヒープの山が両者の合計ではなく大きい方で収まること */
+#define SIGNED_PSBT_MAX (PARSER_PSBT_MAX + 2048)
+static uint8_t *prevtx_arena, *signed_psbt;
 static plan_t plan;
 
 /* 署名を実機とホストで比べられるよう、Schnorr の aux は 0 固定にする */
@@ -50,6 +55,18 @@ int main(void) {
     memcpy(parser_wasm_rw, parser_wasm, sizeof(parser_wasm_rw));
     image = parser_wasm_rw;
 #endif
+    /* 読み取りの段: quirc がカメラの画像とワークを確保する */
+    struct quirc *q = quirc_new();
+    if (!q || quirc_resize(q, 320, 240) < 0) return printf("quirc failed\n"), 1;
+    printf("scan phase: quirc heap %d B (arena %d B)\n", mallinfo().uordblks, mallinfo().arena);
+    quirc_destroy(q);
+
+    /* 解析〜署名の段: 同じヒープから PSBT のバッファを取る */
+    prevtx_arena = malloc(PARSER_PSBT_MAX);
+    signed_psbt = malloc(SIGNED_PSBT_MAX);
+    if (!prevtx_arena || !signed_psbt) return printf("psbt buffers failed\n"), 1;
+    printf("sign phase: psbt buffers %d B (arena %d B)\n", mallinfo().uordblks, mallinfo().arena);
+
     t = time_us_64();
     if (!core_init(CORE_MAINNET) || !parser_host_init(image, sizeof(parser_wasm), pool, sizeof(pool)))
         return printf("init failed\n"), 1;
@@ -64,7 +81,7 @@ int main(void) {
 
     t = time_us_64();
     if (!parser_host_parse(test_psbt, sizeof(test_psbt), core_fingerprint(), &rc, &plan, prev, prevtx_arena,
-                           sizeof(prevtx_arena)) || rc)
+                           PARSER_PSBT_MAX) || rc)
         return printf("parse failed rc=%u\n", (unsigned)rc), 1;
     printf("parse %llu us (wasm)\n", (unsigned long long)(time_us_64() - t));
 
@@ -78,7 +95,7 @@ int main(void) {
     printf("sign %llu us (native, %u inputs)\n", (unsigned long long)(time_us_64() - t), n_sigs);
 
     t = time_us_64();
-    if (!parser_host_finalize(sigs, n_sigs, signed_psbt, sizeof(signed_psbt), &out_len))
+    if (!parser_host_finalize(sigs, n_sigs, signed_psbt, SIGNED_PSBT_MAX, &out_len))
         return printf("finalize failed\n"), 1;
     core_unload();
     printf("finalize %llu us (wasm)\n", (unsigned long long)(time_us_64() - t));
@@ -101,6 +118,7 @@ int main(void) {
 
     printf("signed %u bytes, first 32: ", (unsigned)out_len);
     for (int i = 0; i < 32; i++) printf("%02x", signed_psbt[i]);
-    printf("\npool_highmark %u\ndone\n", (unsigned)parser_host_pool_highmark());
+    printf("\npool_highmark %u\nheap arena %d B (共有しなければ %d B)\ndone\n",
+           (unsigned)parser_host_pool_highmark(), mallinfo().arena, 91648 + PARSER_PSBT_MAX + SIGNED_PSBT_MAX);
     while (1) tight_loop_contents();
 }
