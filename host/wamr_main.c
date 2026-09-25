@@ -6,6 +6,7 @@
 #include "signer_wasm.h"
 #ifdef PICO_BUILD
 #include "pico/stdlib.h"
+#include "hardware/uart.h"
 #define now() time_us_64()
 #define UNIT "us"
 #elif defined(QEMU_BUILD)
@@ -26,8 +27,10 @@ static char pool[POOL_KB * 1024];
 
 /* argv は引数を渡し、戻り値を argv[0] で受ける */
 static int call_args(wasm_exec_env_t env, wasm_module_inst_t inst, const char *name, uint32_t argc, uint32_t *argv) {
-    uint64_t t0 = now();
     uint32_t last = argc ? argv[argc - 1] : 0;
+    /* 途中で止まったときにどの呼び出しかが分かるよう、開始も出す（計時の外） */
+    printf("> %s/%u\n", name, last);
+    uint64_t t0 = now();
     wasm_function_inst_t f = wasm_runtime_lookup_function(inst, name);
     if (!f || !wasm_runtime_call_wasm(env, f, argc, argv)) {
         printf("call %s failed: %s\n", name, wasm_runtime_get_exception(inst));
@@ -57,6 +60,31 @@ static void host_sha512_compress(wasm_exec_env_t env, uint32_t s_off, uint32_t b
 }
 
 static NativeSymbol natives[] = {{"host_sha512_compress", host_sha512_compress, "(ii)", NULL}};
+
+#ifdef PICO_BUILD
+/* SDK の既定ハンドラは黙ってコアを止めるので、原因を UART に直接出す（printf は使えない場所かもしれない） */
+void __attribute__((used, noinline)) trap_report(uint32_t sp) {
+    uint32_t csr[4];
+    __asm__ volatile("csrr %0, mcause; csrr %1, mepc; csrr %2, mtval; csrr %3, mstatus"
+                     : "=r"(csr[0]), "=r"(csr[1]), "=r"(csr[2]), "=r"(csr[3]));
+    const char *names[4] = {"mcause", "mepc", "mtval", "mstatus"};
+    for (int i = 0; i < 4; i++) {
+        for (const char *c = names[i]; *c; c++) uart_putc_raw(uart_default, *c);
+        uart_putc_raw(uart_default, '=');
+        for (int b = 28; b >= 0; b -= 4) uart_putc_raw(uart_default, "0123456789abcdef"[csr[i] >> b & 15]);
+        uart_putc_raw(uart_default, i == 3 ? '\n' : ' ');
+    }
+    for (const char *c = "sp="; *c; c++) uart_putc_raw(uart_default, *c);
+    for (int b = 28; b >= 0; b -= 4) uart_putc_raw(uart_default, "0123456789abcdef"[sp >> b & 15]);
+    uart_putc_raw(uart_default, '\n');
+    while (1) tight_loop_contents();
+}
+
+/* ベクタ表は RAM にあり j 命令で飛ぶので、入口は Flash に置けない */
+void __attribute__((naked, section(".time_critical.trap"))) isr_riscv_machine_exception(void) {
+    __asm__ volatile("mv a0, sp\n tail trap_report");
+}
+#endif
 
 static void hex(const char *label, const unsigned char *p, int n) {
     printf("%s ", label);
@@ -94,7 +122,14 @@ int main(void) {
     static unsigned char orig[sizeof(signer_wasm)];
     memcpy(orig, signer_wasm, sizeof(orig));
 #endif
-    wasm_module_t mod = wasm_runtime_load((uint8_t *)signer_wasm, signer_wasm_len, err, sizeof(err));
+    uint8_t *wasm_buf = (uint8_t *)signer_wasm;
+#if defined(PICO_BUILD) && WASM_ENABLE_INTERP != 0
+    /* classic interp はロード時にバイトコードを書き換える。実機では .rodata が Flash(XIP) で書けないので RAM へ写す */
+    static unsigned char wasm_ram[sizeof(signer_wasm)];
+    memcpy(wasm_ram, signer_wasm, sizeof(wasm_ram));
+    wasm_buf = wasm_ram;
+#endif
+    wasm_module_t mod = wasm_runtime_load(wasm_buf, signer_wasm_len, err, sizeof(err));
     if (!mod) { printf("load: %s\n", err); return 1; }
     wasm_module_inst_t inst = wasm_runtime_instantiate(mod, 4096, 0, err, sizeof(err));
     if (!inst) { printf("instantiate: %s\n", err); return 1; }
@@ -139,6 +174,11 @@ int main(void) {
     uint32_t *p = qemu_stack;
     while (p < qemu_stack_top && *p == 0xdeadbeef) p++;
     printf("native_stack_used %u\n", (unsigned)((char *)qemu_stack_top - (char *)p));
+#endif
+#ifdef PICO_BUILD
+    /* main から戻ると SDK が ebreak するので、トラップ報告と紛れないようここで止める */
+    printf("done\n");
+    while (1) tight_loop_contents();
 #endif
     return 0;
 }

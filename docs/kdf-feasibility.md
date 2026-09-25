@@ -1,6 +1,6 @@
 # Feasibility: BIP39 シード計算と BIP32 導出を WASM 内で回せるか
 
-2026-09-22 時点。実機なし。`docs/feasibility.md` と同じ QEMU virt（`-icount shift=0`）で、
+2026-09-25 更新（実機計測を追加）。`docs/feasibility.md` と同じ QEMU virt（`-icount shift=0`）で、
 `bitcoin-signer.wasm` に追加した PBKDF2-HMAC-SHA512 と BIP32 導出の命令数を測った。
 
 ## 結論
@@ -24,6 +24,19 @@
 - WAMR プールの最大使用量は classic で 36.7KB（署名だけの時は 33.5KB）。`.wasm` は 34KB（host SHA-512 版は 33KB）
 - RP2350 ファームは FLASH 125KB、RAM 100.5KB（プール 48KB 込み）
 
+## 実機計測（Pico 2 H、150MHz、2026-09-25）
+
+| 処理 | classic | classic + host SHA-512 | AOT XIP | AOT RAM 展開 |
+|---|---|---|---|---|
+| PBKDF2（BIP39 seed） | 14.81 s | 3.053 s | 0.979 s | **0.832 s** |
+| BIP32 `m/84'/0'/0'/0` | 1.368 s | 1.311 s | 0.625 s | **0.082 s** |
+| BIP32 `m/84'/0'/0'/0/0` | 2.029 s | 1.960 s | 0.937 s | **0.122 s** |
+| ECDSA 署名（参考） | 0.696 s | 0.696 s | 0.319 s | **0.041 s** |
+
+- インタプリタは QEMU 命令数の見込み（CPI 1.27）どおり。AOT XIP は XIP キャッシュのミスで見込みの 7 倍遅く、RAM に展開すると命令数どおり（CPI 1.08）になる
+- host SHA-512 が効くのは PBKDF2 だけで、BIP32 は 4% しか速くならない（公開鍵計算が支配的）という QEMU での見立ても実機で確認できた
+- AOT を RAM 展開すれば host SHA-512 なしでも PBKDF2 は 1 秒を切る。import を足す動機は速度からはなくなる
+
 ## 操作ごとの見込み（classic + host SHA-512, 150MHz, CPI 1〜1.5）
 
 | 操作 | 命令数 | 時間 |
@@ -45,8 +58,8 @@
 
 ## 次の判断事項
 
-- 1 取引数秒という UX を許容するか。許容しないなら AOT の評価（`wamrc` のビルドと RV32 ターゲットでの計測）が次の検証になる
-- `SHA512_HOST=1` を既定にするか（現状は既定 0、`make ... SHA512_HOST=1` で切替）
+- `SHA512_HOST=1` を既定にするか（現状は既定 0、`make ... SHA512_HOST=1` で切替）。AOT を RAM 展開するなら不要
+- インタプリタのまま行くなら host SHA-512 は必須（14.8 秒 → 3.05 秒）
 
 ## 再現手順
 

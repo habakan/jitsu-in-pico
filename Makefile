@@ -32,7 +32,12 @@ deps:
 	cd third_party && git clone --depth 1 https://github.com/nayuki/QR-Code-generator.git
 	cd third_party && git clone --depth 1 https://github.com/fcambus/spleen.git
 	curl -sL -o third_party/rv.zip $(RISCV_TC_URL) && unzip -q third_party/rv.zip -d third_party/riscv-toolchain && rm third_party/rv.zip
-.PHONY: deps
+	$(MAKE) patch-deps
+
+# classic interp の i64.store は 4 byte 境界を前提にしており、Hazard3 では非整列ストアで例外になる
+patch-deps:
+	git -C third_party/wasm-micro-runtime apply $(CURDIR)/patches/wamr-classic-interp-unaligned-i64-store.patch
+.PHONY: deps patch-deps
 
 # AOT=1 では wamrc で RV32 ネイティブにした .aot を Flash に置いて XIP 実行する。--bounds-checks=1 は MMU 無しでの線形メモリ保護。
 # XIP の既定は i64 の乗算・シフトまで関数呼び出しにするが、rv32 で libgcc 呼び出しになるのは除算・剰余だけなので絞る
@@ -71,10 +76,11 @@ RISCV_TC ?= $(CURDIR)/third_party/riscv-toolchain
 build/rp2350/signer.elf: build/signer_wasm.h host/wamr_main.c platform/rp2350/CMakeLists.txt runtime/wamr-platform/rp2350/rp2350_platform.c
 	cmake -S platform/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DPICO_SDK_PATH=$(CURDIR)/third_party/pico-sdk -DPICO_TOOLCHAIN_PATH=$(RISCV_TC) \
-	  -DWAMR_BUILD_AOT=$(AOT) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
+	  -DWAMR_BUILD_AOT=$(AOT) -DPOOL_KB=$(RP2350_POOL_KB) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/rp2350
 
 POOL_KB ?= 128
+RP2350_POOL_KB ?= 48
 FAST    ?= 0
 QEMU_DIR := build/qemu-fast$(FAST)-aot$(AOT)-$(POOL_KB)
 $(QEMU_DIR)/signer.elf: build/signer_wasm.h host/wamr_main.c platform/qemu-riscv32/CMakeLists.txt runtime/wamr-platform/rp2350/rp2350_platform.c
@@ -239,3 +245,21 @@ build/rp2350/camera_test.elf: platform/rp2350/camera_test.c platform/rp2350/came
 check-camera-sim: build/rp2350/camera_test.elf
 	python3 tools/sim_dvp_pio.py build/rp2350/camera.pio.h
 .PHONY: check-camera-sim
+
+# 実機の立ち上げ: BOOTSEL を押しながら USB を挿すと RP2350 ドライブとして見えるので、そこへ uf2 をコピーする
+# ドライブ名は RP2350 のこともラベル無し（NO NAME）のこともあるので、134MB の FAT16 を探す
+UF2 ?= build/rp2350/signer.uf2
+BOOT_VOL = $$(diskutil list | awk '/Windows_FAT_16/ && /134.2 MB/ {print $$NF}' | head -1 | \
+  xargs -I{} sh -c 'diskutil info {} | sed -n "s/.*Mount Point: *//p"')
+flash: $(UF2)
+	@vol="$(BOOT_VOL)"; test -n "$$vol" \
+	  || (echo "ブートドライブが見えません。BOOTSEL を押しながら USB を挿してください"; false)
+	@vol="$(BOOT_VOL)"; cp $(UF2) "$$vol/" 2>/dev/null \
+	  && echo "$(UF2) を $$vol へ書き込みました（ドライブが外れて再起動します）" \
+	  || (echo "$$vol へ書き込めません。macOS の「プライバシーとセキュリティ → ファイルとフォルダ」で"; \
+	      echo "ターミナルに「リムーバブルボリューム」を許可するか、Finder で $(UF2) をドラッグしてください"; false)
+
+# Debug Probe の UART（115200bps）を受ける。SECONDS=10 のように秒数を指定できる
+monitor:
+	mkdir -p build && uv run -q tools/monitor.py $(SECONDS)
+.PHONY: flash monitor

@@ -29,8 +29,11 @@ include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
 string(REPLACE "-std=gnu99" "-std=gnu11" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 
 add_executable(signer ${ROOT}/host/wamr_main.c ${ROOT}/core/sha512.c ${WAMR_RUNTIME_LIB_SOURCE})
-# QEMU 実測の highmark 33.5KB (classic interp) に余裕を持たせた値
-target_compile_definitions(signer PRIVATE PICO_BUILD=1 POOL_KB=48)
+# プールは QEMU 実測の highmark に余裕を持たせた値。AOT を RAM 展開するときは -DPOOL_KB=320 を渡す
+if(NOT DEFINED POOL_KB)
+  set(POOL_KB 48)
+endif()
+target_compile_definitions(signer PRIVATE PICO_BUILD=1 POOL_KB=${POOL_KB} PICO_STACK_SIZE=0x4000)
 target_include_directories(signer PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/core)
 target_link_libraries(signer pico_stdlib)
 pico_enable_stdio_uart(signer 1)
@@ -48,6 +51,7 @@ add_executable(app ${CMAKE_CURRENT_LIST_DIR}/app_main.c ${CMAKE_CURRENT_LIST_DIR
 target_compile_definitions(app PRIVATE PICO_BUILD=1 ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1
   ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1 COMB_BLOCKS=2 COMB_TEETH=5)
 target_compile_options(app PRIVATE -Wno-unused-function)
+target_compile_definitions(app PRIVATE PICO_STACK_SIZE=0x8000)
 target_include_directories(app PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/core
   ${ROOT}/runtime/host-abi ${ROOT}/parser/include ${ROOT}/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include)
 target_link_libraries(app pico_stdlib pico_rand hardware_spi)
@@ -62,7 +66,8 @@ add_executable(camera_test ${CMAKE_CURRENT_LIST_DIR}/camera_test.c ${CMAKE_CURRE
   ${CMAKE_CURRENT_LIST_DIR}/camera_ov7670.c ${CMAKE_CURRENT_LIST_DIR}/st7789.c
   ${QUIRC}/decode.c ${QUIRC}/identify.c ${QUIRC}/quirc.c ${QUIRC}/version_db.c)
 pico_generate_pio_header(camera_test ${CMAKE_CURRENT_LIST_DIR}/camera.pio)
-target_compile_definitions(camera_test PRIVATE QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH)
+target_compile_definitions(camera_test PRIVATE QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH
+  PICO_STACK_SIZE=0x8000)
 target_include_directories(camera_test PRIVATE ${CMAKE_CURRENT_LIST_DIR} ${QUIRC})
 target_link_libraries(camera_test pico_stdlib hardware_pio hardware_dma hardware_i2c hardware_spi hardware_clocks)
 pico_enable_stdio_uart(camera_test 1)
