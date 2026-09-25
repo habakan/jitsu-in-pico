@@ -64,6 +64,13 @@ foreach(t app app_nolcd)
   pico_add_extra_outputs(${t})
 endforeach()
 
+# 配線の確認（make build/rp2350/button_test.elf）
+add_executable(button_test ${CMAKE_CURRENT_LIST_DIR}/button_test.c)
+target_link_libraries(button_test pico_stdlib)
+pico_enable_stdio_uart(button_test 1)
+pico_enable_stdio_usb(button_test 0)
+pico_add_extra_outputs(button_test)
+
 # PSBT 一巡の実機計測（make build/rp2350/psbt_bench.elf）。表示とボタンは使わない
 add_executable(psbt_bench ${CMAKE_CURRENT_LIST_DIR}/psbt_bench.c ${ROOT}/runtime/host-abi/parser_host.c ${ROOT}/ui/ui.c
   ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c ${ROOT}/core/core.c ${ROOT}/core/address.c ${ROOT}/core/bip32.c

@@ -103,6 +103,15 @@ int main(void) {
     show(&ui.screens[0]);
     while (decision == UI_PENDING) {
         int key = buttons_poll();
+#if NO_LCD
+        /* 配線の確認用に、押されたキーと入力の生の値を出す */
+        static uint64_t next_dump;
+        if (key >= 0) printf("key %d\n", key);
+        if (time_us_64() >= next_dump) {
+            next_dump = time_us_64() + 1000 * 1000;
+            printf("pins %02x (screen %u/%u seen %02x)\n", buttons_raw(), ui.cur + 1, ui.n, (unsigned)ui.seen);
+        }
+#endif
         if (key >= 0) {
             unsigned before = ui.cur;
             decision = ui_review_key(&ui, key);
