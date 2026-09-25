@@ -41,24 +41,28 @@ pico_enable_stdio_usb(signer 0)
 target_link_options(signer PRIVATE -Wl,--print-memory-usage)
 pico_add_extra_outputs(signer)
 
-# 実機の初期確認用アプリ（make build/rp2350/app.elf）。parser.wasm はインタプリタで動かす
+# 実機の初期確認用アプリ（make build/rp2350/app.elf）。parser.wasm はインタプリタで動かす。
+# app_nolcd は液晶の代わりに UART へ画面の文字を出す（はんだ付け前の確認用）
 set(SECP ${ROOT}/third_party/secp256k1)
-add_executable(app ${CMAKE_CURRENT_LIST_DIR}/app_main.c ${CMAKE_CURRENT_LIST_DIR}/st7789.c
+set(APP_SRC ${CMAKE_CURRENT_LIST_DIR}/app_main.c ${CMAKE_CURRENT_LIST_DIR}/st7789.c
   ${CMAKE_CURRENT_LIST_DIR}/buttons.c ${ROOT}/runtime/host-abi/parser_host.c ${ROOT}/ui/ui.c ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c
   ${ROOT}/core/core.c ${ROOT}/core/address.c ${ROOT}/core/bip32.c ${ROOT}/core/sighash.c ${ROOT}/parser/src/tx.c
   ${ROOT}/parser/src/sha256.c ${ROOT}/core/ripemd160.c ${ROOT}/core/sha512.c ${ROOT}/core/secp_callbacks.c
   ${ROOT}/signer/secp256k1_unity.c ${WAMR_RUNTIME_LIB_SOURCE})
-target_compile_definitions(app PRIVATE PICO_BUILD=1 ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1
-  ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1 COMB_BLOCKS=2 COMB_TEETH=5)
-target_compile_options(app PRIVATE -Wno-unused-function)
-target_compile_definitions(app PRIVATE PICO_STACK_SIZE=0x8000)
-target_include_directories(app PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/core
-  ${ROOT}/runtime/host-abi ${ROOT}/parser/include ${ROOT}/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include)
-target_link_libraries(app pico_stdlib pico_rand hardware_spi)
-pico_enable_stdio_uart(app 1)
-pico_enable_stdio_usb(app 0)
-target_link_options(app PRIVATE -Wl,--print-memory-usage)
-pico_add_extra_outputs(app)
+foreach(t app app_nolcd)
+  add_executable(${t} ${APP_SRC})
+  target_compile_definitions(${t} PRIVATE PICO_BUILD=1 ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1
+    ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1 COMB_BLOCKS=2 COMB_TEETH=5 PICO_STACK_SIZE=0x8000
+    NO_LCD=$<STREQUAL:${t},app_nolcd>)
+  target_compile_options(${t} PRIVATE -Wno-unused-function)
+  target_include_directories(${t} PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/core
+    ${ROOT}/runtime/host-abi ${ROOT}/parser/include ${ROOT}/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include)
+  target_link_libraries(${t} pico_stdlib pico_rand hardware_spi)
+  pico_enable_stdio_uart(${t} 1)
+  pico_enable_stdio_usb(${t} 0)
+  target_link_options(${t} PRIVATE -Wl,--print-memory-usage)
+  pico_add_extra_outputs(${t})
+endforeach()
 
 # PSBT 一巡の実機計測（make build/rp2350/psbt_bench.elf）。表示とボタンは使わない
 add_executable(psbt_bench ${CMAKE_CURRENT_LIST_DIR}/psbt_bench.c ${ROOT}/runtime/host-abi/parser_host.c ${ROOT}/ui/ui.c

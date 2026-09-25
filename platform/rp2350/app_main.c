@@ -24,13 +24,22 @@ static uint8_t signed_psbt[PARSER_PSBT_MAX + 2048];
 static plan_t plan;
 static ui_review_t ui;
 
+/* NO_LCD=1 では液晶の代わりに UART へ画面の文字を出す（はんだ付け前の確認用） */
 static void show(const ui_screen_t *s) {
     uint16_t line[UI_W];
+#if NO_LCD
+    printf("+------------------------------+\n");
+    for (int r = 0; r < UI_ROWS; r++)
+        if (s->text[r][0]) printf("| %-28s |\n", s->text[r]);
+    printf("+------------------------------+\n");
+    for (int y = 0; y < UI_H; y++) ui_render_line(s, y, line);
+#else
     st7789_begin_frame();
     for (int y = 0; y < UI_H; y++) {
         ui_render_line(s, y, line);
         st7789_write_line(line);
     }
+#endif
 }
 
 static void show_message(const char *title, const char *body) {
@@ -60,7 +69,9 @@ int main(void) {
     int err, decision = UI_PENDING;
 
     stdio_init_all();
+#if !NO_LCD
     st7789_init();
+#endif
     buttons_init();
     show_message("baremetal-wasm-signer", "starting...");
     printf("\nbaremetal-wasm-signer: TEST SEED ONLY\n");
@@ -126,11 +137,16 @@ int main(void) {
         if (time_us_64() >= next) {
             uint16_t line[UI_W];
             if (!parser_host_ur_encode_next(text, sizeof(text)) || !ui_qr_set(text)) return show_message("qr failed", ""), 1;
+#if NO_LCD
+            printf("%s\n", text);
+            for (int y = 0; y < UI_H; y++) ui_qr_render_line(y, line);
+#else
             st7789_begin_frame();
             for (int y = 0; y < UI_H; y++) {
                 ui_qr_render_line(y, line);
                 st7789_write_line(line);
             }
+#endif
             next = time_us_64() + 250 * 1000;
         }
         sleep_ms(10);
