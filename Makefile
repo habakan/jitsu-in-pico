@@ -257,6 +257,10 @@ build/rp2350/psbt_bench.elf: build/parser_wasm.h build/test_psbt.h platform/rp23
 build/rp2350/qr_bench.elf: build/qr_frames.h host/qr_bench.c platform/rp2350/CMakeLists.txt build/rp2350/app.elf
 	ninja -C build/rp2350 qr_bench
 
+build/rp2350/pio_loopback_test.elf: platform/rp2350/pio_loopback_test.c platform/rp2350/dvp_gen.pio \
+  platform/rp2350/camera.pio platform/rp2350/CMakeLists.txt build/rp2350/app.elf
+	ninja -C build/rp2350 pio_loopback_test
+
 build/rp2350/camera_test.elf: platform/rp2350/camera_test.c platform/rp2350/camera.c platform/rp2350/camera.pio \
   platform/rp2350/camera_ov7670.c platform/rp2350/CMakeLists.txt build/rp2350/app.elf
 	ninja -C build/rp2350 camera_test

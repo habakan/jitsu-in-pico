@@ -79,6 +79,16 @@ pico_enable_stdio_usb(qr_bench 0)
 target_link_options(qr_bench PRIVATE -Wl,--print-memory-usage)
 pico_add_extra_outputs(qr_bench)
 
+# camera.pio の取り込みをカメラ無しで確かめる（make build/rp2350/pio_loopback_test.elf）
+add_executable(pio_loopback_test ${CMAKE_CURRENT_LIST_DIR}/pio_loopback_test.c)
+pico_generate_pio_header(pio_loopback_test ${CMAKE_CURRENT_LIST_DIR}/camera.pio)
+pico_generate_pio_header(pio_loopback_test ${CMAKE_CURRENT_LIST_DIR}/dvp_gen.pio)
+target_include_directories(pio_loopback_test PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_link_libraries(pio_loopback_test pico_stdlib hardware_pio hardware_dma hardware_clocks)
+pico_enable_stdio_uart(pio_loopback_test 1)
+pico_enable_stdio_usb(pio_loopback_test 0)
+pico_add_extra_outputs(pio_loopback_test)
+
 # 配線の確認（make build/rp2350/button_test.elf）
 add_executable(button_test ${CMAKE_CURRENT_LIST_DIR}/button_test.c)
 target_link_libraries(button_test pico_stdlib)

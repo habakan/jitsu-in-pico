@@ -1,0 +1,21 @@
+; テスト専用。DVP カメラの波形（D0〜D7、PCLK、HREF、VSYNC）を PIO で作り、同じピンを camera.pio の
+; 取り込みプログラムに読ませる（配線なしのループバック）。CPU が作った 1 サンプル 11bit の列を
+; DMA で流す。1 サンプル 3 サイクルなので、PCLK の 1 周期は 6 サイクル＝150MHz で 25MHz になる。
+
+.program dvp_gen
+.wrap_target
+    out pins, 16 [2]
+.wrap
+
+% c-sdk {
+static inline void dvp_gen_program_init(PIO pio, uint sm, uint offset, uint pin_d0, float clkdiv) {
+    pio_sm_config c = dvp_gen_program_get_default_config(offset);
+    for (uint i = 0; i < 11; i++) pio_gpio_init(pio, pin_d0 + i);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_d0, 11, true);
+    sm_config_set_out_pins(&c, pin_d0, 11);
+    /* 右シフトで 32bit ごとに補充する。1 ワードに 2 サンプル入る */
+    sm_config_set_out_shift(&c, true, true, 32);
+    sm_config_set_clkdiv(&c, clkdiv);
+    pio_sm_init(pio, sm, offset, &c);
+}
+%}
