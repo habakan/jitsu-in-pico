@@ -110,6 +110,23 @@ M12 マウントのレンズで、回してピントを合わせられる見込�
 - 「U」ポート（UART）の RX → GP0、GND → GND。TX は使わない
 - Pico 2 H 本体は、別の USB ケーブルで PC から給電する
 
+## 書き込みと UART
+
+Debug Probe の SWD で書くのが速い。BOOTSEL も USB の抜き差しも要らず、書き込み後にリセットまでできる。
+
+```
+make deps-openocd                            # 一度だけ（Raspberry Pi のフォークをビルド）
+make flash-swd ELF=build/rp2350/app.elf      # 書き込み
+make run ELF=build/rp2350/app.elf SECONDS=90 # 書き込み → 受信開始 → リセット
+make monitor SECONDS=60                      # 受信だけ
+```
+
+上流の OpenOCD（Homebrew の 0.12.0、HEAD とも）は Hazard3 を DAP 経由で扱えず、`target/rp2350.cfg` の
+`target create ... riscv -dap` で落ちる。Raspberry Pi のフォークには `target/rp2350-riscv.cfg` がある。
+
+BOOTSEL からの `.uf2` 書き込み（`make flash`）も残してあるが、macOS のリムーバブルボリューム権限で
+`cp` が弾かれることがあり、その場合は Finder でドラッグする。
+
 ## 初期確認の手順（部品が届いたら）
 
 1. Pico 2 H と Debug Probe だけで `build/rp2350/signer.uf2` を書き、UART（115200bps）に署名の実測時間が出ることを確かめる。`psbt_bench.uf2` で PSBT 一巡の時間も測れる（済、`docs/architecture-b.md` 11 節）

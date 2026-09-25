@@ -1,7 +1,8 @@
 # Feasibility: RP2350 (Hazard3) で QR を読み書きできるか
 
-2026-09-22 時点。実機・カメラなし。カメラ画像を模した合成フレームを、RV32 の QEMU virt
-（`-icount shift=0`）で quirc / qrcodegen に通して、命令数とメモリを測った。
+2026-09-25 更新（実機計測を追加）。カメラ画像を模した合成フレームを、RV32 の QEMU virt
+（`-icount shift=0`）と Pico 2 H 実機で quirc / qrcodegen に通して、命令数・時間・メモリを測った。
+カメラはまだ無いので、合成フレームを Flash に埋めて実機で回している（`make run ELF=build/rp2350/qr_bench.elf`）。
 
 ## 結論
 
@@ -52,6 +53,20 @@ v8 の NG は px/module が大きい 220 でも出ており、単調ではない
 - パッチは `fitness_all` の入口で係数を固定小数点に変換し、`fitness_cell` を 32x32→64bit 乗算と 32bit 除算だけで回す。係数が範囲外なら float 版に戻る
 - QEMU では `-march=rv32imac_zicsr_zifencei_zba_zbb_zbs_zbkb_zcb_zcmp` でビルドした。`-mcpu=hazard3-rp2350 -O2` は QEMU 非対応の Hazard3 独自命令（Xh3bextm）を出す
 
+## 実機計測（Pico 2 H、150MHz、2026-09-25。18 枚を Flash に埋めて実行）
+
+| 処理 | v5 | v8 | v11 | 実効 CPI |
+|---|---|---|---|---|
+| デコード（パッチ版） | 0.278〜0.285 s | 0.447〜0.453 s | 0.494 s | 1.57 |
+| QR が見つからないフレーム | 0.029〜0.038 s | | | 1.48 |
+| 生成（qrcodegen） | 0.034 s | 0.058 s | 0.091 s | 1.12 |
+| 描画（240x240 RGB565 を 1 行ずつ） | 0.021 s | 0.022 s | 0.020 s | 2.07 |
+
+- 読み取れた / 読み取れなかったフレームの内訳は QEMU と完全に一致した（v8 の 220px/σ1.0 と 160px/σ1.0、v11 の 3 枚が NG）
+- **XIP キャッシュの劣化は小さい。** AOT の署名コードでは CPI 7.5 まで落ちたが、quirc は 1.57 に収まる。フレームバッファが RAM にあり、ホットな関数が小さいため
+- 描画の CPI 2.07 は行バッファへの書き込みが支配的で、コードではなくメモリ側の律速
+- **実測 fps は v5 で 3.6、v8 で 2.2。** 読めないフレームは 30ms で返るので、ピントや露出が合うまでの空振りは軽い
+
 ## RAM 見積り
 
 | 項目 | サイズ |
@@ -76,7 +91,7 @@ v8 の NG は px/module が大きい 220 でも出ており、単調ではない
 
 - OV2640 を PIO + DMA で QVGA グレースケール取得できるか、取り込みとデコードを 2 コアで並行できるか
 - 実カメラ画像（ピント、露出、画面の反射、手ぶれ）での読取率。特に v8 の NG 条件
-- 実測の fps（CPI と XIP キャッシュミスの影響）
+- ~~実測の fps~~ 済（上の実機計測）。2 コアで取り込みとデコードを並行させれば、デコード時間がそのまま fps になる
 
 ## 再現手順
 
@@ -85,4 +100,5 @@ make deps
 make check-qemu-qr                           # RV32 での命令数・ヒープ・スタック
 make check-qemu-qr QUIRC=third_party/quirc/lib QUIRC_DEFS=   # 素の quirc (double)
 make check-qr-mac                            # quirc と zxing-cpp の読取可否
+make run ELF=build/rp2350/qr_bench.elf       # 実機（SWD で書いてリセットし、UART を受ける）
 ```

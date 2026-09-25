@@ -64,6 +64,21 @@ foreach(t app app_nolcd)
   pico_add_extra_outputs(${t})
 endforeach()
 
+set(QUIRC ${ROOT}/qr/quirc/lib)
+set(QUIRC_SRC ${QUIRC}/decode.c ${QUIRC}/identify.c ${QUIRC}/quirc.c ${QUIRC}/version_db.c)
+
+# quirc のデコード時間を実機で測る（make build/rp2350/qr_bench.elf）。カメラの代わりに埋め込んだ画像を使う
+add_executable(qr_bench ${ROOT}/host/qr_bench.c ${QUIRC_SRC} ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c)
+target_compile_definitions(qr_bench PRIVATE PICO_BUILD=1 PICO_STACK_SIZE=0x8000
+  QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH)
+target_include_directories(qr_bench PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/qr/quirc/lib
+  ${ROOT}/third_party/QR-Code-generator/c)
+target_link_libraries(qr_bench pico_stdlib)
+pico_enable_stdio_uart(qr_bench 1)
+pico_enable_stdio_usb(qr_bench 0)
+target_link_options(qr_bench PRIVATE -Wl,--print-memory-usage)
+pico_add_extra_outputs(qr_bench)
+
 # 配線の確認（make build/rp2350/button_test.elf）
 add_executable(button_test ${CMAKE_CURRENT_LIST_DIR}/button_test.c)
 target_link_libraries(button_test pico_stdlib)
@@ -92,10 +107,9 @@ target_link_options(psbt_bench PRIVATE -Wl,--print-memory-usage)
 pico_add_extra_outputs(psbt_bench)
 
 # カメラの初期確認（make build/rp2350/camera_test.elf）。PIO で Y を拾い、自前フォークの quirc で読む
-set(QUIRC ${ROOT}/qr/quirc/lib)
 add_executable(camera_test ${CMAKE_CURRENT_LIST_DIR}/camera_test.c ${CMAKE_CURRENT_LIST_DIR}/camera.c
   ${CMAKE_CURRENT_LIST_DIR}/camera_ov7670.c ${CMAKE_CURRENT_LIST_DIR}/st7789.c
-  ${QUIRC}/decode.c ${QUIRC}/identify.c ${QUIRC}/quirc.c ${QUIRC}/version_db.c)
+  ${QUIRC_SRC})
 pico_generate_pio_header(camera_test ${CMAKE_CURRENT_LIST_DIR}/camera.pio)
 target_compile_definitions(camera_test PRIVATE QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH
   PICO_STACK_SIZE=0x8000)

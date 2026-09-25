@@ -254,6 +254,9 @@ build/rp2350/psbt_bench.elf: build/parser_wasm.h build/test_psbt.h platform/rp23
 	  -DWAMR_BUILD_AOT=$(PARSER_AOT) -DPARSER_POOL_KB=$(PARSER_POOL_KB) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/rp2350 psbt_bench
 
+build/rp2350/qr_bench.elf: build/qr_frames.h host/qr_bench.c platform/rp2350/CMakeLists.txt build/rp2350/app.elf
+	ninja -C build/rp2350 qr_bench
+
 build/rp2350/camera_test.elf: platform/rp2350/camera_test.c platform/rp2350/camera.c platform/rp2350/camera.pio \
   platform/rp2350/camera_ov7670.c platform/rp2350/CMakeLists.txt build/rp2350/app.elf
 	ninja -C build/rp2350 camera_test
@@ -266,6 +269,7 @@ check-camera-sim: build/rp2350/camera_test.elf
 # 実機の立ち上げ: BOOTSEL を押しながら USB を挿すと RP2350 ドライブとして見えるので、そこへ uf2 をコピーする
 # ドライブ名は RP2350 のこともラベル無し（NO NAME）のこともあるので、134MB の FAT16 を探す
 UF2 ?= build/rp2350/signer.uf2
+SECONDS ?= 60
 BOOT_VOL = $$(diskutil list | awk '/Windows_FAT_16/ && /134.2 MB/ {print $$NF}' | head -1 | \
   xargs -I{} sh -c 'diskutil info {} | sed -n "s/.*Mount Point: *//p"')
 flash: $(UF2)
@@ -279,4 +283,29 @@ flash: $(UF2)
 # Debug Probe の UART（115200bps）を受ける。SECONDS=10 のように秒数を指定できる
 monitor:
 	mkdir -p build && uv run -q tools/monitor.py $(SECONDS)
-.PHONY: flash monitor
+
+# Debug Probe の SWD で書く。BOOTSEL も USB の抜き差しも要らない。
+# Hazard3 を DAP 経由で叩く riscv ドライバは上流の OpenOCD に無いので、Raspberry Pi のフォークを使う
+# （make deps-openocd でビルドする）
+ELF ?= $(UF2:.uf2=.elf)
+OPENOCD_DIR ?= $(HOME)/work/oss/openocd-rpi
+OPENOCD = $(OPENOCD_DIR)/src/openocd -s $(OPENOCD_DIR)/tcl -f interface/cmsis-dap.cfg \
+  -c "adapter speed 5000" -f target/rp2350-riscv.cfg
+# 上流の OpenOCD は riscv ターゲットを DAP 経由で作れない（rp2350.cfg の -dap が通らない）
+deps-openocd:
+	mkdir -p $(dir $(OPENOCD_DIR))
+	git clone --depth 1 https://github.com/raspberrypi/openocd.git $(OPENOCD_DIR)
+	cd $(OPENOCD_DIR) && git submodule update --init --depth 1 jimtcl src/jtag/drivers/libjaylink \
+	  && ./bootstrap && ./configure --enable-cmsis-dap --enable-internal-jimtcl --disable-werror && $(MAKE) -j8
+.PHONY: deps-openocd
+
+flash-swd: $(ELF)
+	$(OPENOCD) -c "program $(ELF) verify reset exit"
+
+# 書き込み → 受信開始 → リセット。出力を頭から取れる
+run: $(ELF)
+	@mkdir -p build
+	$(OPENOCD) -c "program $(ELF) verify exit" 2>&1 | tail -3
+	@uv run -q tools/monitor.py $(SECONDS) & \
+	  sleep 2; $(OPENOCD) -c "init; reset run; exit" >/dev/null 2>&1; wait
+.PHONY: flash flash-swd monitor run
