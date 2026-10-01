@@ -53,7 +53,7 @@ foreach(t app app_nolcd)
   add_executable(${t} ${APP_SRC})
   target_compile_definitions(${t} PRIVATE PICO_BUILD=1 ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1
     ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1 COMB_BLOCKS=2 COMB_TEETH=5 PICO_STACK_SIZE=0x8000
-    NO_LCD=$<STREQUAL:${t},app_nolcd>)
+    NO_LCD=$<STREQUAL:${t},app_nolcd> TEST_SEED=1)
   target_compile_options(${t} PRIVATE -Wno-unused-function)
   target_include_directories(${t} PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/core
     ${ROOT}/runtime/host-abi ${ROOT}/parser/include ${ROOT}/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include)

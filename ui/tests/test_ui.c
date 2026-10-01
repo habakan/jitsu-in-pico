@@ -37,7 +37,8 @@ int main(void) {
     ui_review_init(&r, &d);
     {
         size_t shown = 0;
-        for (int row = 5; row < UI_ROWS - 1; row++) shown += strlen(r.screens[3].text[row]);
+        /* 1 行目はアプリ名、2 行目が表題。16 進は 7 行目から */
+        for (int row = 6; row < UI_ROWS - 1; row++) shown += strlen(r.screens[3].text[row]);
         CHECK(shown == 2 * PLAN_MAX_SPK, "longest script fully shown");
     }
     printf("%d/%d checks passed\n", checks - failures, checks);

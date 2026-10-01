@@ -9,6 +9,8 @@
 
 #define UI_W 240
 #define UI_H 240
+/* 全画面の右上に出す。UI_COLS に収まる長さにする */
+#define UI_APP_NAME "Baremetal wasm DIY Signer"
 #define UI_COLS 30 /* 8x16 フォント */
 #define UI_ROWS 15
 #define UI_MAX_SCREENS (PLAN_MAX_OUTPUTS + 2)
@@ -32,6 +34,23 @@ void ui_review_init(ui_review_t *r, const core_display_t *d);
 /* キー入力で画面を移し、署名確認画面で PUSH されたら UI_APPROVED、A なら UI_REJECTED を返す */
 int ui_review_key(ui_review_t *r, int key);
 void ui_render_line(const ui_screen_t *s, int y, uint16_t line[UI_W]);
+
+/* 項目を選ぶ画面。ボタン 2 個（進む＝カーソル移動、押込＝決定）でも回せる */
+#define UI_MENU_MAX 6
+enum { UI_MENU_PENDING = -1, UI_MENU_BACK = -2 };
+
+typedef struct {
+    ui_screen_t screen;
+    const char *title;
+    const char *const *items;
+    unsigned n, cur;
+} ui_menu_t;
+
+void ui_menu_init(ui_menu_t *m, const char *title, const char *const *items, unsigned n);
+/* 選ばれた項目の番号、UI_MENU_PENDING、UI_MENU_BACK のいずれかを返す */
+int ui_menu_key(ui_menu_t *m, int key);
+/* 文字だけの画面（起動時やエラー、警告） */
+void ui_message(ui_screen_t *s, const char *title, const char *body, int warn);
 
 /* 署名済み PSBT を返すアニメーション QR。1 パート 120 byte だと文字列が約 300 文字で QR は v8 前後、
  * 240 px に 1 モジュール 4 px で収まる */

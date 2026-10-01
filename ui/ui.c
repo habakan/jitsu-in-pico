@@ -16,11 +16,23 @@ typedef struct {
     int row;
 } writer_t;
 
+/* 右寄せでアプリ名を出す。各画面の 1 行目 */
+static void put_header(writer_t *w);
+
 static void put(writer_t *w, uint16_t color, const char *text) {
     if (w->row >= UI_ROWS) return;
     strncpy(w->s->text[w->row], text, UI_COLS);
     w->s->text[w->row][UI_COLS] = 0;
     w->s->color[w->row++] = color;
+}
+
+static void put_header(writer_t *w) {
+    char line[UI_COLS + 1];
+    size_t n = strlen(UI_APP_NAME);
+    memset(line, ' ', UI_COLS);
+    line[UI_COLS] = 0;
+    if (n < UI_COLS) memcpy(line + (UI_COLS - 1 - n), UI_APP_NAME, n); /* 右端に 1 文字の余白を残す */
+    put(w, C_HINT, line);
 }
 
 /* 長い文字列（アドレス、16 進のスクリプト）は途中で切らずに全部折り返す */
@@ -77,6 +89,7 @@ void ui_review_init(ui_review_t *r, const core_display_t *d) {
     for (unsigned i = 0; i < d->n_outputs; i++) n_send += d->outputs[i].owner == CORE_OUT_EXTERNAL;
 
     w = (writer_t){&r->screens[r->n++], 0};
+    put_header(&w);
     put(&w, C_TITLE, "Review transaction");
     put(&w, C_TEXT, "");
     put_amount(&w, C_SEND, "Spend ", d->spend);
@@ -91,6 +104,7 @@ void ui_review_init(ui_review_t *r, const core_display_t *d) {
         const core_display_output_t *o = &d->outputs[i];
         uint16_t color = o->owner == CORE_OUT_EXTERNAL ? C_SEND : C_OURS;
         w = (writer_t){&r->screens[r->n++], 0};
+        put_header(&w);
         put_counter(&w, C_TITLE, "Output ", i + 1, d->n_outputs);
         put(&w, color, owner[o->owner]);
         put_amount(&w, color, "", o->amount);
@@ -103,6 +117,7 @@ void ui_review_init(ui_review_t *r, const core_display_t *d) {
     }
 
     w = (writer_t){&r->screens[r->n++], 0};
+    put_header(&w);
     put(&w, C_TITLE, "Sign this transaction?");
     put(&w, C_TEXT, "");
     put_amount(&w, C_SEND, "Spend ", d->spend);
@@ -120,6 +135,52 @@ int ui_review_key(ui_review_t *r, int key) {
     r->seen |= 1u << r->cur;
     if (key == UI_KEY_PUSH && r->cur == r->n - 1 && r->seen == (1u << r->n) - 1) return UI_APPROVED;
     return UI_PENDING;
+}
+
+static void menu_draw(ui_menu_t *m) {
+    writer_t w = {&m->screen, 0};
+    memset(&m->screen, 0, sizeof(m->screen));
+    put_header(&w);
+    put(&w, C_TITLE, m->title);
+    put(&w, C_TEXT, "");
+    for (unsigned i = 0; i < m->n; i++) {
+        char line[UI_COLS + 1];
+        line[0] = i == m->cur ? '>' : ' ';
+        line[1] = ' ';
+        strncpy(line + 2, m->items[i], UI_COLS - 2);
+        line[UI_COLS] = 0;
+        put(&w, i == m->cur ? C_TITLE : C_TEXT, line);
+    }
+    w.row = UI_ROWS - 1;
+    put(&w, C_HINT, "DOWN: move   PUSH: select");
+}
+
+void ui_menu_init(ui_menu_t *m, const char *title, const char *const *items, unsigned n) {
+    m->title = title;
+    m->items = items;
+    m->n = n > UI_MENU_MAX ? UI_MENU_MAX : n;
+    m->cur = 0;
+    menu_draw(m);
+}
+
+int ui_menu_key(ui_menu_t *m, int key) {
+    if (key == UI_KEY_PUSH || key == UI_KEY_RIGHT) return (int)m->cur;
+    if (key == UI_KEY_A || key == UI_KEY_LEFT) return UI_MENU_BACK;
+    if (key == UI_KEY_DOWN) m->cur = (m->cur + 1) % m->n;
+    if (key == UI_KEY_UP) m->cur = (m->cur + m->n - 1) % m->n;
+    menu_draw(m);
+    return UI_MENU_PENDING;
+}
+
+void ui_message(ui_screen_t *s, const char *title, const char *body, int warn) {
+    writer_t w = {s, 0};
+    memset(s, 0, sizeof(*s));
+    put_header(&w);
+    put(&w, warn ? C_SEND : C_TITLE, title);
+    put(&w, C_TEXT, "");
+    if (body) put_wrapped(&w, C_TEXT, body);
+    w.row = UI_ROWS - 1;
+    put(&w, C_HINT, "PUSH: ok");
 }
 
 void ui_render_line(const ui_screen_t *s, int y, uint16_t line[UI_W]) {
