@@ -21,10 +21,19 @@ int main(void) {
 
     display3(&d);
     ui_review_init(&r, &d);
-    CHECK(r.n == 5, "summary + 3 outputs + confirm");
+    CHECK(r.n == 6, "summary + 3 outputs + confirm + cancel");
     CHECK(ui_review_key(&r, UI_KEY_PUSH) == UI_PENDING, "push on summary does nothing");
-    for (int i = 0; i < 10; i++) ui_review_key(&r, UI_KEY_RIGHT);
+    for (int i = 0; i < 4; i++) ui_review_key(&r, UI_KEY_RIGHT);
     CHECK(r.cur == 4 && ui_review_key(&r, UI_KEY_PUSH) == UI_APPROVED, "approve after seeing all");
+
+    /* 取り消し画面は最後。押込で取り消し、進むと先頭へ回り込む */
+    ui_review_init(&r, &d);
+    for (int i = 0; i < 5; i++) ui_review_key(&r, UI_KEY_DOWN);
+    CHECK(r.cur == 5, "cancel screen is last");
+    CHECK(ui_review_key(&r, UI_KEY_PUSH) == UI_REJECTED, "push on cancel screen rejects");
+    ui_review_init(&r, &d);
+    for (int i = 0; i < 6; i++) ui_review_key(&r, UI_KEY_DOWN);
+    CHECK(r.cur == 0, "next wraps to the start");
 
     /* 画面を飛ばしては確認に来られないが、seen の欠けも念のため直接確かめる */
     ui_review_init(&r, &d);

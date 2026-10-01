@@ -124,16 +124,29 @@ void ui_review_init(ui_review_t *r, const core_display_t *d) {
     put_amount(&w, C_TEXT, "Fee   ", d->fee);
     w.row = UI_ROWS - 2;
     put(&w, C_HINT, "PUSH: sign");
-    put(&w, C_HINT, "A: cancel   LEFT: back");
+    put(&w, C_HINT, "NEXT: cancel screen");
+
+    /* 最後は取り消し画面。ボタン 2 個（進む・押込）だけでも取り消せて、ここから先頭へ回り込む */
+    w = (writer_t){&r->screens[r->n++], 0};
+    put_header(&w);
+    put(&w, C_TITLE, "Cancel transaction?");
+    put(&w, C_TEXT, "");
+    put(&w, C_TEXT, "Nothing is signed.");
+    w.row = UI_ROWS - 2;
+    put(&w, C_HINT, "PUSH: cancel");
+    put(&w, C_HINT, "NEXT: back to start");
     r->seen = 1;
 }
 
 int ui_review_key(ui_review_t *r, int key) {
+    /* 署名確認は最後から 2 枚目、取り消しは最後。全画面を見ていないと署名できない（取り消し画面は除く） */
+    unsigned sign = r->n - 2, must_see = (1u << (r->n - 1)) - 1;
     if (key == UI_KEY_A) return UI_REJECTED;
-    if ((key == UI_KEY_RIGHT || key == UI_KEY_DOWN) && r->cur + 1 < r->n) r->cur++;
-    if ((key == UI_KEY_LEFT || key == UI_KEY_UP) && r->cur > 0) r->cur--;
+    if (key == UI_KEY_RIGHT || key == UI_KEY_DOWN) r->cur = (r->cur + 1) % r->n;
+    if (key == UI_KEY_LEFT || key == UI_KEY_UP) r->cur = (r->cur + r->n - 1) % r->n;
     r->seen |= 1u << r->cur;
-    if (key == UI_KEY_PUSH && r->cur == r->n - 1 && r->seen == (1u << r->n) - 1) return UI_APPROVED;
+    if (key == UI_KEY_PUSH && r->cur == r->n - 1) return UI_REJECTED;
+    if (key == UI_KEY_PUSH && r->cur == sign && (r->seen & must_see) == must_see) return UI_APPROVED;
     return UI_PENDING;
 }
 
