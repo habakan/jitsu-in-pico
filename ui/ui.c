@@ -141,6 +141,8 @@ int ui_qr_set(const char *text) {
     return qrcodegen_encodeText(text, tmp, qr, qrcodegen_Ecc_LOW, 1, UI_QR_MAX_VERSION, qrcodegen_Mask_AUTO, true);
 }
 
+int ui_qr_modules(void) { return qrcodegen_getSize(qr); }
+
 void ui_qr_render_line(int y, uint16_t line[UI_W]) {
     int size = qrcodegen_getSize(qr), scale = UI_W / (size + 8), off = (UI_W - size * scale) / 2;
     int my = (y - off) / scale;

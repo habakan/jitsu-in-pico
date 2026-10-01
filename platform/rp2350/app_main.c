@@ -145,13 +145,22 @@ int main(void) {
 
     /* 署名済み PSBT をアニメーション QR（UR）で返す。純粋なパートの後は混ぜたパートが続くので、
      * ウォレットがいくつか取りこぼしても復元できる。A で終える */
-    if (parser_host_ur_encode_start(out_len, UI_UR_FRAGMENT) <= 0) return show_message("ur encode failed", ""), 1;
-    for (uint64_t next = 0;;) {
+    long seq_len = parser_host_ur_encode_start(out_len, UI_UR_FRAGMENT);
+    if (seq_len <= 0) return show_message("ur encode failed", ""), 1;
+    for (uint64_t next = 0; ; ) {
         static char text[1024];
-        if (buttons_poll() == UI_KEY_A) break;
+        if (buttons_poll() >= 0) break; /* どのキーでも終える */
         if (time_us_64() >= next) {
             uint16_t line[UI_W];
+            static unsigned part;
+            /* 純粋なパートだけを周回させる。混ぜたパート（フォンテン符号）を使わない受信側でも完成でき、
+             * 取りこぼしても次の周回で拾える。UR の仕様上はどちらでもよい */
+            if (part && part % (unsigned)seq_len == 0) parser_host_ur_encode_start(out_len, UI_UR_FRAGMENT);
             if (!parser_host_ur_encode_next(text, sizeof(text)) || !ui_qr_set(text)) return show_message("qr failed", ""), 1;
+            if (part < (unsigned)seq_len)
+                printf("part %u: %u chars, %d modules, %d px/module\n", part + 1, (unsigned)strlen(text),
+                       ui_qr_modules(), UI_W / (ui_qr_modules() + 8));
+            part++;
 #if NO_LCD
             printf("%s\n", text);
             for (int y = 0; y < UI_H; y++) ui_qr_render_line(y, line);
@@ -162,7 +171,8 @@ int main(void) {
                 st7789_write_line(line);
             }
 #endif
-            next = time_us_64() + 250 * 1000;
+            /* 250ms だとスマホがピントを合わせる前に切り替わり、パートを取りこぼす */
+            next = time_us_64() + 500 * 1000;
         }
         sleep_ms(10);
     }
