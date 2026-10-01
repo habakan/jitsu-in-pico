@@ -16,7 +16,9 @@ int main(void) {
     st7789_init();
     printf("\ncamera test (%s)\n", camera_ov7670.name);
     if (!camera_init(&camera_ov7670)) return printf("camera init failed (SCCB)\n"), 1;
-    if (camera_read_reg(0x0a, &val)) printf("PID 0x%02x (OV7670 is 0x76)\n", val);
+    /* PID/VER で実物を確かめる。OV7670 は 0x76/0x73、OV7675 は 0x76/0x73 以外のこともあるので値をそのまま出す */
+    if (camera_read_reg(0x0a, &val)) printf("PID 0x%02x\n", val);
+    if (camera_read_reg(0x0b, &val)) printf("VER 0x%02x\n", val);
     if (!(q = quirc_new()) || quirc_resize(q, CAMERA_W, CAMERA_H) < 0) return printf("quirc alloc failed\n"), 1;
 
     for (;;) {

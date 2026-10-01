@@ -1,6 +1,6 @@
 #include "camera.h"
 
-/* OV7670（SCCB 0x21）: YUV422 を 1/2 に縮小して QVGA で出す。OmniVision の実装ガイドにある QVGA YUV の定番設定。
+/* OV7670 / OV7675（どちらも SCCB 0x21、レジスタ互換）: YUV422 を 1/2 に縮小して QVGA で出す。OmniVision の実装ガイドにある QVGA YUV の定番設定。
  * 露出・ゲイン・ホワイトバランスはリセット時の自動のまま。実機で QR の読み取りを見て詰める */
 static const camera_reg_t regs[] = {
     {0x12, 0x80}, /* COM7: リセット */
@@ -20,4 +20,4 @@ static const camera_reg_t regs[] = {
     {0xff, 0xff},
 };
 
-const camera_model_t camera_ov7670 = {"OV7670", 0x21, true, regs};
+const camera_model_t camera_ov7670 = {"OV7670/OV7675", 0x21, true, regs};
