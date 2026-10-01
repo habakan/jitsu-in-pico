@@ -34,9 +34,12 @@ deps:
 	curl -sL -o third_party/rv.zip $(RISCV_TC_URL) && unzip -q third_party/rv.zip -d third_party/riscv-toolchain && rm third_party/rv.zip
 	$(MAKE) patch-deps
 
-# classic interp の i64.store は 4 byte 境界を前提にしており、Hazard3 では非整列ストアで例外になる
+# classic interp の i64.store は 4 byte 境界を前提にしており、Hazard3 では非整列ストアで例外になる。
+# 上流は PR #5123 で修正済み（2026-09-30 に main へマージ）なので、2.4.3 を使う間だけ要る
 patch-deps:
-	git -C third_party/wasm-micro-runtime apply $(CURDIR)/patches/wamr-classic-interp-unaligned-i64-store.patch
+	@cd third_party/wasm-micro-runtime && p=$(CURDIR)/patches/wamr-classic-interp-unaligned-i64-store.patch; \
+	  if git apply --reverse --check $$p 2>/dev/null; then echo "wamr: 既に修正済み（パッチ不要）"; \
+	  else git apply $$p && echo "wamr: パッチ適用"; fi
 .PHONY: deps patch-deps
 
 # AOT=1 では wamrc で RV32 ネイティブにした .aot を Flash に置いて XIP 実行する。--bounds-checks=1 は MMU 無しでの線形メモリ保護。

@@ -51,7 +51,9 @@ QR フレームバッファ（QVGA グレースケール 77KB）を足しても 
 - **WASM の定数テーブルは RAM に載る。** data segment は線形メモリへ展開されるため、libsecp256k1 の既定 `ECMULT_GEN_KB=86` はそのまま SRAM を消費する。今回は 2KB（`COMB_BLOCKS=2, COMB_TEETH=5`）を採用
 - **線形メモリの 64KB 単位を避けるには WAMR の shrunk memory が要る。** `memory.grow` を使わず `__heap_base` / `__data_end` を export すると、線形メモリが `__heap_base` まで縮む
 - **遅さの主因は i64 演算の見込み。** libsecp256k1 の 10x26 field は 64bit 乗算を多用し、rv32 上の WAMR ではソフトウェア処理になる
-- **WAMR classic interp の `i64.store` は 4 byte 境界を前提にしている（上流のバグ）。** 線形メモリへの書き込みにオペランドスタック用の `PUT_I64_TO_ADDR` を使っており、非整列対応の `STORE_I64`（fast interp は使っている）を通らない。clang が memcpy を展開した 1 byte 境界の `i64.store` で Hazard3 が例外を上げる。QEMU は非整列アクセスを黙って通すので再現しない。`patches/wamr-classic-interp-unaligned-i64-store.patch` で修正し、`make deps` が適用する
+- **WAMR classic interp の `i64.store` は 4 byte 境界を前提にしている（上流のバグ）。** 線形メモリへの書き込みにオペランドスタック用の `PUT_I64_TO_ADDR` を使っており、非整列対応の `STORE_I64`（fast interp は使っている）を通らない。clang が memcpy を展開した 1 byte 境界の `i64.store` で Hazard3 が例外を上げる。QEMU は非整列アクセスを黙って通すので再現しない。
+  **上流に報告して修正が入った**（[PR #5123](https://github.com/wasm-micro-runtime/wasm-micro-runtime/pull/5123)、2026-09-30 に main へマージ）。
+  2.4.3 を使う間は `patches/wamr-classic-interp-unaligned-i64-store.patch` を `make deps` が適用する（適用済みなら飛ばす）
 - **RP2350 の既定スタック 2KB は薄い。** QEMU 実測は 1.4KB で足りてはいるが、余裕がないので 16KB にした
 - WAMR のインタプリタは、signer が浮動小数点を使わなくても libm（`ceil`, `sqrt` など）をリンクする。TCB の LOC に計上する
 
