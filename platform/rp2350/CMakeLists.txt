@@ -49,7 +49,7 @@ set(QUIRC_SRC ${QUIRC}/decode.c ${QUIRC}/identify.c ${QUIRC}/quirc.c ${QUIRC}/ve
 set(APP_SRC ${CMAKE_CURRENT_LIST_DIR}/app_main.c ${CMAKE_CURRENT_LIST_DIR}/st7789.c
   ${CMAKE_CURRENT_LIST_DIR}/buttons.c ${ROOT}/runtime/host-abi/parser_host.c ${ROOT}/ui/ui.c ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c
   ${ROOT}/core/core.c ${ROOT}/core/address.c ${ROOT}/core/bip32.c ${ROOT}/core/sighash.c ${ROOT}/parser/src/tx.c
-  ${ROOT}/parser/src/sha256.c ${ROOT}/core/ripemd160.c ${ROOT}/core/sha512.c ${ROOT}/core/secp_callbacks.c
+  ${ROOT}/parser/src/sha256.c ${ROOT}/core/ripemd160.c ${ROOT}/core/sha512.c ${ROOT}/core/secp_callbacks.c ${ROOT}/core/seedqr.c
   ${ROOT}/signer/secp256k1_unity.c ${CMAKE_CURRENT_LIST_DIR}/camera.c ${CMAKE_CURRENT_LIST_DIR}/camera_ov7670.c
   ${QUIRC_SRC} ${WAMR_RUNTIME_LIB_SOURCE})
 foreach(t app app_nolcd)

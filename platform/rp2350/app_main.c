@@ -10,11 +10,13 @@
 #include "core.h"
 #include "parser_host.h"
 #include "sha512.h"
+#include "wipe.h"
 #include "ui.h"
 #include "st7789.h"
 #include "buttons.h"
 #include "camera.h"
 #include "quirc.h"
+#include "seedqr.h"
 #include "parser_wasm.h"
 #include "test_psbt.h"
 
@@ -283,6 +285,47 @@ static void scan_and_sign(void) {
     free(psbt), psbt = NULL;
 }
 
+/* SeedQR を読んでシードを載せる。秘密なので解析器（WASM）には渡さず、ここで扱う */
+static int scan_seed(void) {
+    struct quirc *q;
+    char status[UI_COLS + 1], mnemonic[256];
+    uint8_t seed[64];
+    int ok = 0;
+
+    if (!camera_ready) return message("No camera", "Wire it up or use the test seed.", 1), 0;
+    if (!(q = quirc_new()) || quirc_resize(q, CAMERA_W, CAMERA_H) < 0) return message("Out of memory", NULL, 1), 0;
+    snprintf(status, sizeof(status), "Scan SeedQR");
+
+    while (!ok) {
+        uint8_t *img = quirc_begin(q, NULL, NULL);
+        if (buttons_poll() >= 0) break;
+        if (!camera_capture(img, 500)) continue;
+        show_preview(img, status);
+        quirc_end(q);
+        for (int i = 0; i < quirc_count(q) && !ok; i++) {
+            static struct quirc_code code;
+            static struct quirc_data data;
+            quirc_extract(q, i, &code);
+            if (quirc_decode(&code, &data)) {
+                snprintf(status, sizeof(status), "QR found, cannot read");
+                continue;
+            }
+            if (!seedqr_decode(data.payload, (size_t)data.payload_len, mnemonic, sizeof(mnemonic))) {
+                snprintf(status, sizeof(status), "Not a valid SeedQR");
+                continue;
+            }
+            pbkdf2_hmac_sha512((const uint8_t *)mnemonic, strlen(mnemonic), (const uint8_t *)"mnemonic", 8, 2048,
+                               seed);
+            ok = core_load_seed(seed);
+        }
+    }
+    quirc_destroy(q);
+    wipe(mnemonic, sizeof(mnemonic));
+    wipe(seed, sizeof(seed));
+    if (ok) printf("seed from SeedQR, fingerprint %08x\n", (unsigned)core_fingerprint());
+    return ok;
+}
+
 #if TEST_SEED
 static int load_test_seed(void) {
     uint8_t seed[64];
@@ -313,7 +356,7 @@ static void seed_menu(void) {
             continue;
         }
         if (sel == 0) {
-            message("Not implemented", "SeedQR needs the camera.", 0);
+            if (scan_seed()) return;
             show(&menu.screen);
             continue;
         }

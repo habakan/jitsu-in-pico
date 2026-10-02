@@ -234,6 +234,18 @@ build/test_ui: ui/tests/test_ui.c ui/ui.c ui/ui.h build/font8x16.h core/core.h
 	cc -O2 -Wall -Wextra -Icore -Iparser/include -Iui -Ibuild -I$(QRGEN) -o $@ ui/tests/test_ui.c ui/ui.c $(QRGEN)/qrcodegen.c $(CORE_SRC) \
 	  signer/secp256k1_unity.c -I$(SECP)/include $(SECP_DEFS) -Wno-unused-function
 
+build/bip39_words.h: tools/gen_bip39_words.py
+	mkdir -p build && uv run -q $< $@
+
+# SeedQR は untrusted な入力を読むので、範囲外アクセスを sanitizer で見る
+build/test_seedqr: core/tests/test_seedqr.c core/seedqr.c core/seedqr.h build/bip39_words.h parser/src/sha256.c
+	cc -O1 -g -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all \
+	  -Icore -Iparser/include -Ibuild -o $@ core/tests/test_seedqr.c core/seedqr.c parser/src/sha256.c
+
+check-seedqr: build/test_seedqr
+	build/test_seedqr
+.PHONY: check-seedqr
+
 check-ui: build/test_ui
 	build/test_ui
 .PHONY: check-ui
@@ -242,7 +254,7 @@ build/test_psbt.h: build/psbt/own_p2wpkh_1in.psbt
 	cp build/psbt/own_mixed_nwu.psbt build/test_psbt.bin && cd build && xxd -i -n test_psbt test_psbt.bin \
 	  | sed 's/^unsigned char/const unsigned char/' > test_psbt.h
 
-build/rp2350/app.elf: build/parser_wasm.h build/signer_wasm.h build/font8x16.h build/test_psbt.h \
+build/rp2350/app.elf: build/parser_wasm.h build/signer_wasm.h build/font8x16.h build/test_psbt.h build/bip39_words.h \
   platform/rp2350/app_main.c platform/rp2350/st7789.c platform/rp2350/buttons.c platform/rp2350/CMakeLists.txt \
   runtime/host-abi/parser_host.c ui/ui.c $(CORE_SRC) parser/include/*.h
 	cmake -S platform/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
