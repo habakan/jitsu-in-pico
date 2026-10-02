@@ -21,7 +21,7 @@ NET_COLORS = {"3V3": "#d33", "GND": "#333"}
 PALETTE = ["#1a7", "#17c", "#b5a", "#a62", "#07a", "#696", "#c70", "#539"]
 
 
-def xy(hole, s_off=150):
+def xy(hole, s_off=260):
     """穴の名前から中心座標。レールは "+42" / "-9" """
     m = re.fullmatch(r"([A-J+-])(\d+)", hole)
     if not m:
@@ -32,8 +32,8 @@ def xy(hole, s_off=150):
 
 def main(src, out):
     d = yaml.safe_load(open(src))
-    rows, w, h = d["rows"], 210 + (WIDTH_COLS + 11) * PITCH, 60 + (d["rows"] + 1) * PITCH
-    s_off = 150  # 左に逃がすラベルのぶん
+    rows, w, h = d["rows"], 420 + (WIDTH_COLS + 11) * PITCH, 60 + (d["rows"] + 1) * PITCH
+    s_off = 260  # 左にぶら下がる部品のぶん
     s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{w}" height="{h}" font-family="sans-serif">',
          f'<rect width="{w}" height="{h}" fill="#fbfbf8"/>']
 
@@ -65,19 +65,43 @@ def main(src, out):
         if c.get("note"):
             s.append(f'<text x="{x + 6}" y="{y + 30}" font-size="10" fill="#bbb">{c["note"]}</text>')
 
+    # 基板の外にぶら下がる部品（カメラ、Debug Probe）。ピンの位置を覚えておく
+    ext_pin = {}
+    for e in d.get("external", []):
+        ncol = e.get("columns", 1)
+        rows_n = (len(e["pins"]) + ncol - 1) // ncol
+        bw = 110 + (ncol - 1) * (PITCH + 34)
+        x0 = (60 + s_off + (WIDTH_COLS + 1) * PITCH + 90) if e["side"] == "right" else (s_off - bw - 30)
+        y0 = 40 + e["at"] * PITCH
+        s.append(f'<rect x="{x0}" y="{y0 - 18}" width="{bw}" height="{rows_n * PITCH + 26}" fill="#2a2a2a" '
+                 f'opacity="0.78" rx="4"/>')
+        s.append(f'<text x="{x0 + 6}" y="{y0 - 5}" font-size="12" fill="#fff">{e["name"]}</text>')
+        # 実物のシルクと同じ並びにする（奇数が左列、偶数が右列）。ピン番号も出す
+        for i, name in enumerate(e["pins"]):
+            col, row = i % ncol, i // ncol
+            px, py = x0 + 44 + col * (PITCH + 34), y0 + row * PITCH + 10
+            s.append(f'<rect x="{px - R}" y="{py - R}" width="{2 * R}" height="{2 * R}" fill="#fff" stroke="#999"/>')
+            if name != "NC":
+                ext_pin[f'{e.get("id", e["name"].split()[0])}.{name}'] = (px, py)
+            anchor, tx = ("end", px - 8) if col == 0 else ("start", px + 8)
+            s.append(f'<text x="{tx}" y="{py + 4}" font-size="9" fill="#ccc" text-anchor="{anchor}">'
+                     f'{i + 1} {name}</text>')
+
     # 配線。基板の外へ出るものは、穴のある側（A〜E なら左、F〜J とレールなら右）へ逃がす
     colors, ext = {}, {"L": [], "R": []}
     for wire in d["wires"]:
         net = wire.get("net", "")
         color = NET_COLORS.get(net) or colors.setdefault(net, PALETTE[len(colors) % len(PALETTE)])
-        a, b = xy(str(wire["from"])), xy(str(wire["to"]))
+        fr, to = str(wire["from"]), str(wire["to"])
+        a, b = xy(fr) or ext_pin.get(fr), xy(to) or ext_pin.get(to)
         if a and b:
-            mx, my = (a[0] + b[0]) / 2 + (b[1] - a[1]) * 0.1, (a[1] + b[1]) / 2 - (b[0] - a[0]) * 0.1
+            on_board = xy(fr) and xy(to)
+            k = 0.1 if on_board else 0.03
+            mx, my = (a[0] + b[0]) / 2 + (b[1] - a[1]) * k, (a[1] + b[1]) / 2 - (b[0] - a[0]) * k
             s.append(f'<path d="M{a[0]},{a[1]} Q{mx},{my} {b[0]},{b[1]}" fill="none" stroke="{color}" '
-                     f'stroke-width="2.2" opacity="0.85"/>')
-        else:
-            hole, label = (a, wire["to"]) if a else (b, wire["from"])
-            name = str(wire["from"] if a else wire["to"])
+                     f'stroke-width="{2.2 if on_board else 1.6}" opacity="{0.85 if on_board else 0.75}"/>')
+        elif a or b:
+            hole, label = (a, to) if a else (b, fr)
             ext["L" if hole[0] <= 60 + s_off + XOF["E"] * PITCH else "R"].append((hole, label, color))
 
     for side, items in ext.items():
@@ -85,7 +109,7 @@ def main(src, out):
         for hole, label, color in sorted(items, key=lambda t: t[0][1]):
             ey = max(hole[1], last + 15)
             last = ey
-            ex = 136 if side == "L" else 60 + s_off + (WIDTH_COLS + 1) * PITCH
+            ex = 246 if side == "L" else 60 + s_off + (WIDTH_COLS + 1) * PITCH
             s.append(f'<path d="M{hole[0]},{hole[1]} L{ex},{ey}" fill="none" stroke="{color}" stroke-width="1.6" '
                      f'opacity="0.75"/>')
             anchor = ' text-anchor="end"' if side == "L" else ""
