@@ -21,7 +21,8 @@ OS もファイルシステムも持たず、Flash には鍵を一切書かな�
 | RAM | 約 341KB / 520KB | quirc と PSBT バッファはヒープを共有 |
 
 カメラから SeedQR で鍵を読み、アニメーション QR（UR）で PSBT を受け取り、確認画面を経て署名し、
-署名済み PSBT を QR で返すところまで実機で一巡する。
+署名済み PSBT を QR で返すところまで実機で一巡する。Sparrow（signet）と繋いだ実機の署名が
+[ネットワークに受理された](https://mempool.space/signet/tx/d22944daeb353fc4e02012f080c632ddc8973b0395442f59d55e091a78610253)。
 
 ## 構成
 
