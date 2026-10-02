@@ -99,7 +99,8 @@ def main(src, out):
             k = 0.1 if on_board else 0.03
             mx, my = (a[0] + b[0]) / 2 + (b[1] - a[1]) * k, (a[1] + b[1]) / 2 - (b[0] - a[0]) * k
             s.append(f'<path d="M{a[0]},{a[1]} Q{mx},{my} {b[0]},{b[1]}" fill="none" stroke="{color}" '
-                     f'stroke-width="{2.2 if on_board else 1.6}" opacity="{0.85 if on_board else 0.75}"/>')
+                     f'stroke-width="{3.6 if on_board else 3.0}" opacity="{0.9 if on_board else 0.8}" '
+                     f'stroke-linecap="round"/>')
         elif a or b:
             hole, label = (a, to) if a else (b, fr)
             ext["L" if hole[0] <= 60 + s_off + XOF["E"] * PITCH else "R"].append((hole, label, color))
@@ -110,8 +111,8 @@ def main(src, out):
             ey = max(hole[1], last + 15)
             last = ey
             ex = 246 if side == "L" else 60 + s_off + (WIDTH_COLS + 1) * PITCH
-            s.append(f'<path d="M{hole[0]},{hole[1]} L{ex},{ey}" fill="none" stroke="{color}" stroke-width="1.6" '
-                     f'opacity="0.75"/>')
+            s.append(f'<path d="M{hole[0]},{hole[1]} L{ex},{ey}" fill="none" stroke="{color}" stroke-width="3.0" '
+                     f'opacity="0.8" stroke-linecap="round"/>')
             anchor = ' text-anchor="end"' if side == "L" else ""
             s.append(f'<text x="{ex + (-6 if side == "L" else 6)}" y="{ey + 4}" font-size="11" '
                      f'fill="{color}"{anchor}>{label}</text>')
