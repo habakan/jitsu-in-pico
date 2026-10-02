@@ -28,7 +28,8 @@ bool camera_read_reg(uint8_t reg, uint8_t *val) {
            i2c_read_blocking(SCCB, model->sccb_addr, val, 1, false) == 1;
 }
 
-bool camera_init(const camera_model_t *m) {
+/* 配線を段階的に確かめられるよう、クロックと SCCB だけ先に用意する（データバスはまだ要らない） */
+void camera_bus_init(const camera_model_t *m) {
     model = m;
     if (m->needs_xclk) clock_gpio_init(PIN_CAM_XCLK, CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_VALUE_CLK_SYS, XCLK_DIV);
     sleep_ms(10);
@@ -38,7 +39,9 @@ bool camera_init(const camera_model_t *m) {
     gpio_set_function(PIN_CAM_SIOC, GPIO_FUNC_I2C);
     gpio_pull_up(PIN_CAM_SIOD); /* 基板に 4.7kΩ が無い場合の保険。内蔵は弱いので外付けを推奨 */
     gpio_pull_up(PIN_CAM_SIOC);
+}
 
+bool camera_init(const camera_model_t *m) {
     for (const camera_reg_t *r = m->regs; !(r->reg == 0xff && r->val == 0xff); r++) {
         if (r->reg == 0xfe) {
             sleep_ms(r->val);

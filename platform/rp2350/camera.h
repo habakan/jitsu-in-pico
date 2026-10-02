@@ -23,7 +23,9 @@ typedef struct {
 
 extern const camera_model_t camera_ov7670;
 
-/* XCLK と SCCB を用意し、センサーを確かめて設定する。失敗なら false */
+/* XCLK と SCCB（I2C1）だけ用意する。配線の確認はここまでで足りる */
+void camera_bus_init(const camera_model_t *model);
+/* レジスタを設定し、PIO と DMA を用意する。SCCB の書き込みに失敗したら false */
 bool camera_init(const camera_model_t *model);
 /* 次のフレームを buf（CAMERA_W * CAMERA_H byte、4 byte 境界）に取り込む。timeout_ms で諦める */
 bool camera_capture(uint8_t *buf, uint32_t timeout_ms);

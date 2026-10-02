@@ -3,9 +3,50 @@
 #include <stdio.h>
 #include <string.h>
 #include "pico/stdlib.h"
+#include "board_pins.h"
 #include "camera.h"
+#include "hardware/gpio.h"
 #include "quirc.h"
 #include "st7789.h"
+
+/* どの線が来ていないかを見る。D0〜D7・PCLK・HREF・VSYNC は GP2〜GP12 に連番で並んでいる */
+static void probe_signals(void) {
+    uint32_t prev, changed = 0, high = 0;
+    unsigned edges[3] = {0};
+    uint64_t t0;
+
+    /* VSYNC とその隣を内蔵プルアップで引き上げる。線が来ていなければ high、
+     * センサーが駆動していれば toggling、GND に落ちていれば low になる */
+    for (unsigned gp = PIN_CAM_VSYNC; gp <= 17; gp++) gpio_pull_up(gp);
+    sleep_ms(1);
+    prev = gpio_get_all();
+    t0 = time_us_64();
+
+    while (time_us_64() - t0 < 100000) {
+        uint32_t v = gpio_get_all();
+        changed |= v ^ prev;
+        high |= v;
+        for (unsigned i = 0; i < 3; i++)
+            if ((v ^ prev) >> (PIN_CAM_PCLK + i) & 1) edges[i]++;
+        prev = v;
+    }
+    /* 挿し間違いを見つけられるよう、隣の GP13〜GP17 も出す */
+    for (unsigned gp = PIN_CAM_D0; gp <= 17; gp++) {
+        static const char *const name[] = {"D0",   "D1",   "D2",  "D3",      "D4",      "D5",     "D6",  "D7",
+                                           "PCLK", "HREF", "VSYNC", "(joy UP)", "(cam SDA)", "(cam SCL)", "(lcd DC)",
+                                           "(btn next)"};
+        printf("%-10s GP%-2u %s\n", name[gp - PIN_CAM_D0], gp,
+               changed >> gp & 1 ? "toggling" : (high >> gp & 1 ? "stuck high" : "stuck low"));
+    }
+    /* エッジの数で、どの線が実際に来ているかを当てる。PCLK は MHz 単位、HREF は行の数、VSYNC はフレームの数 */
+    for (unsigned i = 0; i < 3; i++) {
+        static const char *const want[] = {"PCLK", "HREF", "VSYNC"};
+        unsigned n = edges[i];
+        const char *got = n == 0 ? "未接続" : n > 50000 ? "PCLK" : n > 100 ? "HREF" : "VSYNC";
+        printf("GP%u（%s を繋ぐ所）: %u edges/100ms -> %s\n", PIN_CAM_PCLK + i, want[i], n, got);
+    }
+    printf("カメラ側: 左列の上から 3 番目が VS、4 番目が PCLK。右列の 3 番目が HS\n");
+}
 
 int main(void) {
     struct quirc *q;
@@ -15,10 +56,13 @@ int main(void) {
     stdio_init_all();
     st7789_init();
     printf("\ncamera test (%s)\n", camera_ov7670.name);
-    if (!camera_init(&camera_ov7670)) return printf("camera init failed (SCCB)\n"), 1;
-    /* PID/VER で実物を確かめる。OV7670 は 0x76/0x73、OV7675 は 0x76/0x73 以外のこともあるので値をそのまま出す */
-    if (camera_read_reg(0x0a, &val)) printf("PID 0x%02x\n", val);
+    /* まず電源・XCLK・SCCB だけで ID を読む。ここが通れば電源と I2C とクロックは正しい */
+    camera_bus_init(&camera_ov7670);
+    if (!camera_read_reg(0x0a, &val)) return printf("SCCB read failed: check 3V3/GND/SIOD/SIOC/XCLK\n"), 1;
+    printf("PID 0x%02x\n", val);
     if (camera_read_reg(0x0b, &val)) printf("VER 0x%02x\n", val);
+    if (!camera_init(&camera_ov7670)) return printf("register setup failed\n"), 1;
+    probe_signals();
     if (!(q = quirc_new()) || quirc_resize(q, CAMERA_W, CAMERA_H) < 0) return printf("quirc alloc failed\n"), 1;
 
     for (;;) {
