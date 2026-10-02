@@ -101,6 +101,7 @@ make check-camera-sim  # camera.pio を Python のシミュレータで検証
 | [docs/aot-feasibility.md](docs/aot-feasibility.md) | WAMR AOT。XIP は実機で 7 倍遅く、RAM 展開なら命令数どおり |
 | [docs/qr-feasibility.md](docs/qr-feasibility.md) | QR の読み書き、quirc の固定小数点化、RAM 見積り |
 | [docs/hardware.md](docs/hardware.md) | GPIO 割り当て、部品ごとの配線、組むときの注意 |
+| [docs/breadboard.md](docs/breadboard.md) | ブレッドボードの実配線（行と穴の番号まで） |
 
 ## 上流への還元
 
