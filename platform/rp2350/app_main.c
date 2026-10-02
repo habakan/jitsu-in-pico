@@ -371,7 +371,7 @@ static void main_menu(void) {
     static const char *const items[] = {"Scan PSBT", "Sign test PSBT", "Lock (wipe seed)"};
     static char title[UI_COLS + 1];
 
-    snprintf(title, sizeof(title), "Signer  fp %08x", (unsigned)core_fingerprint());
+    snprintf(title, sizeof(title), "%s fp %08x", TESTNET ? "Signet" : "Signer", (unsigned)core_fingerprint());
     ui_menu_init(&menu, title, items, TEST_SEED ? 3 : 2);
     show(&menu.screen);
     for (;;) {
@@ -395,10 +395,12 @@ int main(void) {
     st7789_init();
 #endif
     buttons_init();
-    printf("\nbaremetal-wasm-signer\n");
+    printf("\nbaremetal-wasm-signer (%s)\n", TESTNET ? "testnet/signet" : "mainnet");
 
     memcpy(parser_wasm_rw, parser_wasm, sizeof(parser_wasm_rw));
-    if (!core_init(CORE_MAINNET) || !parser_host_init(parser_wasm_rw, sizeof(parser_wasm_rw), pool, sizeof(pool))) {
+    /* TESTNET=1 でビルドすると signet / testnet 用になる（アドレスは tb1、導出は m/84'/1'/...） */
+    if (!core_init(TESTNET ? CORE_TESTNET : CORE_MAINNET)
+        || !parser_host_init(parser_wasm_rw, sizeof(parser_wasm_rw), pool, sizeof(pool))) {
         message("Init failed", NULL, 1);
         return 1;
     }

@@ -44,6 +44,9 @@ pico_add_extra_outputs(signer)
 # 実機の初期確認用アプリ（make build/rp2350/app.elf）。parser.wasm はインタプリタで動かす。
 # app_nolcd は液晶の代わりに UART へ画面の文字を出す（はんだ付け前の確認用）
 set(SECP ${ROOT}/third_party/secp256k1)
+if(NOT DEFINED TESTNET)
+  set(TESTNET 0)
+endif()
 set(QUIRC ${ROOT}/qr/quirc/lib)
 set(QUIRC_SRC ${QUIRC}/decode.c ${QUIRC}/identify.c ${QUIRC}/quirc.c ${QUIRC}/version_db.c)
 set(APP_SRC ${CMAKE_CURRENT_LIST_DIR}/app_main.c ${CMAKE_CURRENT_LIST_DIR}/st7789.c
@@ -57,7 +60,7 @@ foreach(t app app_nolcd)
   pico_generate_pio_header(${t} ${CMAKE_CURRENT_LIST_DIR}/camera.pio)
   target_compile_definitions(${t} PRIVATE PICO_BUILD=1 ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1
     ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1 COMB_BLOCKS=2 COMB_TEETH=5 PICO_STACK_SIZE=0x8000
-    NO_LCD=$<STREQUAL:${t},app_nolcd> TEST_SEED=1
+    NO_LCD=$<STREQUAL:${t},app_nolcd> TEST_SEED=1 TESTNET=${TESTNET}
     QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH)
   target_compile_options(${t} PRIVATE -Wno-unused-function)
   target_include_directories(${t} PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/core

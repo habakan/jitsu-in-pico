@@ -85,6 +85,7 @@ build/rp2350/signer.elf: build/signer_wasm.h host/wamr_main.c platform/rp2350/CM
 POOL_KB ?= 128
 RP2350_POOL_KB ?= 48
 PARSER_POOL_KB ?= 256
+TESTNET ?= 0
 FAST    ?= 0
 QEMU_DIR := build/qemu-fast$(FAST)-aot$(AOT)-$(POOL_KB)
 $(QEMU_DIR)/signer.elf: build/signer_wasm.h host/wamr_main.c platform/qemu-riscv32/CMakeLists.txt runtime/wamr-platform/rp2350/rp2350_platform.c
@@ -259,7 +260,7 @@ build/rp2350/app.elf: build/parser_wasm.h build/signer_wasm.h build/font8x16.h b
   runtime/host-abi/parser_host.c ui/ui.c $(CORE_SRC) parser/include/*.h
 	cmake -S platform/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DPICO_SDK_PATH=$(CURDIR)/third_party/pico-sdk -DPICO_TOOLCHAIN_PATH=$(RISCV_TC) \
-	  -DWAMR_BUILD_AOT=0 -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
+	  -DWAMR_BUILD_AOT=0 -DTESTNET=$(TESTNET) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/rp2350 app
 
 build/rp2350/psbt_bench.elf: build/parser_wasm.h build/test_psbt.h platform/rp2350/psbt_bench.c \
