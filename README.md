@@ -20,13 +20,14 @@ OS もファイルシステムも持たず、Flash には鍵を一切書かな�
 | アニメーション QR（UR）出力 | 1 パート 95 ms | スマホで読取可、`@ngraveio/bc-ur` で復元・バイト一致 |
 | RAM | 約 341KB / 520KB | quirc と PSBT バッファはヒープを共有 |
 
-未了: カメラからの読み取り（部品待ち。PIO と DMA は実機でループバック検証済み）、SeedQR 入力。
+カメラから SeedQR で鍵を読み、アニメーション QR（UR）で PSBT を受け取り、確認画面を経て署名し、
+署名済み PSBT を QR で返すところまで実機で一巡する。
 
 ## 構成
 
 | ディレクトリ | 中身 | TCB |
 |---|---|---|
-| `core/` | 鍵と署名の中核。BIP32 導出、BIP143/BIP341 sighash、アドレス生成、plan の検査（`core_review`）、low-R grinding | 内 |
+| `core/` | 鍵と署名の中核。BIP32 導出、BIP143/BIP341 sighash、アドレス生成、plan の検査（`core_review`）、low-R grinding、SeedQR | 内 |
 | `signer/` | 署名ロジック全体を WASM にした版（案 A の比較用。`bitcoin-signer.wasm`） | - |
 | `parser/` | PSBT・UR の解析器（submodule [wasm-psbt-parser](https://github.com/habakan/wasm-psbt-parser)）。`parser.wasm` になる | **外** |
 | `runtime/host-abi/` | parser.wasm の呼び出し口。線形メモリとの出入りを範囲検証する境界 | 内 |
@@ -79,6 +80,7 @@ make check-core        # 中核のベクタ（71 項目）
 make check-parser      # 解析器（submodule 側のテスト）
 make check-psbt        # PSBT 一巡 + UR の往復 + 署名を embit で独立検証
 make check-ui          # 画面の組み立て
+make check-seedqr      # SeedQR の読み取り（ASan 付き）
 make check-host        # Mac: ネイティブ / WAMR classic / fast
 make check-qemu        # RV32 の命令数（-icount shift=0）
 make check-qemu-psbt   # RV32 で PSBT 一巡（ホストの出力と一致するか）
