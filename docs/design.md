@@ -256,7 +256,9 @@ Krux は K210（RISC-V）上の MaixPy v1 フォーク（MicroPython）で動く
 | 観点 | SeedSigner | 本設計 |
 |---|---|---|
 | ハード | Raspberry Pi Zero（v1.3 推奨）+ Waveshare 1.3 インチ LCD HAT + Pi カメラ + microSD | Pico 2 H + 1.54 インチ ST7789 + OV7675 + ブレッドボード |
-| 部品代 | BOM 約 $35、完成品で $50 未満（[公式](https://seedsigner.com/seedsigner-independent-custody-guide/)）。組立済みは £65〜£90 / €73 | ¥4,940（2026-10 の秋月価格、送料別。Debug Probe を足すと ¥7,120） |
+| 部品代（米国） | BOM 約 $35、完成品で $50 未満（[公式](https://seedsigner.com/seedsigner-independent-custody-guide/)）。組立済みは £65〜£90 / €73 | 約 $33 |
+| 部品代（日本で調達） | 約 ¥9,500（Pi Zero 2 W ¥3,190 + LCD HAT ¥3,854 + 互換カメラ ¥1,500〜 + microSD）。純正カメラなら ¥13,700 | **¥4,940**（送料別。Debug Probe を足すと ¥7,120） |
+| 入手性（日本） | Pi Zero は入荷待ちが常態。Waveshare の LCD HAT と互換カメラは秋月に無く、別店舗か輸入 | 全部秋月で揃い、1 回の注文で済む |
 | OS | Raspberry Pi OS（Linux） | なし（ベアメタル） |
 | 言語 | Python（embit） | C + WASM |
 | 鍵の置き場 | RAM のみ（microSD には書かない） | RAM のみ（Flash には書かない） |
@@ -266,7 +268,9 @@ Krux は K210（RISC-V）上の MaixPy v1 フォーク（MicroPython）で動く
 | 機能 | マルチシグ、パスフレーズ、xpub 出力、Nostr ほか多数 | 単署名の P2WPKH / P2TR に署名するだけ |
 | 成熟度 | 実運用多数 | signet で一巡 |
 
-**値段はほぼ同じで、機能は向こうが圧倒的に上。** 違いは TCB の大きさと、CPU まで含めた検証可能性にある。
-日本では Pi Zero の入手性が悪く割高なので、部品代はむしろこちらが安くなる。
+**米国価格ならほぼ同額、日本で揃えるならこちらが約半額。機能は向こうが圧倒的に上。**
+違いは TCB の大きさと、CPU まで含めた検証可能性にある。
+なお SeedSigner が推奨する Pi Zero **v1.3**（無線なし）は日本ではほぼ入手できず、
+無線付きの Zero 2 W で代用することになる。エアギャップ機として無線が載るのは望ましくない。
 
 差別化の軸は「OS レス」ではなく、署名ロジックの WASM 分離、PC と実機で同一バイナリの結果一致を検証できる点、CPU コアまでオープンな点に置く。TCB 規模は WASM runtime も MicroPython 同様インタプリタのため、§14 の LOC 一覧で Krux（MaixPy + embit）と並べて比較する。Krux より 1/16 の RAM で同等機能を出せるかも比較点になる。
