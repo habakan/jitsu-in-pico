@@ -300,11 +300,15 @@ flash: $(UF2)
 	  || (echo "$$vol へ書き込めません。macOS の「プライバシーとセキュリティ → ファイルとフォルダ」で"; \
 	      echo "ターミナルに「リムーバブルボリューム」を許可するか、Finder で $(UF2) をドラッグしてください"; false)
 
-# 実配線（docs/wiring.yml）から図と部品表を作る。graphviz が要る
+# 実配線から図を作る。wiring は信号の対応（WireViz、graphviz が要る）、breadboard は穴の位置
 wiring: docs/wiring.yml
 	uv run -q --with wireviz wireviz $< -o build/wiring
 	open build/wiring/wiring.html
-.PHONY: wiring
+
+breadboard: docs/breadboard.yml tools/draw_breadboard.py
+	uv run -q tools/draw_breadboard.py $< build/breadboard.svg
+	open build/breadboard.svg
+.PHONY: wiring breadboard
 
 # Debug Probe の UART（115200bps）を受ける。SECONDS=10 のように秒数を指定できる
 monitor:

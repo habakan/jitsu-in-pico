@@ -3,8 +3,14 @@
 実際に組んでいる配線。変えたらこのファイルも直す。論理的なピン割り当ては `docs/hardware.md`、
 定義は `platform/rp2350/board_pins.h`。
 
-信号の対応だけなら [docs/wiring.yml](wiring.yml) に機械可読な形で持たせてある（WireViz）。
-`make wiring` で配線図・部品表・HTML を作る。穴の番号はこのファイル、信号の繋がりは YAML という分担。
+機械可読な形でも持たせてある。
+
+| ファイル | 内容 | 作り方 |
+|---|---|---|
+| [breadboard.yml](breadboard.yml) | 穴の位置まで（どの穴からどの穴へ） | `make breadboard` でブレッドボードの絵（SVG） |
+| [wiring.yml](wiring.yml) | 信号の対応（WireViz） | `make wiring` で配線図・部品表・HTML |
+
+配線を変えたら、このファイルと上の 2 つの YAML を直す。
 
 ## 前提
 
