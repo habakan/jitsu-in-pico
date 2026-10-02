@@ -3,6 +3,9 @@
 実際に組んでいる配線。変えたらこのファイルも直す。論理的なピン割り当ては `docs/hardware.md`、
 定義は `platform/rp2350/board_pins.h`。
 
+信号の対応だけなら [docs/wiring.yml](wiring.yml) に機械可読な形で持たせてある（WireViz）。
+`make wiring` で配線図・部品表・HTML を作る。穴の番号はこのファイル、信号の繋がりは YAML という分担。
+
 ## 前提
 
 - ブレッドボード EIC-102J。Pico 2 H は **C 列と H 列の行 1〜20** に挿す（USB 側が行 1）

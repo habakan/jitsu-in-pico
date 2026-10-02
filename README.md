@@ -105,6 +105,7 @@ make check-camera-sim  # camera.pio を Python のシミュレータで検証
 | [docs/qr-feasibility.md](docs/qr-feasibility.md) | QR の読み書き、quirc の固定小数点化、RAM 見積り |
 | [docs/hardware.md](docs/hardware.md) | GPIO 割り当て、部品ごとの配線、組むときの注意 |
 | [docs/breadboard.md](docs/breadboard.md) | ブレッドボードの実配線（行と穴の番号まで） |
+| [docs/wiring.yml](docs/wiring.yml) | 同じ配線を機械可読にしたもの（WireViz）。`make wiring` で図と部品表 |
 
 ## 上流への還元
 
