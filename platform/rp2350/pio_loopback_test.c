@@ -1,6 +1,9 @@
 /* カメラ無しで camera.pio の取り込みを実機で確かめる。同じ PIO の別ステートマシンに DVP の波形を
  * 出させ、取り込み側に同じピンを読ませる（PIO の入力はパッドを見るので配線は要らない）。
- * tools/sim_dvp_pio.py と同じ観点を実シリコンで確かめるためのもの */
+ * tools/sim_dvp_pio.py と同じ観点を実シリコンで確かめるためのもの。
+ *
+ * **カメラを繋いだまま動かしてはいけない。** 同じピンをカメラも駆動するので出力同士がぶつかり、
+ * どちらの波形でもない値が読める（D0〜D7 の 11 本を抜いてから実行する）*/
 #include <stdio.h>
 #include <string.h>
 #include "pico/stdlib.h"
@@ -10,19 +13,22 @@
 #include "hardware/dma.h"
 #include "hardware/pio.h"
 
-#define W 64          /* 1 行の画素数。波形を RAM に置くので小さくする */
+#define W 64          /* 取り込む画素数。波形を RAM に置くので小さくする */
 #define H 8
+#define SW (2 * W)    /* センサーが出す画素数。PIO が縦横 1/2 に間引く */
+#define SH (2 * H)
 #define HBLANK 16     /* 行間の画素数 */
 #define VSYNC_PX 128  /* VSYNC パルスの長さ（画素換算） */
 #define FRAMES 3
 /* 1 画素は Y と U で 2 byte、1 byte は PCLK の Low と High で 2 サンプル */
-#define LINE_S (4 * (W + HBLANK))
-#define FRAME_S (4 * VSYNC_PX + H * LINE_S)
+#define LINE_S (4 * (SW + HBLANK))
+#define FRAME_S (4 * VSYNC_PX + SH * LINE_S)
 
 static uint32_t wave[FRAMES * FRAME_S / 2];
 static uint8_t expect[FRAMES][W * H];
 static uint8_t captured[W * H] __attribute__((aligned(4)));
 static unsigned n_samples;
+static uint8_t sensor_line0[8]; /* 1 フレーム目 1 行目の最初の 8 byte（Y U Y U ...）*/
 
 static uint32_t rnd(void) {
     static uint32_t s = 12345;
@@ -40,10 +46,13 @@ static void build_wave(void) {
     unsigned i = 0;
     for (int f = 0; f < FRAMES; f++) {
         for (int k = 0; k < 4 * VSYNC_PX; k++) put(i++, 0, k % 2, 0, 1);
-        for (int y = 0; y < H; y++) {
-            for (int x = 0; x < W; x++) {
-                uint8_t lum = (uint8_t)rnd(), chroma = (uint8_t)rnd();
-                expect[f][y * W + x] = lum;
+        for (int y = 0; y < SH; y++) {
+            for (int x = 0; x < SW; x++) {
+                /* 値を見れば位相が分かるようにする。Y は画素番号の 2 倍、U/V は 0xaa 固定 */
+                uint8_t lum = (uint8_t)(2 * x + f), chroma = 0xaa;
+                /* 偶数行の偶数画素だけが取り込まれる */
+                if (y % 2 == 0 && x % 2 == 0) expect[f][(y / 2) * W + x / 2] = lum;
+                if (f == 0 && y == 0 && x < 4) sensor_line0[2 * x] = lum, sensor_line0[2 * x + 1] = chroma;
                 /* データは PCLK が Low の間に変えて、High で確定させる */
                 put(i++, lum, 0, 1, 0);
                 put(i++, lum, 1, 1, 0);
@@ -137,13 +146,28 @@ static int run(const char *name, float clkdiv, int mid_frame) {
     printf("%-22s %s (%llu us, frame %dx%d = %u us%s", name, ok ? "ok" : "NG", (unsigned long long)t, W, H,
            frame_us, ok && mid_frame ? ", got frame " : "");
     if (ok && mid_frame) printf("%d", frame);
-    if (!ok)
-        for (unsigned i = 0; i < sizeof(captured); i++)
-            if (captured[i] != expect[frame][i]) {
-                printf(", first diff at %u: got %02x want %02x", i, captured[i], expect[frame][i]);
-                break;
-            }
     printf(")\n");
+    if (!ok) {
+        printf("  got :");
+        for (int i = 0; i < 8; i++) printf(" %02x", captured[i]);
+        printf("\n  want:");
+        for (int i = 0; i < 8; i++) printf(" %02x", expect[frame][i]);
+        printf("\n  センサー 1 行目:");
+        for (int i = 0; i < 8; i++) printf(" %02x", sensor_line0[i]);
+        printf("\n  wave[0..3]: %08x %08x %08x %08x  samples %u\n", wave[0], wave[1], wave[2], wave[3], n_samples);
+        printf("  gen dma remaining %u / %u\n", (unsigned)dma_channel_hw_addr(dma_gen)->transfer_count,
+               n_samples / 2);
+        /* 生成側だけ動かして、ピンに実際に出ている値を覗く */
+        gen_start(16.0f);
+        printf("  pins:");
+        for (int k = 0; k < 10; k++) {
+            uint32_t v = gpio_get_all() >> PIN_CAM_D0;
+            printf(" %02x/%c%c%c", v & 0xff, v >> 8 & 1 ? 'P' : '-', v >> 9 & 1 ? 'H' : '-', v >> 10 & 1 ? 'V' : '-');
+            busy_wait_us(7);
+        }
+        printf("\n");
+        dma_channel_abort(dma_gen);
+    }
     dma_channel_abort(dma_gen);
     return !ok;
 }
@@ -152,7 +176,9 @@ int main(void) {
     int failures = 0;
 
     stdio_init_all();
-    printf("\npio_loopback_test: %dx%d, PCLK %u kHz at clkdiv 1\n", W, H, (unsigned)(clock_get_hz(clk_sys) / 6000));
+    printf("\npio_loopback_test: センサー %dx%d を %dx%d に間引く, PCLK %u kHz at clkdiv 1\n", SW, SH, W, H,
+           (unsigned)(clock_get_hz(clk_sys) / 6000));
+    printf("カメラの D0〜D7・PCLK・HREF・VSYNC を抜いてから実行すること（出力がぶつかる）\n");
     build_wave();
     sleep_ms(1); /* 最初の time_us_64() が 0 を返すので、計時の前に一度動かす */
 

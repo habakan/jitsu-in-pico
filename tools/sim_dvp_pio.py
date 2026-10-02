@@ -99,10 +99,13 @@ def run(samples, width, max_words):
 
 def capture(w, h, period, hblank, vs, start, href_lag=0):
     """start が "vsync" なら 1 フレーム目の VSYNC の最中から、"mid" なら 1 フレーム目の途中から起動する。
-    前者は 1 フレーム目、後者は次の VSYNC を待って 2 フレーム目を取り込むのが正しい"""
-    samples, frames, vsync_len = waveform(w, h, period, hblank, vs, seed=w * 31 + h + period, href_lag=href_lag)
+    前者は 1 フレーム目、後者は次の VSYNC を待って 2 フレーム目を取り込むのが正しい。
+    センサーは 2w x 2h で出し、PIO が縦横 1/2 に間引いて w x h を作る"""
+    sw, sh = 2 * w, 2 * h
+    samples, frames, vsync_len = waveform(sw, sh, period, hblank, vs, seed=w * 31 + h + period, href_lag=href_lag)
     offset = vsync_len // 2 if start == "vsync" else vsync_len + len(samples) // 4
-    want = frames[0] if start == "vsync" else frames[1]
+    src = frames[0] if start == "vsync" else frames[1]
+    want = [src[(2 * y) * sw + 2 * x] for y in range(h) for x in range(w)]
     got = [(wd >> (8 * i)) & 0xFF for wd in run(samples[offset:], w, w * h // 4) for i in range(4)]
     return got == want
 
@@ -122,7 +125,8 @@ for w, h, period, hblank, vs, start, lag in cases:
     failures += not ok
     print(f"{w}x{h} PCLK={period} cycles, hblank={hblank}, start in {start}, HREF lag {lag}: {'ok' if ok else 'NG'}")
 
-# PCLK をどこまで速くできるかの目安（同期化段 2 サイクル + 命令の間隔で決まる）
+# PCLK をどこまで速くできるかの目安（同期化段 2 サイクル + 命令の間隔で決まる）。
+# 1 画素あたり 4 byte 読むので、取り込み側の 1 ループは PCLK 4 周期ぶん
 for period in (10, 8, 6, 4):
     ok = capture(16, 4, period, 10, 1, "mid")
     print(f"PCLK period {period} cycles ({150 / period:.1f} MHz at 150 MHz): {'ok' if ok else 'loses data'}")

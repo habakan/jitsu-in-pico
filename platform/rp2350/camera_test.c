@@ -46,6 +46,23 @@ static void probe_signals(void) {
         printf("GP%u（%s を繋ぐ所）: %u edges/100ms -> %s\n", PIN_CAM_PCLK + i, want[i], n, got);
     }
     printf("カメラ側: 左列の上から 3 番目が VS、4 番目が PCLK。右列の 3 番目が HS\n");
+
+    /* 1 フレームの行数を数える。QVGA なら 240、VGA のままなら 480 */
+    {
+        unsigned lines = 0;
+        int prev_vs = gpio_get(PIN_CAM_VSYNC), prev_href = gpio_get(PIN_CAM_HREF), started = 0;
+        uint64_t end = time_us_64() + 500000;
+        while (time_us_64() < end) {
+            int vs = gpio_get(PIN_CAM_VSYNC), href = gpio_get(PIN_CAM_HREF);
+            if (!prev_vs && vs) {           /* VSYNC の立ち上がりでフレームの区切り */
+                if (started) break;
+                started = 1, lines = 0;
+            }
+            if (started && !prev_href && href) lines++;
+            prev_vs = vs, prev_href = href;
+        }
+        printf("1 フレームの行数: %u（QVGA なら 240、VGA のままなら 480）\n", lines);
+    }
 }
 
 int main(void) {
@@ -88,8 +105,8 @@ int main(void) {
 
         quirc_end(q);
         t2 = time_us_64();
-        printf("capture %llu us, decode %llu us, codes %d\n", (unsigned long long)(t1 - t0),
-               (unsigned long long)(t2 - t1), quirc_count(q));
+        printf("capture %llu us (%llu fps), decode %llu us, codes %d\n", (unsigned long long)(t1 - t0),
+               (unsigned long long)(1000000 / (t1 - t0)), (unsigned long long)(t2 - t1), quirc_count(q));
         for (int i = 0; i < quirc_count(q); i++) {
             static struct quirc_code code;
             static struct quirc_data data;
