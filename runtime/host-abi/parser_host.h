@@ -23,6 +23,8 @@ int parser_host_ur_reset(void);
 int parser_host_ur_receive(const char *part, uint32_t len, int32_t *rc, uint8_t *psbt, size_t cap);
 /* parser_host_finalize の後に呼ぶ。署名済み PSBT を crypto-psbt の UR にし、純粋なパートの数を返す（失敗は負） */
 int32_t parser_host_ur_encode_start(uint32_t len, uint32_t max_fragment_len);
+/* 任意のバイト列を UR にする（ホストの試験用。解析器の出力バッファへ書いてから符号化する） */
+int32_t parser_host_ur_encode_bytes(const uint8_t *data, uint32_t len, uint32_t max_fragment_len);
 /* 次のパートの文字列を text に書き、NUL で終える。成功なら 1 */
 int parser_host_ur_encode_next(char *text, size_t cap);
 /* WAMR プールの最大使用量。プールの大きさを決めるための計測用 */

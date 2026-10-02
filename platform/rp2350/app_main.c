@@ -13,6 +13,8 @@
 #include "ui.h"
 #include "st7789.h"
 #include "buttons.h"
+#include "camera.h"
+#include "quirc.h"
 #include "parser_wasm.h"
 #include "test_psbt.h"
 
@@ -23,7 +25,8 @@ static char pool[160 * 1024];
 static uint8_t parser_wasm_rw[sizeof(parser_wasm)];
 /* 読み取り中の quirc（画像 77KB を含む 90KB）と同時には要らないので、署名の段だけヒープから取る */
 #define SIGNED_PSBT_MAX (PARSER_PSBT_MAX + 2048)
-static uint8_t *prevtx_arena, *signed_psbt;
+static uint8_t *prevtx_arena, *signed_psbt, *psbt;
+static int camera_ready;
 static plan_t plan;
 static ui_review_t review_ui;
 static ui_menu_t menu;
@@ -75,6 +78,104 @@ static void sign_buffers_give(void) {
     prevtx_arena = signed_psbt = NULL;
 }
 
+/* 取り込んだ画像を上下の帯を残して出し、1 行目に状態を書く。狙いを定められるようにするため */
+static void show_preview(const uint8_t *img, const char *status) {
+#if NO_LCD
+    (void)img;
+    printf("%s\n", status);
+#else
+    static ui_screen_t s;
+    uint16_t line[UI_W];
+
+    memset(&s, 0, sizeof(s));
+    strncpy(s.text[0], status, UI_COLS);
+    s.color[0] = 0xfd40;
+    st7789_begin_frame();
+    for (int y = 0; y < UI_H; y++) {
+        if (y < 16) {
+            ui_render_line(&s, y, line);
+        } else if (y >= 30 && y < 210) { /* 320x240 を 3/4 に間引いて 240x180 で出す */
+            int sy = (y - 30) * 4 / 3;
+            for (int x = 0; x < UI_W; x++) {
+                uint8_t v = img[sy * CAMERA_W + x * 4 / 3];
+                line[x] = (uint16_t)((v >> 3) << 11 | (v >> 2) << 5 | (v >> 3));
+            }
+        } else {
+            memset(line, 0, sizeof(line));
+        }
+        st7789_write_line(line);
+    }
+#endif
+}
+
+/* アニメーション QR（UR）を読み取って PSBT を組み立てる。成功なら長さ、取り消しや失敗なら 0 */
+static uint32_t scan_psbt(void) {
+    struct quirc *q;
+    unsigned parts = 0;
+    uint64_t seen = 0; /* 受け取ったパートの番号。重複を数えない */
+    uint32_t len = 0;
+    char status[UI_COLS + 1];
+
+    if (!camera_ready) return message("No camera", "Wire it up or use the test PSBT.", 1), 0;
+    if (!(psbt = malloc(PARSER_PSBT_MAX))) return message("Out of memory", NULL, 1), 0;
+    if (!(q = quirc_new()) || quirc_resize(q, CAMERA_W, CAMERA_H) < 0) {
+        free(psbt), psbt = NULL;
+        return message("Out of memory", NULL, 1), 0;
+    }
+    parser_host_ur_reset();
+    snprintf(status, sizeof(status), "Scan PSBT: aim at the QR");
+
+    while (!len) {
+        uint8_t *img = quirc_begin(q, NULL, NULL); /* quirc の画像バッファへ直接取り込む */
+        int found = 0;
+        if (buttons_poll() >= 0) break; /* どのキーでも取り消し */
+        if (!camera_capture(img, 500)) continue;
+        show_preview(img, status);
+        quirc_end(q);
+        for (int i = 0; i < quirc_count(q) && !len; i++) {
+            static struct quirc_code code;
+            static struct quirc_data data;
+            int32_t rc = 0;
+            unsigned seq = 0, seq_len = 0;
+            quirc_extract(q, i, &code);
+            found = 1;
+            if (quirc_decode(&code, &data)) {
+                snprintf(status, sizeof(status), "QR found, cannot read");
+                continue;
+            }
+            /* "UR:CRYPTO-PSBT/<n>-<m>/" の n と m を読んで、何枚中何枚かを出す */
+            for (const char *c = (const char *)data.payload; *c; c++)
+                if (*c == '/') {
+                    while (*++c >= '0' && *c <= '9') seq = seq * 10 + (unsigned)(*c - '0');
+                    if (*c == '-')
+                        while (*++c >= '0' && *c <= '9') seq_len = seq_len * 10 + (unsigned)(*c - '0');
+                    break;
+                }
+            if (!parser_host_ur_receive((const char *)data.payload, (uint32_t)data.payload_len, &rc, psbt,
+                                        PARSER_PSBT_MAX)) {
+                snprintf(status, sizeof(status), "QR read, not a PSBT");
+                continue;
+            }
+            if (rc > 0) {
+                len = (uint32_t)rc;
+            } else if (rc == 0) {
+                if (seq && seq <= 64 && !(seen >> (seq - 1) & 1)) seen |= (uint64_t)1 << (seq - 1), parts++;
+                if (seq_len)
+                    snprintf(status, sizeof(status), "Scan PSBT  %u/%u parts", parts, seq_len);
+                else
+                    snprintf(status, sizeof(status), "Scan PSBT  %u parts", parts);
+            } else {
+                snprintf(status, sizeof(status), "UR error %d", (int)rc);
+            }
+        }
+        if (!found && parts == 0) snprintf(status, sizeof(status), "Scan PSBT: no QR in view");
+    }
+    quirc_destroy(q);
+    if (!len) free(psbt), psbt = NULL;
+    printf("scan: %u parts, psbt %u bytes\n", parts, (unsigned)len);
+    return len;
+}
+
 static int trng(uint8_t *buf, size_t len) {
     /* pico_rand は TRNG を種にするが暗号用 PRNG ではない。初期確認で Schnorr の aux にだけ使う */
     for (size_t i = 0; i < len; i++) buf[i] = (uint8_t)get_rand_32();
@@ -116,8 +217,8 @@ static void export_qr(uint32_t len) {
     }
 }
 
-/* PSBT を 1 つ署名してメニューに戻る。カメラが付いたら、組み込みのテスト PSBT を UR の読み取りに差し替える */
-static void sign_flow(void) {
+/* PSBT を 1 つ署名してメニューに戻る。psbt / psbt_len が読み取ったもの */
+static void sign_flow(const uint8_t *in, uint32_t in_len) {
     core_prevtx_t prev[PLAN_MAX_INPUTS];
     core_review_t review;
     core_display_t display;
@@ -130,8 +231,7 @@ static void sign_flow(void) {
     if (!sign_buffers_take()) return sign_buffers_give(), message("Out of memory", NULL, 1);
 
     t = time_us_64();
-    if (!parser_host_parse(test_psbt, sizeof(test_psbt), core_fingerprint(), &rc, &plan, prev, prevtx_arena,
-                           PARSER_PSBT_MAX)
+    if (!parser_host_parse(in, in_len, core_fingerprint(), &rc, &plan, prev, prevtx_arena, PARSER_PSBT_MAX)
         || rc) {
         printf("parse failed rc=%u\n", (unsigned)rc);
         return sign_buffers_give(), message("Invalid PSBT", NULL, 1);
@@ -176,13 +276,21 @@ static void sign_flow(void) {
     sign_buffers_give();
 }
 
+static void scan_and_sign(void) {
+    uint32_t len = scan_psbt();
+    if (!len) return;
+    sign_flow(psbt, len);
+    free(psbt), psbt = NULL;
+}
+
 #if TEST_SEED
 static int load_test_seed(void) {
     uint8_t seed[64];
-    uint64_t t = time_us_64();
+    uint64_t t;
     int ok;
 
     message("TEST SEED", "Public BIP39 vector. Never send funds to this wallet.", 1);
+    t = time_us_64();
     pbkdf2_hmac_sha512((const uint8_t *)TEST_MNEMONIC, sizeof(TEST_MNEMONIC) - 1, (const uint8_t *)"mnemonic", 8,
                        2048, seed);
     ok = core_load_seed(seed);
@@ -217,16 +325,19 @@ static void seed_menu(void) {
 }
 
 static void main_menu(void) {
-    static const char *const items[] = {"Sign PSBT", "Lock (wipe seed)"};
+    static const char *const items[] = {"Scan PSBT", "Sign test PSBT", "Lock (wipe seed)"};
     static char title[UI_COLS + 1];
 
     snprintf(title, sizeof(title), "Signer  fp %08x", (unsigned)core_fingerprint());
-    ui_menu_init(&menu, title, items, 2);
+    ui_menu_init(&menu, title, items, TEST_SEED ? 3 : 2);
     show(&menu.screen);
     for (;;) {
         int sel = ui_menu_key(&menu, wait_key());
-        if (sel == 0) sign_flow();
-        if (sel == 1) {
+        if (sel == 0) scan_and_sign();
+#if TEST_SEED
+        if (sel == 1) sign_flow(test_psbt, sizeof(test_psbt));
+#endif
+        if (sel == (TEST_SEED ? 2 : 1)) {
             core_unload();
             printf("locked (seed wiped)\n");
             return;
@@ -248,6 +359,9 @@ int main(void) {
         message("Init failed", NULL, 1);
         return 1;
     }
+    camera_bus_init(&camera_ov7670);
+    camera_ready = camera_init(&camera_ov7670);
+    printf("camera: %s\n", camera_ready ? "ready" : "not connected");
     for (;;) {
         seed_menu();
         main_menu();

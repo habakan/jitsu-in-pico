@@ -96,6 +96,11 @@ int32_t parser_host_ur_encode_start(uint32_t len, uint32_t max_fragment_len) {
     return call("parser_ur_encode_start", 2, a) ? (int32_t)a[0] : -1;
 }
 
+int32_t parser_host_ur_encode_bytes(const uint8_t *data, uint32_t len, uint32_t max_fragment_len) {
+    if (!copy_in("parser_output", data, len)) return -1;
+    return parser_host_ur_encode_start(len, max_fragment_len);
+}
+
 int parser_host_ur_encode_next(char *text, size_t cap) {
     uint32_t a[1] = {0}, off[1] = {0};
     if (!call("parser_ur_encode_next", 0, a) || (int32_t)a[0] <= 0 || a[0] >= cap || !call("parser_input", 0, off))

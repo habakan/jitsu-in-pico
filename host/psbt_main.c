@@ -84,6 +84,22 @@ static long assemble_ur(const char *path) {
 
 /* 署名済み PSBT を UR にし、純粋なパートの 3 倍（混ぜたパートを含む）を <out>.ur に 1 行ずつ書く。
  * preview があれば最初の 2 パートの QR 画面も PPM に書く */
+/* 符号化を始めた後、純粋なパートを 3 周ぶん書き出す */
+static int write_ur_parts(const char *out_path) {
+    static char text[4096];
+    char path[256];
+    FILE *f;
+
+    snprintf(path, sizeof(path), "%s.ur", out_path);
+    if (!(f = fopen(path, "w"))) return 1;
+    for (int i = 0; i < 24; i++) {
+        if (!parser_host_ur_encode_next(text, sizeof(text))) return fclose(f), 1;
+        fprintf(f, "%s\n", text);
+    }
+    fclose(f);
+    return 0;
+}
+
 static int write_ur(const char *out_path, uint32_t len, const char *preview) {
     static char text[4096];
     char path[256];
@@ -176,7 +192,7 @@ int main(int argc, char **argv) {
     static char *qemu_argv[] = {"psbt_host", "sign", "build/psbt/own_mixed_nwu.ur", "build/psbt/own_mixed_nwu.qemu"};
     argc = 4, argv = qemu_argv;
 #endif
-    if (argc < 3) return fprintf(stderr, "usage: %s parse FILE... | sign IN(.psbt|.ur) OUT [PREVIEW_PREFIX] | ur2bin IN.ur OUT\n", argv[0]), 2;
+    if (argc < 3) return fprintf(stderr, "usage: %s parse FILE... | sign IN(.psbt|.ur) OUT [PREVIEW_PREFIX] | bin2ur IN.psbt OUT | ur2bin IN.ur OUT\n", argv[0]), 2;
     memcpy(parser_wasm_rw, parser_wasm, sizeof(parser_wasm_rw));
     if (!core_init(CORE_MAINNET) || !parser_host_init(parser_wasm_rw, sizeof(parser_wasm_rw), pool, sizeof(pool)))
         return 1;
@@ -184,6 +200,11 @@ int main(int argc, char **argv) {
     if (!core_load_seed(seed)) return 1;
 
     if (!strcmp(argv[1], "sign")) return argc >= 4 ? sign(argv[2], argv[3], argc > 4 ? argv[4] : NULL) : 2;
+    if (!strcmp(argv[1], "bin2ur") && argc == 4) { /* PSBT を UR（1 行 1 パート）にする。実機の読み取り試験用 */
+        long len = read_file(argv[2]);
+        if (len <= 0 || parser_host_ur_encode_bytes(file_buf, (uint32_t)len, UI_UR_FRAGMENT) <= 0) return 1;
+        return write_ur_parts(argv[3]);
+    }
     if (!strcmp(argv[1], "ur2bin") && argc == 4) { /* UR（1 行 1 パート）を組み立てて PSBT のバイナリを書く */
         long len = assemble_ur(argv[2]);
         FILE *f = len > 0 ? fopen(argv[3], "wb") : NULL;
