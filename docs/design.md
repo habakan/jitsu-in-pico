@@ -249,6 +249,24 @@ Krux は K210（RISC-V）上の MaixPy v1 フォーク（MicroPython）で動く
 | CPU コア | K210（RTL 非公開） | Hazard3（RTL 公開） |
 | 起動チェーン TCB | K210 Boot ROM | RP2350 Boot ROM + secure boot |
 | RAM | 8MB | 520KB |
-| 成熟度 | 実運用中（multisig / Taproot / SeedQR） | PoC 前 |
+| 成熟度 | 実運用中（multisig / Taproot / SeedQR） | signet で一巡（2026-10-02） |
+
+### SeedSigner との比較（UX の手本にしたもの）
+
+| 観点 | SeedSigner | 本設計 |
+|---|---|---|
+| ハード | Raspberry Pi Zero（v1.3 推奨）+ Waveshare 1.3 インチ LCD HAT + Pi カメラ + microSD | Pico 2 H + 1.54 インチ ST7789 + OV7675 + ブレッドボード |
+| 部品代 | BOM 約 $35、完成品で $50 未満（[公式](https://seedsigner.com/seedsigner-independent-custody-guide/)）。組立済みは £65〜£90 / €73 | ¥4,940（2026-10 の秋月価格、送料別。Debug Probe を足すと ¥7,120） |
+| OS | Raspberry Pi OS（Linux） | なし（ベアメタル） |
+| 言語 | Python（embit） | C + WASM |
+| 鍵の置き場 | RAM のみ（microSD には書かない） | RAM のみ（Flash には書かない） |
+| CPU | BCM2835（ARM11。RTL 非公開、VideoCore が先に起動する） | RP2350 Hazard3（RISC-V、RTL 公開） |
+| RAM | 512MB | 520KB（実使用 341KB） |
+| 解析器の隔離 | なし（同一プロセス） | `parser.wasm` に隔離 |
+| 機能 | マルチシグ、パスフレーズ、xpub 出力、Nostr ほか多数 | 単署名の P2WPKH / P2TR に署名するだけ |
+| 成熟度 | 実運用多数 | signet で一巡 |
+
+**値段はほぼ同じで、機能は向こうが圧倒的に上。** 違いは TCB の大きさと、CPU まで含めた検証可能性にある。
+日本では Pi Zero の入手性が悪く割高なので、部品代はむしろこちらが安くなる。
 
 差別化の軸は「OS レス」ではなく、署名ロジックの WASM 分離、PC と実機で同一バイナリの結果一致を検証できる点、CPU コアまでオープンな点に置く。TCB 規模は WASM runtime も MicroPython 同様インタプリタのため、§14 の LOC 一覧で Krux（MaixPy + embit）と並べて比較する。Krux より 1/16 の RAM で同等機能を出せるかも比較点になる。
