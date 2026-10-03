@@ -199,12 +199,10 @@ static void export_qr(uint32_t len) {
             if (part && part % (unsigned long)seq_len == 0) parser_host_ur_encode_start(len, UI_UR_FRAGMENT);
             if (!parser_host_ur_encode_next(text, sizeof(text)) || !ui_qr_set(text))
                 return message("QR failed", NULL, 1);
-            if (part < (unsigned long)seq_len)
-                printf("part %lu/%ld: %u chars, %d modules\n", part + 1, seq_len, (unsigned)strlen(text),
-                       ui_qr_modules());
             part++;
-#if NO_LCD
+            /* カメラで読めないときのために、UART にも出しておく */
             printf("%s\n", text);
+#if NO_LCD
             for (int y = 0; y < UI_H; y++) ui_qr_render_line(y, line);
 #else
             st7789_begin_frame();

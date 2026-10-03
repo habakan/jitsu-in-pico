@@ -63,8 +63,12 @@ tunnel)
     exec ssh -N -L 38332:127.0.0.1:38332 gpu1
     ;;
 broadcast)
-    [ -n "$2" ] || { echo "署名済みの .ur を渡す"; exit 2; }
-    $HOST ur2bin "$2" $OUT/signed.psbt
+    [ -n "$2" ] || { echo "署名済みの .ur かログを渡す"; exit 2; }
+    [ -f "$2" ] || { echo "ファイルが無い: $2"; exit 1; }
+    # make run のログをそのまま渡せるよう、UR の行だけ拾う
+    grep '^UR:' "$2" > $OUT/signed.ur || { echo "UR の行が無い: $2"; exit 1; }
+    echo "$(wc -l < $OUT/signed.ur) パート"
+    $HOST ur2bin $OUT/signed.ur $OUT/signed.psbt
     raw=$($CLI finalizepsbt "$(base64 < $OUT/signed.psbt | tr -d '\n')" \
         | sed -n 's/.*"hex": "\([^"]*\)".*/\1/p')
     [ -n "$raw" ] || { echo "finalize できなかった（署名が足りない）"; exit 1; }
