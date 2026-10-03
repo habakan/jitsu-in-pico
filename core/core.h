@@ -69,4 +69,9 @@ int core_sign(const plan_t *p, core_rng_t rng, core_sig_t sigs[PLAN_MAX_INPUTS],
 /* 8 桁の小数で BTC 表記にする（例: 60000 -> "0.00060000"） */
 void core_format_btc(uint64_t sats, char out[21]);
 
+/* 口座の拡張公開鍵（m/84'/coin'/0'）と出力ディスクリプタ。PC 側をウォッチオンリーにするために渡す */
+#define CORE_XPUB_MAX 120
+#define CORE_DESC_MAX 180
+int core_account_xpub(char out[CORE_XPUB_MAX], char desc[CORE_DESC_MAX]);
+
 #endif

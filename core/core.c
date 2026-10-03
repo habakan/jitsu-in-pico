@@ -1,5 +1,6 @@
 #include "core.h"
 #include <string.h>
+#include <stdio.h>
 #include "wipe.h"
 #include "bip32.h"
 #include "hash.h"
@@ -325,4 +326,45 @@ int core_sign(const plan_t *p, core_rng_t rng, core_sig_t sigs[PLAN_MAX_INPUTS],
     }
     reviewed = 0;
     return CORE_OK;
+}
+
+/* 口座の拡張公開鍵（m/84'/coin'/0'）と、それを使う出力ディスクリプタを作る。
+ * これを PC 側へ渡せば、PC は鍵を知らないままウォッチオンリーで使える */
+int core_account_xpub(char out[CORE_XPUB_MAX], char desc[CORE_DESC_MAX]) {
+    const uint32_t coin = network == CORE_TESTNET ? 1u : 0u;
+    uint32_t path[3] = {84u | H, coin | H, 0u | H};
+    bip32_node_t parent, node;
+    uint8_t pub[33], h[20], ser[78];
+    char fp[9];
+    int ok = 0;
+
+    if (!master_fp) return 0;
+    /* 親（m/84'/coin'）の指紋が要るので 2 段で導出する */
+    if (!bip32_derive(ctx, &master, path, 2, &parent) || !bip32_pubkey(ctx, parent.key, pub)) goto done;
+    hash160(pub, sizeof(pub), h);
+    if (!bip32_derive(ctx, &parent, path + 2, 1, &node) || !bip32_pubkey(ctx, node.key, pub)) goto done;
+
+    /* version(4) depth(1) 親の指紋(4) 子番号(4) chain code(32) 公開鍵(33) */
+    {
+        const uint32_t ver = network == CORE_TESTNET ? 0x043587cfu : 0x0488b21eu;
+        unsigned o = 0;
+        for (int i = 3; i >= 0; i--) ser[o++] = (uint8_t)(ver >> (8 * i));
+        ser[o++] = 3;
+        memcpy(ser + o, h, 4), o += 4;
+        for (int i = 3; i >= 0; i--) ser[o++] = (uint8_t)(path[2] >> (8 * i));
+        memcpy(ser + o, node.chain, 32), o += 32;
+        memcpy(ser + o, pub, 33);
+    }
+    base58check_data(ser, sizeof(ser), out);
+
+    for (int i = 0; i < 8; i++) fp[i] = "0123456789abcdef"[master_fp >> (28 - 4 * i) & 15];
+    fp[8] = 0;
+    /* Sparrow などがそのまま読める出力ディスクリプタ。受取と釣りの両方を 1 行で表す */
+    if ((size_t)snprintf(desc, CORE_DESC_MAX, "wpkh([%s/84h/%luh/0h]%s/<0;1>/*)", fp, (unsigned long)coin, out) >= CORE_DESC_MAX)
+        goto done;
+    ok = 1;
+done:
+    wipe(&parent, sizeof(parent));
+    wipe(&node, sizeof(node));
+    return ok;
 }

@@ -31,18 +31,19 @@ static void bech32_encode(const char *hrp, const uint8_t *data, size_t n, uint32
     out[o] = 0;
 }
 
-static void base58check(uint8_t version, const uint8_t hash[20], char *out) {
-    uint8_t buf[25], chk[32], digits[35] = {0}; /* 25 byte は base58 で最大 35 桁 */
+/* 末尾に 4 byte のチェックサムを足して base58 にする。アドレス（21 byte）と xpub（78 byte）で使う */
+void base58check_data(const uint8_t *p, size_t n, char *out) {
+    uint8_t buf[BASE58CHECK_MAX_IN + 4], chk[32], digits[BASE58CHECK_MAX_OUT] = {0};
     size_t nd = 0, o = 0;
     sha256_ctx h;
 
-    buf[0] = version;
-    memcpy(buf + 1, hash, 20);
+    if (n > BASE58CHECK_MAX_IN) return (void)(out[0] = 0);
+    memcpy(buf, p, n);
     sha256_init(&h);
-    sha256_update(&h, buf, 21);
+    sha256_update(&h, buf, n);
     sha256d_final(&h, chk);
-    memcpy(buf + 21, chk, 4);
-    for (size_t i = 0; i < 25; i++) {
+    memcpy(buf + n, chk, 4);
+    for (size_t i = 0; i < n + 4; i++) {
         uint32_t carry = buf[i];
         for (size_t j = 0; j < nd; j++) {
             carry += (uint32_t)digits[j] << 8;
@@ -51,9 +52,16 @@ static void base58check(uint8_t version, const uint8_t hash[20], char *out) {
         }
         for (; carry; carry /= 58) digits[nd++] = carry % 58;
     }
-    for (size_t i = 0; i < 25 && buf[i] == 0; i++) out[o++] = '1';
+    for (size_t i = 0; i < n + 4 && buf[i] == 0; i++) out[o++] = '1';
     while (nd) out[o++] = B58[digits[--nd]];
     out[o] = 0;
+}
+
+static void base58check(uint8_t version, const uint8_t hash[20], char *out) {
+    uint8_t buf[21];
+    buf[0] = version;
+    memcpy(buf + 1, hash, 20);
+    base58check_data(buf, sizeof(buf), out);
 }
 
 int address_encode(const uint8_t *spk, size_t len, int testnet, char out[ADDRESS_MAX]) {

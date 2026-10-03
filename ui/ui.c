@@ -1,5 +1,6 @@
 #include "ui.h"
 #include <string.h>
+#include <stdio.h>
 #include "font8x16.h"
 #include "qrcodegen.h"
 
@@ -225,4 +226,24 @@ void ui_qr_render_line(int y, uint16_t line[UI_W]) {
         int dark = y >= off && x >= off && my < size && mx < size && qrcodegen_getModule(qr, mx, my);
         line[x] = dark ? 0x0000 : 0xffff;
     }
+}
+
+/* 口座の拡張公開鍵。PC 側と目で突き合わせられるよう、頭と尻を切らずに全部出す */
+void ui_xpub(ui_screen_t *s, const char *xpub, uint32_t fp, int testnet) {
+    writer_t w = {s, 0};
+    char line[UI_COLS + 1];
+    size_t n = strlen(xpub);
+
+    memset(s, 0, sizeof(*s));
+    put_header(&w);
+    put(&w, C_TITLE, "Account xpub (watch-only)");
+    snprintf(line, sizeof(line), "m/84h/%dh/0h  fp %08lx", testnet ? 1 : 0, (unsigned long)fp);
+    put(&w, C_HINT, line);
+    put(&w, C_TEXT, "");
+    for (size_t i = 0; i < n; i += UI_COLS) {
+        snprintf(line, sizeof(line), "%.*s", (int)UI_COLS, xpub + i);
+        put(&w, C_OURS, line);
+    }
+    w.row = UI_ROWS - 1;
+    put(&w, C_HINT, "PUSH: show QR");
 }

@@ -157,6 +157,14 @@ check-core: build/test_core
 	build/test_core
 .PHONY: check-core
 
+build/test_xpub: core/tests/test_xpub.c $(CORE_SRC) core/*.h signer/secp256k1_unity.c
+	cc -O2 -Wall -Wextra -Wno-unused-function -Icore -Iparser/include -I$(SECP)/include $(SECP_DEFS) \
+	  -o $@ core/tests/test_xpub.c $(CORE_SRC) signer/secp256k1_unity.c
+
+check-xpub: build/test_xpub
+	build/test_xpub
+.PHONY: check-xpub
+
 build/qemu-test-core.elf: core/tests/test_core.c $(CORE_SRC) core/*.h parser/include/*.h build/core_vectors.h platform/qemu-riscv32/start.S
 	$(RISCV_TC)/bin/riscv32-pico-elf-gcc $(QEMU_MARCH) -O2 -Wall -Wno-unused-function -Icore -Iparser/include -Ibuild \
 	  -I$(SECP)/include $(SECP_DEFS) --specs=semihost.specs -Wl,--section-start=.qemu_start=0x80000000 \

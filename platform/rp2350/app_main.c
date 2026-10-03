@@ -367,20 +367,51 @@ static void seed_menu(void) {
     }
 }
 
+/* 口座の拡張公開鍵とディスクリプタを見せる。PC 側はこれだけでウォッチオンリーになり、鍵は要らない */
+static void show_xpub(void) {
+    static ui_screen_t s;
+    static char xpub[CORE_XPUB_MAX], desc[CORE_DESC_MAX];
+
+    if (!core_account_xpub(xpub, desc)) return message("xpub failed", NULL, 1);
+    ui_xpub(&s, xpub, core_fingerprint(), TESTNET);
+    show(&s);
+    printf("%s\n%s\n", xpub, desc);
+    wait_key();
+
+    /* ディスクリプタは 145 文字ほどで QR の v8 に収まるので、1 枚の静止画で渡せる */
+    if (!ui_qr_set(desc)) return message("QR failed", NULL, 1);
+    printf("descriptor QR: %d modules\n", ui_qr_modules());
+    {
+        uint16_t line[UI_W];
+#if NO_LCD
+        for (int y = 0; y < UI_H; y++) ui_qr_render_line(y, line);
+#else
+        st7789_begin_frame();
+        for (int y = 0; y < UI_H; y++) {
+            ui_qr_render_line(y, line);
+            st7789_write_line(line);
+        }
+#endif
+    }
+    wait_key();
+}
+
 static void main_menu(void) {
-    static const char *const items[] = {"Scan PSBT", "Sign test PSBT", "Lock (wipe seed)"};
+    static const char *const items[] = {"Scan PSBT", "Show xpub", "Sign test PSBT", "Lock (wipe seed)"};
+    static const char *const items_notest[] = {"Scan PSBT", "Show xpub", "Lock (wipe seed)"};
     static char title[UI_COLS + 1];
 
     snprintf(title, sizeof(title), "%s fp %08x", TESTNET ? "Signet" : "Signer", (unsigned)core_fingerprint());
-    ui_menu_init(&menu, title, items, TEST_SEED ? 3 : 2);
+    ui_menu_init(&menu, title, TEST_SEED ? items : items_notest, TEST_SEED ? 4 : 3);
     show(&menu.screen);
     for (;;) {
         int sel = ui_menu_key(&menu, wait_key());
         if (sel == 0) scan_and_sign();
+        if (sel == 1) show_xpub();
 #if TEST_SEED
-        if (sel == 1) sign_flow(test_psbt, sizeof(test_psbt));
+        if (sel == 2) sign_flow(test_psbt, sizeof(test_psbt));
 #endif
-        if (sel == (TEST_SEED ? 2 : 1)) {
+        if (sel == (TEST_SEED ? 3 : 2)) {
             core_unload();
             printf("locked (seed wiped)\n");
             return;
