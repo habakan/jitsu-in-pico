@@ -38,6 +38,7 @@ OS もファイルシステムも持たず、Flash には鍵を一切書かな�
 | `platform/rp2350/` | 実機のファーム。液晶（ST7789）、ボタン、カメラ（PIO + DMA）、各確認用ファーム | 内 |
 | `platform/qemu-riscv32/` | QEMU virt 向けの起動コードとリンク設定（命令数の計測用） | - |
 | `host/` | Mac / QEMU で動かす検査用のホスト（署名・PSBT 一巡・QR ベンチ） | - |
+| `web/` | ブラウザ用。実機と同じ `parser.wasm` で PSBT を表示する単一 HTML（`make viewer`） | - |
 | `tools/` | ベクタ生成、参照実装との照合、UART モニタ、PIO シミュレータ | - |
 | `patches/` | third_party に当てるパッチ（現在は WAMR 1 件。上流に取り込まれ済み） | - |
 | `docs/` | 設計と実現性検証。`docs/internal/` はコミットしない内部メモ | - |
@@ -70,6 +71,7 @@ make deps-openocd                            # 一度だけ。SWD 書き込み�
 make run ELF=build/rp2350/app.elf SECONDS=180  # 書き込み → 受信開始 → リセット
 make flash-swd ELF=build/rp2350/app.elf        # 書き込みだけ
 make monitor SECONDS=60                        # UART を受けるだけ
+make viewer                                    # 実機と同じ wasm でブラウザに PSBT を表示（単一 HTML）
 ```
 
 配線と部品は [docs/hardware.md](docs/hardware.md)。BOOTSEL から `.uf2` を書く手順も残してある（`make flash`）。

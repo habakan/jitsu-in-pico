@@ -300,6 +300,17 @@ flash: $(UF2)
 	  || (echo "$$vol へ書き込めません。macOS の「プライバシーとセキュリティ → ファイルとフォルダ」で"; \
 	      echo "ターミナルに「リムーバブルボリューム」を許可するか、Finder で $(UF2) をドラッグしてください"; false)
 
+# ブラウザで PSBT を表示する単一 HTML。実機と同じ parser.wasm を埋め込むので file:// でも動く
+build/address.wasm: core/address.c core/ripemd160.c parser/src/sha256.c web/addr_wasm.c
+	mkdir -p build && $(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs \
+	  -Oz -Wall -Wextra -Icore -Iparser/include -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all \
+	  -o $@ web/addr_wasm.c core/address.c core/ripemd160.c parser/src/sha256.c -lc $(RTLIB)/libclang_rt.builtins.a
+
+viewer: build/parser.wasm build/address.wasm web/viewer.html tools/build_viewer.py
+	uv run -q tools/build_viewer.py build/viewer.html
+	open build/viewer.html
+.PHONY: viewer
+
 # 実配線から図を作る。wiring は信号の対応（WireViz、graphviz が要る）、breadboard は穴の位置
 wiring: docs/wiring.yml
 	uv run -q --with wireviz wireviz $< -o build/wiring

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<!-- PSBT ビューア。実機に積んでいるのと同じ parser.wasm で解析し、同じ内容を表示する。
+     鍵は扱わない。tools/build_viewer.py が wasm を埋め込んだ単一ファイルを作る -->
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PSBT viewer</title>
+<style>
+  :root { color-scheme: dark; --bg:#13151a; --fg:#e8e8e8; --dim:#8b93a1; --line:#2a2e37;
+          --send:#ff6e50; --ours:#5adc78; --title:#ffaa00; }
+  * { box-sizing: border-box; }
+  body { margin:0; padding:16px; background:var(--bg); color:var(--fg);
+         font:14px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  main { max-width: 760px; margin: 0 auto; }
+  h1 { font-size:16px; color:var(--title); margin:0 0 4px; }
+  .sub { color:var(--dim); font-size:12px; margin-bottom:20px; }
+  .drop { border:1px dashed var(--line); border-radius:8px; padding:24px 16px; text-align:center; color:var(--dim); }
+  .drop.over { border-color:var(--title); color:var(--fg); }
+  textarea { width:100%; height:80px; margin-top:12px; background:#0d0f13; color:var(--fg);
+             border:1px solid var(--line); border-radius:6px; padding:8px; font:inherit; }
+  button { background:#242833; color:var(--fg); border:1px solid var(--line); border-radius:6px;
+           padding:8px 14px; font:inherit; cursor:pointer; }
+  button:hover { border-color:var(--title); }
+  .card { border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin:12px 0; }
+  .row { display:flex; justify-content:space-between; gap:12px; }
+  .amount { color:var(--send); font-weight:600; }
+  .mine .amount { color:var(--ours); }
+  .addr { word-break:break-all; color:var(--fg); font-size:13px; }
+  .k { color:var(--dim); }
+  .err { color:var(--send); }
+  footer { margin-top:28px; padding-top:12px; border-top:1px solid var(--line);
+           color:var(--dim); font-size:11px; word-break:break-all; }
+</style>
+</head>
+<body>
+<main>
+  <h1>PSBT viewer</h1>
+  <div class="sub">署名器に積んでいるのと同じ parser.wasm で解析します。鍵は扱いません。オフラインで動きます。</div>
+
+  <div class="drop" id="drop">
+    .psbt ファイルをドロップするか、<button id="pick">選ぶ</button>
+    <input type="file" id="file" hidden accept=".psbt,.bin">
+    <textarea id="text" placeholder="base64 か 16 進の PSBT を貼ってもよい"></textarea>
+    <div class="row" style="margin-top:8px">
+      <label class="k"><input type="checkbox" id="testnet"> testnet / signet として表示</label>
+      <button id="parse">解析する</button>
+    </div>
+  </div>
+
+  <div id="out"></div>
+
+  <footer>
+    parser.wasm __PARSER_SHA256__<br>
+    address.wasm __ADDRESS_SHA256__
+  </footer>
+</main>
+
+<script>
+const PARSER_WASM = "__PARSER_WASM__", ADDRESS_WASM = "__ADDRESS_WASM__";
+const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+/* instantiateStreaming は MIME 型を要求するので、file:// でも動くようバイト列から読む */
+const load = async s => (await WebAssembly.instantiate(b64(s), {})).instance.exports;
+
+let parser, address;
+const OFF = { // plan.h のレイアウト。_Static_assert で固定してある
+  inputs: 24, outputs: 2840, inSize: 176, outSize: 136,
+  in: { amount: 40, spk: 48, key: 132 }, out: { amount: 0, spk: 8, key: 92 },
+  key: { depth: 0, fp: 4, path: 8 },
+};
+
+const btc = sats => (Number(sats) / 1e8).toFixed(8);
+const hex = u8 => [...u8].map(b => b.toString(16).padStart(2, "0")).join("");
+
+function script(dv, base) { // plan_script_t: len + bytes
+  const len = dv.getUint8(base);
+  return new Uint8Array(dv.buffer, dv.byteOffset + base + 1, len);
+}
+
+function keypath(dv, base) {
+  const depth = dv.getUint8(base + OFF.key.depth);
+  if (!depth) return null;
+  const fp = dv.getUint32(base + OFF.key.fp, true).toString(16).padStart(8, "0");
+  const path = [];
+  for (let i = 0; i < depth; i++) {
+    const v = dv.getUint32(base + OFF.key.path + 4 * i, true);
+    path.push((v & 0x7fffffff) + (v & 0x80000000 ? "'" : ""));
+  }
+  return { fp, path: "m/" + path.join("/") };
+}
+
+function toAddress(spk, testnet) {
+  const mem = new Uint8Array(address.memory.buffer);
+  mem.set(spk, address.addr_spk());
+  if (!address.addr_encode(spk.length, testnet ? 1 : 0)) return null;
+  let s = "", p = address.addr_out();
+  while (mem[p]) s += String.fromCharCode(mem[p++]);
+  return s;
+}
+
+function render(dv, testnet) {
+  const nIn = dv.getUint8(16), nOut = dv.getUint8(17);
+  let spent = 0n, sent = 0n;
+  const parts = [];
+
+  for (let i = 0; i < nOut; i++) {
+    const base = OFF.outputs + i * OFF.outSize;
+    const amount = dv.getBigUint64(base + OFF.out.amount, true);
+    const key = keypath(dv, base + OFF.out.key);
+    const spk = script(dv, base + OFF.out.spk);
+    const addr = toAddress(spk, testnet);
+    sent += amount;
+    parts.push(`<div class="card ${key ? "mine" : ""}">
+      <div class="row"><span class="k">出力 ${i + 1}/${nOut}${key ? "（自分の鍵）" : ""}</span>
+        <span class="amount">${btc(amount)} BTC</span></div>
+      <div class="addr">${addr || hex(spk)}</div>
+      ${key ? `<div class="k">${key.path}  fp ${key.fp}</div>` : ""}
+    </div>`);
+  }
+
+  for (let i = 0; i < nIn; i++) {
+    const base = OFF.inputs + i * OFF.inSize;
+    spent += dv.getBigUint64(base + OFF.in.amount, true);
+  }
+
+  const fee = spent - sent;
+  return `<div class="card">
+      <div class="row"><span class="k">入力 ${nIn} 件の合計</span><span>${btc(spent)} BTC</span></div>
+      <div class="row"><span class="k">手数料</span><span class="amount">${btc(fee)} BTC</span></div>
+      <div class="k">version ${dv.getInt32(8, true)}  locktime ${dv.getUint32(12, true)}</div>
+    </div>` + parts.join("");
+}
+
+async function parse(bytes) {
+  const out = document.getElementById("out");
+  try {
+    parser ||= await load(PARSER_WASM);
+    address ||= await load(ADDRESS_WASM);
+    const mem = new Uint8Array(parser.memory.buffer);
+    if (bytes.length > parser.parser_input_cap()) throw new Error("PSBT が大きすぎます");
+    mem.set(bytes, parser.parser_input());
+    const rc = parser.parser_parse(bytes.length, 0); // fingerprint 0 = 鍵を持たないので所有判定はしない
+    if (rc !== 0) throw new Error(`parser_parse が ${rc} を返しました（0 が受理）`);
+    const dv = new DataView(parser.memory.buffer, parser.parser_plan(), 5016);
+    out.innerHTML = render(dv, document.getElementById("testnet").checked);
+  } catch (e) {
+    out.innerHTML = `<div class="card err">${e.message}</div>`;
+  }
+}
+
+function fromText(s) {
+  s = s.trim().replace(/\s+/g, "");
+  if (/^[0-9a-fA-F]+$/.test(s) && s.length % 2 === 0)
+    return Uint8Array.from(s.match(/../g).map(h => parseInt(h, 16)));
+  return b64(s);
+}
+
+const drop = document.getElementById("drop"), file = document.getElementById("file");
+document.getElementById("pick").onclick = () => file.click();
+file.onchange = async () => file.files[0] && parse(new Uint8Array(await file.files[0].arrayBuffer()));
+document.getElementById("parse").onclick = () => {
+  const t = document.getElementById("text").value;
+  if (t.trim()) parse(fromText(t));
+};
+drop.ondragover = e => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = async e => {
+  e.preventDefault();
+  drop.classList.remove("over");
+  if (e.dataTransfer.files[0]) parse(new Uint8Array(await e.dataTransfer.files[0].arrayBuffer()));
+};
+</script>
+</body>
+</html>
