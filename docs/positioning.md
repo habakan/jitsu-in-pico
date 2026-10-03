@@ -40,9 +40,15 @@
 | Kotlin / Android | Chicory（純 Java のランタイム、JNI 不要）または WAMR + JNI |
 | Swift / iOS | WasmKit（純 Swift）または WAMR を C 相互運用で |
 | Rust | wasmtime / wasmi |
+| Go / Java | WasmEdge（C / Rust / Go / Java / Python の SDK がある） |
 | Python / CI | wasmtime-py、Node |
+| サーバ・エッジ | WasmEdge。ウォッチオンリーの裏側や CI での検証に |
 
 言語内で完結するランタイムがあるので、ネイティブのビルド環境を持ち込まずに済む。
+
+**どのランタイムを使うかは、こちらが決めることではない。** import を 1 個も持たず WASI も使わないので、
+「WASM を実行できる何か」であれば何でもよい。上の表は例であって、指定ではない。
+MCU では WAMR のように組み込み向けのものが要る（WasmEdge は OS を前提にしていてベアメタルでは動かない）。
 
 ## 用例（どれも参照実装）
 
