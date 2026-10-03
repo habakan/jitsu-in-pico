@@ -13,6 +13,7 @@ OUT = sys.argv[1] if len(sys.argv) > 1 else "build/viewer.html"
 parser = open("build/parser.wasm", "rb").read()
 address = open("build/address.wasm", "rb").read()
 qr = open("build/qr.wasm", "rb").read()
+jsqr = open("web/vendor/jsQR.min.js").read()  # Safari には内蔵デコーダが無いので同梱する
 page = open("web/viewer.html").read()
 
 html = (page.replace("__PARSER_WASM__", base64.b64encode(parser).decode())
@@ -20,7 +21,8 @@ html = (page.replace("__PARSER_WASM__", base64.b64encode(parser).decode())
             .replace("__PARSER_SHA256__", hashlib.sha256(parser).hexdigest())
             .replace("__QR_WASM__", base64.b64encode(qr).decode())
             .replace("__ADDRESS_SHA256__", hashlib.sha256(address).hexdigest())
-            .replace("__QR_SHA256__", hashlib.sha256(qr).hexdigest()))
+            .replace("__QR_SHA256__", hashlib.sha256(qr).hexdigest())
+            .replace("__JSQR_JS__", jsqr))
 open(OUT, "w").write(html)
 print(f"{OUT}: {len(html) / 1024:.0f}KB "
       f"(parser.wasm {len(parser)}B, address.wasm {len(address)}B, qr.wasm {len(qr)}B)")

@@ -71,6 +71,7 @@
   </footer>
 </main>
 
+<script>__JSQR_JS__</script>
 <script>
 const PARSER_WASM = "__PARSER_WASM__", ADDRESS_WASM = "__ADDRESS_WASM__", QR_WASM = "__QR_WASM__";
 const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
@@ -221,7 +222,7 @@ async function camera() {
       box.style.display = "block";
       if (!qr.qr_init(W, H)) { stat.textContent = "QR デコーダの初期化に失敗"; return; }
       stat.textContent = `${video.videoWidth}x${video.videoHeight} の中央 ${W}x${H} を見ている`
-        + (bd ? "（ブラウザ内蔵のデコーダが使える）" : "（quirc のみ）");
+        + `（quirc${bd ? " + 内蔵" : ""}${self.jsQR ? " + jsQR" : ""}）`;
     }
     /* 中央の等倍（QR が小さく写るとき）と全体の縮小（枠からはみ出すとき）を交互に試す */
     if (mode & 1) ctx.drawImage(video, W >> 1, H >> 1, W, H, 0, 0, W, H);
@@ -229,28 +230,34 @@ async function camera() {
     box.style.display = (mode & 1) ? "block" : "none";
     mode++;
 
-    /* まずブラウザ内蔵のデコーダ（OS のもの）。実機の液晶を離れて撮ると quirc は読めないが
-     * こちらは読める。鍵に関わるのは parser.wasm なので、運搬側は読める方を使ってよい */
-    let text = null, how = (mode & 1) ? "中央" : "全体";
-    if (bd) {
-      const codes = await bd.detect(canvas).catch(() => []);
-      if (codes.length) { text = codes[0].rawValue; how += "・内蔵"; }
-    }
-    if (text === null) {
-      const rgba = ctx.getImageData(0, 0, W, H).data;
+    /* 実機と同じ quirc を先に試し、駄目ならブラウザ内蔵、それも無ければ jsQR。
+     * 鍵に関わるのは parser.wasm なので、運搬側は読める実装を使ってよい。
+     * どれで読めたかを出すので、quirc が苦手な条件もそのまま分かる */
+    const rgba = ctx.getImageData(0, 0, W, H);
+    let text = null, how = (mode & 1) ? "中央" : "全体", detail = "";
+    {
       const gray = new Uint8Array(qr.memory.buffer, qr.qr_image(), W * H);
+      const d = rgba.data;
       for (let i = 0, j = 0; i < gray.length; i++, j += 4)  // ITU-R BT.601 の輝度
-        gray[i] = (rgba[j] * 77 + rgba[j + 1] * 150 + rgba[j + 2] * 29) >> 8;
+        gray[i] = (d[j] * 77 + d[j + 1] * 150 + d[j + 2] * 29) >> 8;
       const n = qr.qr_decode();
       if (n > 0) {
         text = new TextDecoder().decode(new Uint8Array(qr.memory.buffer, qr.qr_payload(), n));
         how += "・quirc";
       } else if (n < 0) {
         const px = qr.qr_last_px(), cells = qr.qr_last_cells();
-        stat.textContent = `QR は見えているが読めない: ${px}px / ${cells}モジュール`
-          + ` = ${(px / (cells || 1)).toFixed(1)}px/モジュール（${how}）`;
+        detail = `quirc: ${px}px / ${cells}モジュール = ${(px / (cells || 1)).toFixed(1)}px/モジュール`;
       }
     }
+    if (text === null && bd) {
+      const codes = await bd.detect(canvas).catch(() => []);
+      if (codes.length) { text = codes[0].rawValue; how += "・内蔵"; }
+    }
+    if (text === null && self.jsQR) {
+      const r = jsQR(rgba.data, W, H);
+      if (r) { text = r.data; how += "・jsQR"; }
+    }
+    if (text === null && detail) stat.textContent = `読めない（${how}） ${detail}`;
     if (text !== null) {
       const n = text.length;
       /* デバイスの Show xpub は UR ではなく素のディスクリプタを出す。手で打たずに済むよう拾う */
