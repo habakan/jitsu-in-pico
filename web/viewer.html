@@ -51,7 +51,8 @@
   <div class="card" id="cam">
     <div class="row">
       <span class="k">カメラでアニメーション QR（UR）を読む</span>
-      <button id="camstart">開始</button>
+      <span><select id="camsel" style="display:none;background:#242833;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px"></select>
+      <button id="camstart">開始</button></span>
     </div>
     <video id="video" playsinline muted style="width:100%;margin-top:8px;display:none;border-radius:6px"></video>
     <div class="k" id="camstat"></div>
@@ -171,12 +172,22 @@ async function camera() {
   qr ||= await load(QR_WASM);
   parser.parser_ur_reset();
 
+  const sel = document.getElementById("camsel");
   let stream;
   try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    const want = sel.value ? { deviceId: { exact: sel.value } } : { facingMode: "environment" };
+    stream = await navigator.mediaDevices.getUserMedia({ video: want });
   } catch (e) {
     stat.textContent = `カメラを開けません: ${e.name}。file:// では使えないブラウザがあります`;
     return;
+  }
+  /* 許可が下りてから名前が取れる。複数あれば選べるようにする */
+  const cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
+  if (cams.length > 1 && !sel.options.length) {
+    cams.forEach((c, i) => sel.add(new Option(c.label || `カメラ ${i + 1}`, c.deviceId)));
+    sel.value = stream.getVideoTracks()[0].getSettings().deviceId || cams[0].deviceId;
+    sel.style.display = "inline-block";
+    sel.onchange = () => { stream.getTracks().forEach(t => t.stop()); camera(); };
   }
   video.srcObject = stream;
   video.style.display = "block";
