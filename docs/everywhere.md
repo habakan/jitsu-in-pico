@@ -48,7 +48,8 @@ OS の有無も、CPU が ARM か RISC-V か x86 かも、言語が C か JavaSc
 | Android | Chrome（V8） | **確認済み**（A80 / Android 10）。`file://` で単一 HTML が動き、ハッシュ 3 つも一致。
 ただし `file://` ではカメラが `NotAllowedError` になるので、読み取りは localhost か HTTPS が要る。
 読み取れた QR はブラウザ内蔵のデコーダ経由で、quirc は離れて撮った液晶には届かない |
-| iOS | Safari（JavaScriptCore） | 未確認。ローカルファイルを開けないので一度オンラインで読み込む必要がある |
+| iOS | Safari（JavaScriptCore） | **確認済み**。3 つの wasm が動きハッシュも一致。ただしローカルファイルを開けないので
+配るには一度オンラインで読み込む必要があり、カメラには HTTPS が要る |
 
 **同じ成果物のまま、載せる先だけを変えられる**のが要点になる。
 ベアメタルの MCU とブラウザという、普通は共通化できない両端で同じバイト列が動いている。
@@ -155,4 +156,16 @@ make viewer     # build/viewer.html（単一ファイル）を作ってブラウ
 ```
 
 `file://` で開いても動く。手元の Mac では `file://` のままカメラも使えた。
-Android は未確認、iOS は Safari がローカルファイルを開けないので一度オンラインで読み込む必要がある。
+
+カメラが使えるかは**ページの出所**で決まる。安全なコンテキストでないと、ブラウザは
+`navigator.mediaDevices` ごと消す（`TypeError` になる）。
+
+| 出所 | カメラ |
+|---|---|
+| `https://` / `http://localhost` | 使える |
+| `file://`（Mac の Safari・Chrome） | 使える |
+| `file://`（Android の Chrome） | 拒否（`NotAllowedError`） |
+| `http://192.168.x.x`（LAN） | API ごと無い（`TypeError`） |
+
+開発中に Android のカメラを試すときは `adb reverse tcp:8000 tcp:8000` で localhost にすると通る。
+通信は USB ケーブルの中だけで、ネットワークには出ない。

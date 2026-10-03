@@ -16,7 +16,7 @@ CARD_W, CARD_H = 236, 78
 PLATFORMS = [
     ("Bare metal MCU", "WAMR · RP2350 · no OS", True, -90, "chip"),
     ("Android", "Chrome · single HTML", True, -30, "phone"),
-    ("iOS", "Safari · JavaScriptCore", False, 30, "phone"),
+    ("iOS", "Safari · JavaScriptCore", True, 30, "phone"),
     ("Node / CI", "V8 · vectors and fuzzing", True, 90, "terminal"),
     ("Linux / macOS", "native link / wasmtime", True, 150, "laptop"),
     ("Web / PWA", "browser · single 56KB HTML", True, 210, "globe"),
