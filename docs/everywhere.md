@@ -22,30 +22,75 @@ WASI も JS のポリフィルも要らず、置かれた場所の違いが結�
 `parser.wasm` は**バイト単位で同じもの**がデバイスに載る。`qr.wasm` と `address.wasm` は
 デバイスではネイティブに積むので、同じソースから別のターゲットへ出したものになる。
 
-## 同じバイト列を、違うランタイムで動かす
+## 同じバイト列を、どこでも動かす
+
+WASM に揃えてあるので、載せる先は「WASM を実行できる何か」でよい。
+OS の有無も、CPU が ARM か RISC-V か x86 かも、言語が C か JavaScript かも関係なくなる。
+
+```mermaid
+flowchart TB
+    src["C のソース<br/>wasm-psbt-parser / quirc / core"]
+
+    subgraph core["同じ WASM（import 0、WASI も要らない）"]
+        direction LR
+        p["parser.wasm<br/>15,598 B"]
+        q["qr.wasm<br/>16,546 B"]
+        a["address.wasm<br/>3,058 B"]
+    end
+    src --> core
+
+    core --> wamr["WAMR<br/>インタプリタ / AOT"]
+    core --> v8["V8"]
+    core --> jsc["JavaScriptCore"]
+    core --> sm["SpiderMonkey"]
+    core --> wt["wasmtime / wasmer"]
+
+    wamr --> mcu["ベアメタル MCU<br/>RP2350・OS なし・RAM 520KB"]
+    wamr --> andn["Android ネイティブ<br/>NDK に組み込む"]
+    v8 --> web["Web / PWA<br/>単一 HTML 56KB"]
+    v8 --> andc["Android<br/>Chrome / WebView"]
+    v8 --> node["Node<br/>CI・ベクタ照合・ファジング"]
+    jsc --> ios["iOS<br/>Safari / ホーム画面に追加"]
+    sm --> ff["Firefox<br/>デスクトップ・Android"]
+    wt --> linux["Linux / macOS<br/>デスクトップのツール"]
+
+    classDef done fill:#1f6f43,stroke:#2ea86a,color:#fff;
+    classDef todo fill:#2a2e37,stroke:#555,color:#ccc;
+    class mcu,web,node,linux done;
+    class andn,andc,ios,ff todo;
+```
+
+緑が実際に動かして確認したもの、灰色は同じ経路なので動くはずだが未確認のもの。
+
+| 置く先 | ランタイム | 状態 |
+|---|---|---|
+| ベアメタル MCU（RP2350） | WAMR classic interp | **確認済み。** signet の取引に署名してブロックに入った |
+| Web / PWA（単一 HTML） | ブラウザの WASM エンジン | **確認済み。** 同じ PSBT から同じ出力・同じアドレス |
+| Node（CI・検査） | V8 | **確認済み。** `parser.wasm` を import 0 のまま読み、実機と同じ解析結果 |
+| Linux / macOS のツール | ネイティブ直リンク / wasmtime | **確認済み**（ネイティブ直リンクで `make check-psbt`） |
+| Android | Chrome（V8）または NDK + WAMR | 未確認。ブラウザ経路はそのまま使えるはず |
+| iOS | Safari（JavaScriptCore） | 未確認。ローカルファイルを開けないので一度オンラインで読み込む必要がある |
+
+**同じ成果物のまま、載せる先だけを変えられる**のが要点になる。
+ベアメタルの MCU とブラウザという、普通は共通化できない両端で同じバイト列が動いている。
+
+## ランタイムが違うことが利点になる
 
 ```mermaid
 flowchart LR
-    src["C のソース<br/>wasm-psbt-parser / quirc / core"]
-    src --> w1["parser.wasm<br/>sha256 a53bd5f7…"]
-    src --> w2["qr.wasm"]
-    src --> w3["address.wasm"]
-
-    w1 --> wamr["WAMR<br/>RP2350 の実機"]
-    w1 --> v8["V8 / JavaScriptCore / SpiderMonkey<br/>ブラウザ・単一 HTML"]
-    w1 --> host["ネイティブ / QEMU<br/>検査とベクタ照合"]
-    w2 --> v8
-    w3 --> v8
-
-    wamr --> same{"結果が一致するか"}
-    v8 --> same
-    host --> same
-    same -->|"一致"| ok["実装もランタイムも正しい傍証"]
-    same -->|"食い違う"| bug["どちらかのランタイムのバグ<br/>（実例: WAMR #5123）"]
+    input["同じ PSBT / 同じ QR"]
+    input --> r1["WAMR（実機）"]
+    input --> r2["V8（ブラウザ）"]
+    input --> r3["ネイティブ / QEMU"]
+    r1 --> cmp{"結果を突き合わせる"}
+    r2 --> cmp
+    r3 --> cmp
+    cmp -->|"一致"| ok["実装もランタイムも正しい傍証"]
+    cmp -->|"食い違う"| bug["どちらかのランタイムのバグ<br/>実例: WAMR #5123"]
 ```
 
-**ランタイムが違うことが利点になる。** 同じ入力に対して結果が食い違えば、解析器ではなく
-ランタイム側の問題だと切り分けられる。実際に見つけた
+同じ入力に対して結果が食い違えば、解析器ではなくランタイム側の問題だと切り分けられる。
+実際に見つけた
 [WAMR の非整列 `i64.store`](https://github.com/wasm-micro-runtime/wasm-micro-runtime/pull/5123) は
 まさにこの種類で、QEMU では再現せず実機だけで落ちた。ブラウザという第 3 のランタイムがあれば、
 この手の差異を早く捕まえられる。
