@@ -261,7 +261,9 @@ async function camera() {
         stat.textContent = `UR エラー ${rc}`;
       }
     } else if (n < 0) {
-      stat.textContent = `QR は見えているが読めない（${video.videoWidth}x${video.videoHeight}、${how}）`;
+      const px = qr.qr_last_px(), cells = qr.qr_last_cells();
+      stat.textContent = `QR は見えているが読めない: ${px}px / ${cells}モジュール`
+        + ` = ${(px / (cells || 1)).toFixed(1)}px/モジュール（${how}、${qr.qr_last_err()}）`;
     }
     requestAnimationFrame(tick);
   };
