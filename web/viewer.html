@@ -52,7 +52,8 @@
     <div class="row">
       <span class="k">カメラでアニメーション QR（UR）を読む</span>
       <span><select id="camsel" style="display:none;background:#242833;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px"></select>
-      <button id="camstart">開始</button></span>
+      <button id="camstart">開始</button>
+      <button id="camsave" style="display:none">フレームを保存</button></span>
     </div>
     <div style="position:relative;margin-top:8px">
       <video id="video" playsinline muted style="width:100%;display:none;border-radius:6px"></video>
@@ -201,6 +202,15 @@ async function camera() {
   /* 画面全体を縮めると 1 モジュールが 2px 程度になって復号できない。
    * 中央の半分を等倍で切り出し、解像度を保ったままデコーダのメモリに収める */
   const box = document.getElementById("cambox");
+  /* 読めないときに実物を見られるよう、そのまま解析に渡している画像を落とせるようにする */
+  const save = document.getElementById("camsave");
+  save.style.display = "inline-block";
+  save.onclick = () => canvas.toBlob(b => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(b);
+    a.download = "qr-frame.png";
+    a.click();
+  });
   const tick = () => {
     if (!video.videoWidth) return requestAnimationFrame(tick);
     if (W !== (video.videoWidth >> 1)) {
