@@ -7,7 +7,7 @@
 ## 結論
 
 - **素の quirc は使えない。** Hazard3 に FPU が無く、透視補正のフィットがソフト浮動小数点になる。v5 の 1 フレームで 3.7 億命令（150MHz で 2.5〜3.7 秒）
-- **fitness 評価だけ固定小数点にすると実用域に入る**（自前のフォーク [habakan/quirc](https://github.com/habakan/quirc) の `mcu` ブランチ、`QUIRC_FIXED_POINT_FITNESS`。submodule `qr/quirc`）。v5 で 2,300 万命令、v8 で 3,600 万命令（フォークで 0 除算とオーバーフローの対策を入れた後は v5 で 2,680 万、v8 で 4,300 万）。CPI 1〜1.5 と仮定して 3〜6 fps。読取結果は素の quirc と全ケースで一致（フォークの 800 枚の比較では 789 枚が一致、誤読は 0）
+- **fitness 評価だけ固定小数点にすると実用域に入る**（自前のフォーク [habakan/quirc](https://github.com/habakan/quirc) の `mcu` ブランチ、`QUIRC_FIXED_POINT_FITNESS`。submodule `components/qr/quirc`）。v5 で 2,300 万命令、v8 で 3,600 万命令（フォークで 0 除算とオーバーフローの対策を入れた後は v5 で 2,680 万、v8 で 4,300 万）。CPI 1〜1.5 と仮定して 3〜6 fps。読取結果は素の quirc と全ケースで一致（フォークの 800 枚の比較では 789 枚が一致、誤読は 0）
 - **QVGA + quirc で安定して読めるのは v8（UR フラグメント 100 byte）まで。** v11 は条件が良くないと落ちる。zxing-cpp はほぼ全ケース読めるので、限界は画像ではなく quirc 側
 - **RAM は足りる。** 署名側 97KB + QR 側 約 120KB で 約 220KB / 512KB
 - 表示側（qrcodegen で生成して 240x240 LCD へ 1 行ずつ描画）は v11 でも 1,400 万命令弱で、ボトルネックにならない
@@ -109,7 +109,7 @@ OV7675（Arducam B0070）を Pico 2 に繋ぎ、`camera_test` で実際の QR �
 
 - **センサーのスケーラは当てにしない。** OV7675 では縦の縮小（SCALING_DCWCTR）が効かず 1 フレーム 480 行のままだった。
   VGA の YUV422 をそのまま出させ、PIO 側で `Y U Y V` の先頭の Y だけを拾い、1 行取り込むごとに 1 行読み飛ばして
-  320x240 にしている（`platform/rp2350/camera.pio`）。センサーの素性に依存しない
+  320x240 にしている（`apps/device/rp2350/camera.pio`）。センサーの素性に依存しない
 - 同じフレームでも成功と `ECC failure` が混ざる。手ぶれと露出の影響で、照明が十分なら成功率が上がる
 - `camera_test` は起動時に GP2〜GP17 の状態と PCLK / HREF / VSYNC のエッジ数を出す。
   **エッジの数で配線の間違いを特定できる**（100ms で PCLK 10 万回以上、HREF 約 1800 回、VSYNC 約 4 回）

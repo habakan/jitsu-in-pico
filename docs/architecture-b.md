@@ -91,7 +91,7 @@ parser.wasm が元 PSBT と違う Plan を出しても、ユーザーが見る�
 
 ## 8. 決定事項（2026-09-22）
 
-1. **SegWit v0 入力の `non_witness_utxo`:** SegWit v0 の署名対象を含み、入力が 2 個以上なら全入力で必須。1 入力なら不要（嘘の額で作った署名は無効になるだけ）。ネイティブの最小 tx パーサ（`parser/src/tx.c`、wasm-psbt-parser と共有）で txid・vout・額・スクリプトを確かめる
+1. **SegWit v0 入力の `non_witness_utxo`:** SegWit v0 の署名対象を含み、入力が 2 個以上なら全入力で必須。1 入力なら不要（嘘の額で作った署名は無効になるだけ）。ネイティブの最小 tx パーサ（`components/parser/src/tx.c`、wasm-psbt-parser と共有）で txid・vout・額・スクリプトを確かめる
 2. **初期対象:** P2WPKH（BIP84）と P2TR（BIP86、スクリプトツリー無し）
 3. **parser.wasm のランタイム:** インタプリタ。実装後に RV32 で測り、PSBT 解析 270 万命令、署名挿入 4 万命令（§10）で十分と確認した
 4. **multisig:** 初期版には入れない
@@ -143,23 +143,23 @@ typedef struct {
 } plan_t;
 ```
 
-- 確定版は `parser/include/plan.h`（wasm-psbt-parser 側。`_Static_assert` でサイズとオフセットを固定）
+- 確定版は `components/parser/include/plan.h`（wasm-psbt-parser 側。`_Static_assert` でサイズとオフセットを固定）
 - 上限 16 入力 / 16 出力で 5,016 byte（入力 176、出力 136 byte）。RAM への影響は小さい
 - 入出力数の上限は仮置き。SeedSigner / Krux の上限と実際の PSBT を見て決める
 - §8-1 で (a) か (b) を選んだ場合、`non_witness_utxo` は Plan とは別のバッファで渡す（上限は PSBT 全体の上限と揃える）
 
 ## 10. 実装状況
 
-`core/` にネイティブ中核を実装した（`make check-core`、`make check-qemu-core`）。
+`components/signer/` にネイティブ中核を実装した（`make check-core`、`make check-qemu-core`）。
 
 | ファイル | 内容 |
 |---|---|
-| `core/core.c` | §6 の検証（`core_review`）、確認画面モデル（`core_display`）、署名（`core_sign`）。review した plan の SHA-256 を記録し、display / sign 時に一致しなければ拒否する |
-| `core/address.c` | scriptPubKey からのアドレス生成。P2PKH / P2SH は base58check、witness v0 は bech32、v1〜v16 は bech32m。標準形でなければ生成しない |
-| `core/sighash.c` | BIP143（P2WPKH、SIGHASH_ALL）と BIP341 key path（7 種類の hash type） |
-| `parser/src/tx.c` | 最小 tx パーサ（wasm-psbt-parser と共有）。非最短 varint と末尾の余りを拒否。txid は witness を除いて計算 |
-| `core/bip32.c` | BIP32 導出（案 A の `signer.c` と共有） |
-| `parser/src/sha256.c`、`core/ripemd160.c` `sha512.c` | ハッシュ。秘密値の消去は `core/wipe.h`（volatile 経由）で最適化に消されないようにした |
+| `components/signer/core.c` | §6 の検証（`core_review`）、確認画面モデル（`core_display`）、署名（`core_sign`）。review した plan の SHA-256 を記録し、display / sign 時に一致しなければ拒否する |
+| `components/signer/address.c` | scriptPubKey からのアドレス生成。P2PKH / P2SH は base58check、witness v0 は bech32、v1〜v16 は bech32m。標準形でなければ生成しない |
+| `components/signer/sighash.c` | BIP143（P2WPKH、SIGHASH_ALL）と BIP341 key path（7 種類の hash type） |
+| `components/parser/src/tx.c` | 最小 tx パーサ（wasm-psbt-parser と共有）。非最短 varint と末尾の余りを拒否。txid は witness を除いて計算 |
+| `components/signer/bip32.c` | BIP32 導出（案 A の `signer.c` と共有） |
+| `components/parser/src/sha256.c`、`components/signer/ripemd160.c` `sha512.c` | ハッシュ。秘密値の消去は `components/signer/wipe.h`（volatile 経由）で最適化に消されないようにした |
 
 `core_review` が採る方針（§6 の具体化）:
 
@@ -177,14 +177,14 @@ typedef struct {
 - 攻撃シナリオ: review 後の plan 差し替え（display と sign の両方）、偽のお釣り、自分宛て、index 上限、別アカウントのお釣り、鍵とスクリプトの不一致、許可しない sighash type、未使用領域の非ゼロ、出力超過、手数料攻撃（元の取引なし・嘘の額・誤った vout・誤った txid）
 - 実装を 5 箇所わざと壊し（BIP143 の hash type、BIP341 の spend_type、手数料攻撃の判定、bech32m の定数、base58 の先頭ゼロ）、それぞれテストが失敗することを確認した
 
-### parser.wasm（`parser/src/psbt.c`、submodule の [wasm-psbt-parser](https://github.com/habakan/wasm-psbt-parser)）
+### parser.wasm（`components/parser/src/psbt.c`、submodule の [wasm-psbt-parser](https://github.com/habakan/wasm-psbt-parser)）
 
 - PSBT v0（BIP174）を `plan_t` にし、ネイティブが作った署名を各入力マップの終端の直前に挿入する。他のバイト列は元のまま残す
 - `.wasm` は 7KB、import 0 個。入出力バッファ（`PSBT_MAX` 32KB）を持つので線形メモリは 2 ページ
 - 解釈するフィールドは厳密に検査する: 重複キー、型ごとのキー / 値の長さ、v2 専用フィールド、unsigned tx の scriptSig / witness、`non_witness_utxo` の txid と `witness_utxo` との一致、末尾の余り
 - 解釈しないフィールド（MuSig2 など）は素通しする。公開鍵が曲線上にあるかは見ない（ネイティブは PSBT の公開鍵を使わず、自分で導出する）
 - 自分の鍵の候補は、ホストから受け取った master fingerprint（秘密ではない）に一致する導出情報だけ。最終化済み・署名済みの入力と、スクリプトツリー付きの P2TR には署名しない
-- ECDSA は Bitcoin Core と同じ low-R grinding を入れた（`core/core.c`）。embit の署名とバイト一致させるため
+- ECDSA は Bitcoin Core と同じ low-R grinding を入れた（`components/signer/core.c`）。embit の署名とバイト一致させるため
 
 検証（`make check-psbt`、`make check-qemu-psbt`）:
 
@@ -218,7 +218,7 @@ parser.wasm（wasm-psbt-parser）に UR（BCR-2020-005）の復元を入れた�
 
 ## 11. 実機計測（Pico 2 H、150MHz、2026-09-25）
 
-`platform/rp2350/psbt_bench.c`。表示とボタンを使わず、組み込んだテスト用 PSBT（2 入力 3 出力、
+`apps/device/rp2350/psbt_bench.c`。表示とボタンを使わず、組み込んだテスト用 PSBT（2 入力 3 出力、
 P2WPKH と P2TR の混在）を一巡させる。core はどちらもネイティブで、parser.wasm の実行方式だけが違う。
 
 | 段階 | 実行場所 | classic interp | AOT（RAM 展開） |
@@ -311,7 +311,7 @@ signet で一巡した時点（2026-10-02）で残っているもの。上から
    BIP84 の公式ベクタと一致（`make check-xpub`）。`UR:CRYPTO-ACCOUNT` は要れば後から足す
 2. **Debug Probe（SWD）の切り離し。** 繋がっていれば RAM を読めるので、シードが露出する。
    本番運用では物理的に切る。ついでに `TEST_SEED` を外したビルドが通ることを確かめる
-3. **第三者のレビュー。** `core_review`（手数料攻撃・お釣り判定）と `runtime/host-abi`（WASM との境界）、
+3. **第三者のレビュー。** `core_review`（手数料攻撃・お釣り判定）と `apps/device/runtime/host-abi`（WASM との境界）、
    UR の解析は自前のテストしか通っていない
 4. **Schnorr の aux の乱数。** 今は `pico_rand`（TRNG を種にした PRNG）を使っている。
    決定論的（BIP340 の aux なし）に倒すか、TRNG を直接使うかを決める

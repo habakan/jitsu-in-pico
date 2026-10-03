@@ -13,8 +13,8 @@ OUT = sys.argv[1] if len(sys.argv) > 1 else "build/viewer.html"
 parser = open("build/parser.wasm", "rb").read()
 address = open("build/address.wasm", "rb").read()
 qr = open("build/qr.wasm", "rb").read()
-jsqr = open("web/vendor/jsQR.min.js").read()  # Safari には内蔵デコーダが無いので同梱する
-page = open("web/viewer.html").read()
+jsqr = open("apps/viewer/vendor/jsQR.min.js").read()  # Safari には内蔵デコーダが無いので同梱する
+page = open("apps/viewer/viewer.html").read()
 
 html = (page.replace("__PARSER_WASM__", base64.b64encode(parser).decode())
             .replace("__ADDRESS_WASM__", base64.b64encode(address).decode())

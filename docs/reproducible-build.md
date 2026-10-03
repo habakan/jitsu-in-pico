@@ -13,7 +13,7 @@ make check-repro
 作り直して `checksums.txt` と突き合わせる。一致すれば「再現可能」。
 
 ```
-a53bd5f7772268b776752b7b7a95e479f4196920e0feab9331559dd70320a07f  build/parser.wasm
+a6766d13e1eb2e79fe036658ab5d3a6b60609e7b83d8bd3309dbed0eee156356  build/parser.wasm
 ```
 
 ## 固定しているもの
@@ -27,7 +27,7 @@ a53bd5f7772268b776752b7b7a95e479f4196920e0feab9331559dd70320a07f  build/parser.w
 
 ## 確かめたこと（2026-10-03）
 
-**macOS arm64 と Linux x86_64 で、同じ `a53bd5f7…` が出る。** 別の OS、別の CPU、別のマシンで
+**macOS arm64 と Linux x86_64 で、同じ `a6766d13…` が出る。** 別の OS、別の CPU、別のマシンで
 同じバイト列になることを実際に確認した。
 
 ## 引っかかったこと: `wasm-opt` が PATH にあるだけで結果が変わる

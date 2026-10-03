@@ -25,7 +25,7 @@
 | | 大きさ | import | 役割 |
 |---|---:|---:|---|
 | [wasm-psbt-parser](https://github.com/habakan/wasm-psbt-parser) | 15,598 B | 0 | UR の復元、PSBT の解析、表示モデル（`plan_t`）の生成、署名の差し込み、UR 符号化 |
-| wasm-bitcoin-signer（本リポジトリの `signer/` を切り出す） | 34,410 B | 0 | BIP39 シード、BIP32 導出、ECDSA / Schnorr 署名 |
+| wasm-bitcoin-signer（本リポジトリの `components/signer/` を切り出す） | 34,410 B | 0 | BIP39 シード、BIP32 導出、ECDSA / Schnorr 署名 |
 
 どちらも **import を 1 個も持たない**。時計もメモリ確保もネットワークも触れない。
 受け渡しは固定長 5,016 byte の `plan_t` 1 枚なので、ホスト側の境界が単純になる。
@@ -153,10 +153,10 @@ CPU の RTL が公開されている点は補助的な性質として添える�
 
 部品として使ってもらう前提なので、**仕様書が最優先**になる。
 
-1. ~~**ABI の仕様書。**~~ 済（`parser/docs/abi.md`）。輸出関数、`plan_t` の offset、エラーコード、
+1. ~~**ABI の仕様書。**~~ 済（`components/parser/docs/abi.md`）。輸出関数、`plan_t` の offset、エラーコード、
    受理する範囲、ホスト側が必ずやること、版の約束を書いた
 2. ~~**ホスト実装の例をもう 1 つ。**~~ 済。Kotlin（Chicory）と Swift（WasmKit）を
-   `parser/examples/` に置いた。**C・JS・Kotlin・Swift・実機の 5 つが同じ PSBT に同じ答えを返す**。
+   `components/parser/examples/` に置いた。**C・JS・Kotlin・Swift・実機の 5 つが同じ PSBT に同じ答えを返す**。
    どちらも JNI もネイティブのビルドも要らない
 3. **ABI の版管理。** 構造体を変えたら壊れるので、版番号と互換の約束を決める
 4. **継続ファジング。** 解析器への libFuzzer を常設し、コーパスを公開する。OSS-Fuzz も視野

@@ -11,7 +11,7 @@ QR フレームバッファ（QVGA グレースケール 77KB）を足しても 
 
 ## 検証したもの
 
-- `signer/signer.c`: libsecp256k1 で ECDSA / BIP340 Schnorr 署名する最小 WASM（malloc なし、preallocated context）
+- `components/signer/signer.c`: libsecp256k1 で ECDSA / BIP340 Schnorr 署名する最小 WASM（malloc なし、preallocated context）
 - import 0 個（WASI・ネットワーク・clock への依存なし）を `wasm-objdump` で確認
 - BIP340 test vector #1 の Schnorr 署名が、Mac ネイティブ / Mac WAMR / RV32 ネイティブ / RV32 WAMR の全てで一致。ECDSA（RFC6979）も全経路で一致
 

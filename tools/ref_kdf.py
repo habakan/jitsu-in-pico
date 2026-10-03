@@ -1,7 +1,7 @@
 # /// script
 # dependencies = ["embit"]
 # ///
-"""host/vectors.h の BIP39 / BIP84 ベクタの期待値を hashlib と embit で独立に計算する。"""
+"""apps/host/vectors.h の BIP39 / BIP84 ベクタの期待値を hashlib と embit で独立に計算する。"""
 import hashlib
 from embit import bip32
 m12 = " ".join(["abandon"] * 11 + ["about"]); m24 = " ".join(["abandon"] * 23 + ["art"])

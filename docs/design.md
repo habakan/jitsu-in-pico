@@ -179,37 +179,52 @@ SeedSignerに近いstatelessモデルを初期方針とする。seedはSeedQR等
 
 ## 15. 技術選定で未確定の事項
 
-## 16. 推奨リポジトリ構成
+### 解析器を Rust でもう 1 つ書くか（検討中）
+
+攻撃者が中身を決めるデータを触るのは解析器だけなので、そこを Rust にする案がある。
+2026-10-03 に見つけた `prevtx_off` のバグ（ポインタの 32bit 切り詰め）は Rust なら型で防げた。
+
+**置き換えではなく 2 つ目として書く方が強い**と考えている。
+
+- 2 つの独立した実装が同じ `plan_t` を返すことを要求すれば、どちらのバグも見つかる
+  （quirc と zbar で読めるフレームが違ったのと同じ構図）
+- ファジングのコーパスをそのまま両方に食わせられる
+- [ABI の仕様](../components/parser/docs/abi.md) があるので仕様から独立に書ける。仕様の検証にもなる
+- Rust 製のウォレットは wasm ランタイム無しで crate として取り込める
+
+一方で Rust にしても消えないのは、手数料の計算違い・お釣りの判定ミス・BIP174 の解釈違いで、
+529 項目のベクタとファジングが守っているのは主にこちら。サンドボックスが被害を
+「表示が壊れる」までに区切っている点も、置き換えを急がない理由になる。
+
+まず `no_std` + 固定バッファ + `panic=abort` で骨格を書き、**大きさと import 数を実測**してから決める。
+
+## 16. リポジトリ構成
+
+**部品（components）と、それを使う用例（apps）に分ける。** 位置づけの整理は
+[positioning.md](positioning.md) を見る。
 
 ```
-baremetal-wasm-signer/
-├── signer/
-│   ├── bitcoin/            # PSBT / sighash / key logic
-│   ├── secp256k1/
-│   ├── abi/
-│   └── tests/
-├── runtime/
-│   ├── wasm/
-│   └── host-abi/
-├── platform/
-│   ├── rp2350/
-│   │   ├── boot/
-│   │   ├── gpio/
-│   │   ├── spi/
-│   │   ├── display/
-│   │   ├── pio-camera/
-│   │   └── entropy/
-│   └── rpi-zero/           # 副ターゲット
-├── qr/
-├── test-vectors/
-├── tools/
-│   └── browser-harness/
-└── docs/
-    ├── architecture.md
-    ├── threat-model.md
-    ├── reproducible-build.md
-    └── tcb.md
+components/            部品。どの UI の裏にも置ける
+  parser/              submodule: wasm-psbt-parser（PSBT・UR の解析、ABI 仕様、ホスト実装例）
+  qr/                  submodule: quirc のフォーク（固定小数点化）
+  signer/              鍵・BIP32 導出・署名・アドレス。実機にはネイティブ、ブラウザには wasm で載る
+apps/                  用例
+  device/              RP2350 の参照実装
+    rp2350/            基板まわり（液晶、カメラ、ボタン、アプリ本体）
+    ui/                画面の組み立て
+    runtime/           WAMR との境界（host-abi）とプラットフォーム層
+  viewer/              単一 HTML のビューア
+  host/                PC・QEMU で動かす開発用のプログラム
+tools/                 生成・計測・配線図などのスクリプト
+docs/                  設計と実測の記録
+test-vectors/ third_party/ patches/
 ```
+
+`components/signer/` は実機の署名処理であると同時に `bitcoin-signer.wasm` の素でもある。
+切り出して独立したリポジトリにする予定（[positioning.md](positioning.md) の「部品」）。
+
+ホスト言語からの呼び出し例（Kotlin・Swift）は `components/parser/examples/` にある。
+部品の使い方を示すものなので、部品側のリポジトリに置く。
 
 ## 17. 将来像
 

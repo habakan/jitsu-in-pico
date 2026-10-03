@@ -6,6 +6,20 @@ OS もファイルシステムも持たず、Flash には鍵を一切書かな�
 
 設計の背景と判断は [docs/design.md](docs/design.md)、構成は [docs/architecture-b.md](docs/architecture-b.md)。
 
+## リポジトリの歩き方
+
+| | |
+|---|---|
+| `components/parser` | PSBT と UR の解析（submodule）。[ABI 仕様](components/parser/docs/abi.md)、ホスト実装例、ファジング |
+| `components/qr` | QR デコーダ（submodule）。固定小数点化した quirc |
+| `components/signer` | 鍵・導出・署名・アドレス。実機にはネイティブ、ブラウザには wasm で載る |
+| `apps/device` | RP2350 の参照実装（基板まわり、画面、WAMR との境界） |
+| `apps/viewer` | 単一 HTML のビューア |
+| `apps/host` | PC・QEMU で動かす開発用のプログラム |
+| `tools` `docs` | スクリプトと、設計・実測の記録 |
+
+**部品が主で、実機とビューアはその用例**という関係になっている（[positioning.md](docs/positioning.md)）。
+
 ## 現状（2026-10-01）
 
 実機（Pico 2 H + 1.54 インチ ST7789 液晶 + タクトスイッチ 2 個 + Debug Probe）で一巡する。
@@ -28,17 +42,17 @@ OS もファイルシステムも持たず、Flash には鍵を一切書かな�
 
 | ディレクトリ | 中身 | TCB |
 |---|---|---|
-| `core/` | 鍵と署名の中核。BIP32 導出、BIP143/BIP341 sighash、アドレス生成、plan の検査（`core_review`）、low-R grinding、SeedQR | 内 |
-| `signer/` | 署名ロジック全体を WASM にした版（案 A の比較用。`bitcoin-signer.wasm`） | - |
-| `parser/` | PSBT・UR の解析器（submodule [wasm-psbt-parser](https://github.com/habakan/wasm-psbt-parser)）。`parser.wasm` になる | **外** |
-| `runtime/host-abi/` | parser.wasm の呼び出し口。線形メモリとの出入りを範囲検証する境界 | 内 |
-| `runtime/wamr-platform/` | WAMR の RP2350 向けプラットフォーム層（malloc も時刻も使わない） | 内 |
-| `qr/quirc` | QR デコーダ（submodule [quirc](https://github.com/habakan/quirc) の `mcu` ブランチ。FPU 無し向けに固定小数点化） | 外 |
-| `ui/` | 240x240 の画面を組む。確認画面、メニュー、QR 描画。表示先に依存しない | 内 |
-| `platform/rp2350/` | 実機のファーム。液晶（ST7789）、ボタン、カメラ（PIO + DMA）、各確認用ファーム | 内 |
-| `platform/qemu-riscv32/` | QEMU virt 向けの起動コードとリンク設定（命令数の計測用） | - |
-| `host/` | Mac / QEMU で動かす検査用のホスト（署名・PSBT 一巡・QR ベンチ） | - |
-| `web/` | ブラウザ用。実機と同じ `parser.wasm` で PSBT を表示する単一 HTML（`make viewer`） | - |
+| `components/signer/` | 鍵と署名の中核。BIP32 導出、BIP143/BIP341 sighash、アドレス生成、plan の検査（`core_review`）、low-R grinding、SeedQR | 内 |
+| `components/signer/` | 署名ロジック全体を WASM にした版（案 A の比較用。`bitcoin-signer.wasm`） | - |
+| `components/parser/` | PSBT・UR の解析器（submodule [wasm-psbt-parser](https://github.com/habakan/wasm-psbt-parser)）。`parser.wasm` になる | **外** |
+| `apps/device/runtime/host-abi/` | parser.wasm の呼び出し口。線形メモリとの出入りを範囲検証する境界 | 内 |
+| `apps/device/runtime/wamr-platform/` | WAMR の RP2350 向けプラットフォーム層（malloc も時刻も使わない） | 内 |
+| `components/qr/quirc` | QR デコーダ（submodule [quirc](https://github.com/habakan/quirc) の `mcu` ブランチ。FPU 無し向けに固定小数点化） | 外 |
+| `apps/device/ui/` | 240x240 の画面を組む。確認画面、メニュー、QR 描画。表示先に依存しない | 内 |
+| `apps/device/rp2350/` | 実機のファーム。液晶（ST7789）、ボタン、カメラ（PIO + DMA）、各確認用ファーム | 内 |
+| `apps/host/qemu-riscv32/` | QEMU virt 向けの起動コードとリンク設定（命令数の計測用） | - |
+| `apps/host/` | Mac / QEMU で動かす検査用のホスト（署名・PSBT 一巡・QR ベンチ） | - |
+| `apps/viewer/` | ブラウザ用。実機と同じ `parser.wasm` で PSBT を表示する単一 HTML（`make viewer`） | - |
 | `tools/` | ベクタ生成、参照実装との照合、UART モニタ、PIO シミュレータ | - |
 | `patches/` | third_party に当てるパッチ（現在は WAMR 1 件。上流に取り込まれ済み） | - |
 | `docs/` | 設計と実現性検証。`docs/internal/` はコミットしない内部メモ | - |
@@ -46,7 +60,7 @@ OS もファイルシステムも持たず、Flash には鍵を一切書かな�
 依存（`third_party/`、gitignore 済み）は `make deps` で clone する: libsecp256k1、WAMR 2.4.3、pico-sdk 2.3.1、
 QR-Code-generator、spleen フォント、RISC-V ツールチェーン。
 
-## 実機のファーム（`platform/rp2350`）
+## 実機のファーム（`apps/device/rp2350`）
 
 | ターゲット | 用途 |
 |---|---|
@@ -99,7 +113,7 @@ make check-camera-sim  # camera.pio を Python のシミュレータで検証
 
 | 文書 | 内容 |
 |---|---|
-| [parser/docs/abi.md](parser/docs/abi.md) | `parser.wasm` の ABI。他の言語から呼ぶための仕様（英語） |
+| [components/parser/docs/abi.md](components/parser/docs/abi.md) | `parser.wasm` の ABI。他の言語から呼ぶための仕様（英語） |
 | [docs/signet.md](docs/signet.md) | bitcoin-cli でのウォッチオンリー運用と一巡の手順 |
 | [docs/everywhere.md](docs/everywhere.md) | コンセプト「同じコードがどこでも動く」。図つき |
 | [docs/positioning.md](docs/positioning.md) | 何を作っていて、誰のどんな問題を解くのか。公開と資金申請の前提 |

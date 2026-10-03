@@ -90,7 +90,7 @@ sequenceDiagram
 
 ```mermaid
 flowchart LR
-    src["parser/src/*.c<br/>wasm-psbt-parser"] --> wasm["parser.wasm<br/>15,598 byte"]
+    src["components/parser/src/*.c<br/>wasm-psbt-parser"] --> wasm["parser.wasm<br/>15,598 byte"]
     wasm --> mac["Mac ネイティブ<br/>make check-psbt"]
     wasm --> qemu["QEMU RV32<br/>命令数を数える"]
     wasm --> dev["RP2350 実機<br/>WAMR interp"]

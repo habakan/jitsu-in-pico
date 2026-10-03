@@ -8,15 +8,15 @@ SECP_DEFS := -DENABLE_MODULE_EXTRAKEYS=1 -DENABLE_MODULE_SCHNORRSIG=1 -DECMULT_W
 RTLIB   ?= /opt/homebrew/opt/wasi-runtimes/share/wasi-runtimes/lib/wasm32-unknown-wasip1
 # SHA512_HOST=1 で SHA-512 圧縮関数をホストの import にする
 SHA512_HOST ?= 0
-CFLAGS  := -Oz -Wall -Wno-unused-function -Icore -I$(SECP)/include $(SECP_DEFS) $(if $(filter 1,$(SHA512_HOST)),-DSHA512_HOST_COMPRESS)
+CFLAGS  := -Oz -Wall -Wno-unused-function -Icomponents/signer -I$(SECP)/include $(SECP_DEFS) $(if $(filter 1,$(SHA512_HOST)),-DSHA512_HOST_COMPRESS)
 STACK   ?= 16384
 
-build/bitcoin-signer.wasm: signer/signer.c core/sha512.c core/bip32.c core/secp_callbacks.c signer/secp256k1_unity.c
+build/bitcoin-signer.wasm: components/signer/signer.c components/signer/sha512.c components/signer/bip32.c components/signer/secp_callbacks.c components/signer/secp256k1_unity.c
 	mkdir -p build
 	$(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs $(CFLAGS) \
 	  -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all -Wl,-z,stack-size=$(STACK) \
 	  -Wl,--export=__heap_base -Wl,--export=__data_end -Wl,--initial-memory=65536 -Wl,--max-memory=65536 \
-	  -o $@ signer/signer.c core/sha512.c core/bip32.c core/secp_callbacks.c signer/secp256k1_unity.c -lc $(RTLIB)/libclang_rt.builtins.a
+	  -o $@ components/signer/signer.c components/signer/sha512.c components/signer/bip32.c components/signer/secp_callbacks.c components/signer/secp256k1_unity.c -lc $(RTLIB)/libclang_rt.builtins.a
 
 clean:
 	rm -rf build
@@ -61,11 +61,11 @@ build/bitcoin-signer.aot: build/bitcoin-signer.wasm $(WAMRC)
 build/signer_wasm.h: $(SIGNER_BIN)
 	xxd -i -n signer_wasm $< $(if $(filter 1,$(AOT)),| sed 's/^unsigned char/const unsigned char/') > $@
 
-build/native: host/native.c signer/signer.c core/sha512.c core/bip32.c core/secp_callbacks.c signer/secp256k1_unity.c
-	mkdir -p build && cc -O2 -Wall -Wno-unused-function -Icore -I$(SECP)/include $(SECP_DEFS) -o $@ $^
+build/native: apps/host/native.c components/signer/signer.c components/signer/sha512.c components/signer/bip32.c components/signer/secp_callbacks.c components/signer/secp256k1_unity.c
+	mkdir -p build && cc -O2 -Wall -Wno-unused-function -Icomponents/signer -I$(SECP)/include $(SECP_DEFS) -o $@ $^
 
-build/host-%/signer_wamr: build/signer_wasm.h host/wamr_main.c host/CMakeLists.txt
-	cmake -S host -B build/host-$* -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
+build/host-%/signer_wamr: build/signer_wasm.h apps/host/wamr_main.c apps/host/CMakeLists.txt
+	cmake -S apps/host -B build/host-$* -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DWAMR_BUILD_FAST_INTERP=$(if $(filter fast,$*),1,0) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/host-$* >/dev/null
 
@@ -76,8 +76,8 @@ check-host: build/native build/host-classic/signer_wamr build/host-fast/signer_w
 .PHONY: check-host
 
 RISCV_TC ?= $(CURDIR)/third_party/riscv-toolchain
-build/rp2350/signer.elf: build/signer_wasm.h host/wamr_main.c platform/rp2350/CMakeLists.txt runtime/wamr-platform/rp2350/rp2350_platform.c
-	cmake -S platform/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
+build/rp2350/signer.elf: build/signer_wasm.h apps/host/wamr_main.c apps/device/rp2350/CMakeLists.txt runtime/wamr-platform/rp2350/rp2350_platform.c
+	cmake -S apps/device/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DPICO_SDK_PATH=$(CURDIR)/third_party/pico-sdk -DPICO_TOOLCHAIN_PATH=$(RISCV_TC) \
 	  -DWAMR_BUILD_AOT=$(AOT) -DPOOL_KB=$(RP2350_POOL_KB) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/rp2350
@@ -88,8 +88,8 @@ PARSER_POOL_KB ?= 256
 TESTNET ?= 0
 FAST    ?= 0
 QEMU_DIR := build/qemu-fast$(FAST)-aot$(AOT)-$(POOL_KB)
-$(QEMU_DIR)/signer.elf: build/signer_wasm.h host/wamr_main.c platform/qemu-riscv32/CMakeLists.txt runtime/wamr-platform/rp2350/rp2350_platform.c
-	cmake -S platform/qemu-riscv32 -B $(QEMU_DIR) -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
+$(QEMU_DIR)/signer.elf: build/signer_wasm.h apps/host/wamr_main.c apps/host/qemu-riscv32/CMakeLists.txt runtime/wamr-platform/rp2350/rp2350_platform.c
+	cmake -S apps/host/qemu-riscv32 -B $(QEMU_DIR) -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
 	  -DCMAKE_C_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc -DCMAKE_ASM_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc \
 	  -DPOOL_KB=$(POOL_KB) -DWAMR_BUILD_FAST_INTERP=$(FAST) -DWAMR_BUILD_AOT=$(AOT) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
@@ -102,9 +102,9 @@ check-qemu: $(QEMU_DIR)/signer.elf
 .PHONY: check-qemu
 
 # 比較用: WASM を通さず同じ signer を RV32 ネイティブで動かす
-build/qemu-native.elf: host/native.c signer/signer.c core/sha512.c core/bip32.c core/secp_callbacks.c signer/secp256k1_unity.c platform/qemu-riscv32/start.S
+build/qemu-native.elf: apps/host/native.c components/signer/signer.c components/signer/sha512.c components/signer/bip32.c components/signer/secp_callbacks.c components/signer/secp256k1_unity.c apps/host/qemu-riscv32/start.S
 	$(RISCV_TC)/bin/riscv32-pico-elf-gcc -mcpu=hazard3-rp2350 -Os -DQEMU_BUILD=1 -Wall -Wno-unused-function \
-	  -Icore -I$(SECP)/include $(SECP_DEFS) --specs=semihost.specs -Wl,--section-start=.qemu_start=0x80000000 \
+	  -Icomponents/signer -I$(SECP)/include $(SECP_DEFS) --specs=semihost.specs -Wl,--section-start=.qemu_start=0x80000000 \
 	  -Wl,-Ttext=0x80001000 -Wl,-e,qemu_start -Wl,--gc-sections -o $@ $^
 
 check-qemu-native: build/qemu-native.elf
@@ -114,7 +114,7 @@ check-qemu-native: build/qemu-native.elf
 
 # 既定は自前のフォーク（submodule、mcu ブランチ）の固定小数点版。
 # 上流と比べるときは QUIRC=third_party/quirc/lib QUIRC_DEFS= を渡す
-QUIRC   ?= qr/quirc/lib
+QUIRC   ?= components/qr/quirc/lib
 QUIRC_DEFS ?= -DQUIRC_FIXED_POINT_FITNESS -DQUIRC_FLOAT_TYPE=float -DQUIRC_USE_TGMATH
 QRGEN   := third_party/QR-Code-generator/c
 build/qr_frames.h: tools/gen_qr_frames.py
@@ -122,11 +122,11 @@ build/qr_frames.h: tools/gen_qr_frames.py
 
 # -O2 だと Hazard3 独自の Xh3bextm 命令が出て QEMU で落ちるため、標準拡張だけを指定する
 QEMU_MARCH := -march=rv32imac_zicsr_zifencei_zba_zbb_zbs_zbkb_zcb_zcmp -mabi=ilp32
-build/qemu-qr.elf: host/qr_bench.c build/qr_frames.h platform/qemu-riscv32/start.S $(QUIRC)/identify.c
+build/qemu-qr.elf: apps/host/qr_bench.c build/qr_frames.h apps/host/qemu-riscv32/start.S $(QUIRC)/identify.c
 	$(RISCV_TC)/bin/riscv32-pico-elf-gcc $(QEMU_MARCH) -O2 -DQEMU_BUILD=1 -Wall \
 	  $(QUIRC_DEFS) -I$(QUIRC) -I$(QRGEN) -Ibuild --specs=semihost.specs -Wl,--section-start=.qemu_start=0x80000000 \
 	  -Wl,-Ttext=0x80001000 -Wl,-e,qemu_start -Wl,--gc-sections -o $@ \
-	  host/qr_bench.c $(wildcard $(QUIRC)/*.c) $(QRGEN)/qrcodegen.c platform/qemu-riscv32/start.S -lm
+	  apps/host/qr_bench.c $(wildcard $(QUIRC)/*.c) $(QRGEN)/qrcodegen.c apps/host/qemu-riscv32/start.S -lm
 
 check-qemu-qr: build/qemu-qr.elf
 	qemu-system-riscv32 -M virt -cpu $(QEMU_CPU) -m 64M -nographic -bios none -semihosting -icount shift=0 \
@@ -134,8 +134,8 @@ check-qemu-qr: build/qemu-qr.elf
 .PHONY: check-qemu-qr
 
 # 読取可否は Mac ネイティブで quirc と zxing-cpp を比べる（命令数は check-qemu-qr で測る）
-build/qr_bench_mac: host/qr_bench.c build/qr_frames.h $(QUIRC)/identify.c
-	cc -O2 -Wall $(QUIRC_DEFS) -I$(QUIRC) -I$(QRGEN) -Ibuild -o $@ host/qr_bench.c $(QUIRC)/*.c $(QRGEN)/qrcodegen.c
+build/qr_bench_mac: apps/host/qr_bench.c build/qr_frames.h $(QUIRC)/identify.c
+	cc -O2 -Wall $(QUIRC_DEFS) -I$(QUIRC) -I$(QRGEN) -Ibuild -o $@ apps/host/qr_bench.c $(QUIRC)/*.c $(QRGEN)/qrcodegen.c
 
 check-qr-mac: build/qr_bench_mac
 	build/qr_bench_mac | awk '{print $$1, $$4}'
@@ -144,32 +144,32 @@ check-qr-mac: build/qr_bench_mac
 
 # 案 B のネイティブ署名中核（docs/architecture-b.md）
 # tx.c / sha256.c は wasm-psbt-parser（submodule）と共有する
-CORE_SRC := core/core.c core/address.c core/bip32.c core/sighash.c parser/src/tx.c parser/src/sha256.c core/ripemd160.c core/sha512.c \
-            core/secp_callbacks.c
+CORE_SRC := components/signer/core.c components/signer/address.c components/signer/bip32.c components/signer/sighash.c components/parser/src/tx.c components/parser/src/sha256.c components/signer/ripemd160.c components/signer/sha512.c \
+            components/signer/secp_callbacks.c
 build/core_vectors.h: tools/gen_core_vectors.py test-vectors/bip341-wallet-test-vectors.json
 	mkdir -p build && uv run -q $< test-vectors/bip341-wallet-test-vectors.json $@
 
-build/test_core: core/tests/test_core.c $(CORE_SRC) core/*.h parser/include/*.h build/core_vectors.h signer/secp256k1_unity.c
-	cc -O2 -Wall -Wextra -Wno-unused-function -Icore -Iparser/include -Ibuild -I$(SECP)/include $(SECP_DEFS) \
-	  -o $@ core/tests/test_core.c $(CORE_SRC) signer/secp256k1_unity.c
+build/test_core: components/signer/tests/test_core.c $(CORE_SRC) components/signer/*.h components/parser/include/*.h build/core_vectors.h components/signer/secp256k1_unity.c
+	cc -O2 -Wall -Wextra -Wno-unused-function -Icomponents/signer -Icomponents/parser/include -Ibuild -I$(SECP)/include $(SECP_DEFS) \
+	  -o $@ components/signer/tests/test_core.c $(CORE_SRC) components/signer/secp256k1_unity.c
 
 check-core: build/test_core
 	build/test_core
 .PHONY: check-core
 
-build/test_xpub: core/tests/test_xpub.c $(CORE_SRC) core/*.h signer/secp256k1_unity.c
-	cc -O2 -Wall -Wextra -Wno-unused-function -Icore -Iparser/include -I$(SECP)/include $(SECP_DEFS) \
-	  -o $@ core/tests/test_xpub.c $(CORE_SRC) signer/secp256k1_unity.c
+build/test_xpub: components/signer/tests/test_xpub.c $(CORE_SRC) components/signer/*.h components/signer/secp256k1_unity.c
+	cc -O2 -Wall -Wextra -Wno-unused-function -Icomponents/signer -Icomponents/parser/include -I$(SECP)/include $(SECP_DEFS) \
+	  -o $@ components/signer/tests/test_xpub.c $(CORE_SRC) components/signer/secp256k1_unity.c
 
 check-xpub: build/test_xpub
 	build/test_xpub
 .PHONY: check-xpub
 
-build/qemu-test-core.elf: core/tests/test_core.c $(CORE_SRC) core/*.h parser/include/*.h build/core_vectors.h platform/qemu-riscv32/start.S
-	$(RISCV_TC)/bin/riscv32-pico-elf-gcc $(QEMU_MARCH) -O2 -Wall -Wno-unused-function -Icore -Iparser/include -Ibuild \
+build/qemu-test-core.elf: components/signer/tests/test_core.c $(CORE_SRC) components/signer/*.h components/parser/include/*.h build/core_vectors.h apps/host/qemu-riscv32/start.S
+	$(RISCV_TC)/bin/riscv32-pico-elf-gcc $(QEMU_MARCH) -O2 -Wall -Wno-unused-function -Icomponents/signer -Icomponents/parser/include -Ibuild \
 	  -I$(SECP)/include $(SECP_DEFS) --specs=semihost.specs -Wl,--section-start=.qemu_start=0x80000000 \
 	  -Wl,-Ttext=0x80001000 -Wl,-e,qemu_start -Wl,--gc-sections -o $@ \
-	  core/tests/test_core.c $(CORE_SRC) signer/secp256k1_unity.c platform/qemu-riscv32/start.S
+	  components/signer/tests/test_core.c $(CORE_SRC) components/signer/secp256k1_unity.c apps/host/qemu-riscv32/start.S
 
 check-qemu-core: build/qemu-test-core.elf
 	qemu-system-riscv32 -M virt -cpu $(QEMU_CPU) -m 64M -nographic -bios none -semihosting \
@@ -177,28 +177,28 @@ check-qemu-core: build/qemu-test-core.elf
 .PHONY: check-qemu-core
 
 # parser.wasm は wasm-psbt-parser（submodule）の Makefile でビルドする
-build/parser.wasm: parser/src/*.c parser/include/*.h
+build/parser.wasm: components/parser/src/*.c components/parser/include/*.h
 	mkdir -p build
-	$(MAKE) -C parser build/parser.wasm LLVM=$(LLVM) WASI=$(WASI) RTLIB=$(RTLIB)
-	cp parser/build/parser.wasm $@
+	$(MAKE) -C components/parser build/parser.wasm LLVM=$(LLVM) WASI=$(WASI) RTLIB=$(RTLIB)
+	cp components/parser/build/parser.wasm $@
 
 # 版とハッシュを固定したツールチェーンで作り直し、記録と突き合わせる。
 # 第三者が同じ parser.wasm を出せることの確認（docs/reproducible-build.md）
 SDK = $(shell ./tools/toolchain.sh)
 check-repro: tools/toolchain.sh checksums.txt
-	$(MAKE) -C parser clean-wasm 2>/dev/null || rm -f parser/build/parser.wasm
-	$(MAKE) -C parser build/parser.wasm \
+	$(MAKE) -C components/parser clean-wasm 2>/dev/null || rm -f components/parser/build/parser.wasm
+	$(MAKE) -C components/parser build/parser.wasm \
 	  LLVM=$(CURDIR)/$(SDK)/bin WASI=$(CURDIR)/$(SDK)/share/wasi-sysroot \
 	  RTLIB=$(CURDIR)/$(SDK)/lib/clang/23/lib/wasm32-unknown-wasi \
 	  WASM_OPT=$(CURDIR)/build/toolchain/binaryen-version_132/bin/wasm-opt
-	@cd parser/build && (shasum -a 256 parser.wasm 2>/dev/null || sha256sum parser.wasm) \
+	@cd components/parser/build && (shasum -a 256 parser.wasm 2>/dev/null || sha256sum parser.wasm) \
 	  | sed 's|parser.wasm|build/parser.wasm|' > /tmp/repro.txt
 	@diff /tmp/repro.txt checksums.txt && echo "一致した（再現可能）" \
 	  || { echo "一致しない。docs/reproducible-build.md を見る"; exit 1; }
 .PHONY: check-repro
 
 check-parser:
-	$(MAKE) -C parser test
+	$(MAKE) -C components/parser test
 .PHONY: check-parser
 
 # PARSER_AOT=1 では parser も wamrc で RV32 ネイティブにする。実機では XIP が 7 倍遅いので RAM 展開のみ
@@ -219,15 +219,15 @@ build/psbt/own_p2wpkh_1in.psbt: tools/gen_psbt_vectors.py
 build/font8x16.h: tools/gen_font.py
 	mkdir -p build && python3 $< third_party/spleen/spleen-8x16.bdf $@
 
-build/host-classic/psbt_host: build/parser_wasm.h build/signer_wasm.h build/font8x16.h host/psbt_main.c host/CMakeLists.txt \
-  runtime/host-abi/parser_host.c ui/ui.c $(CORE_SRC) parser/include/*.h
-	cmake -S host -B build/host-classic -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DWAMR_BUILD_FAST_INTERP=0 \
+build/host-classic/psbt_host: build/parser_wasm.h build/signer_wasm.h build/font8x16.h apps/host/psbt_main.c apps/host/CMakeLists.txt \
+  apps/device/runtime/host-abi/parser_host.c apps/device/ui/ui.c $(CORE_SRC) components/parser/include/*.h
+	cmake -S apps/host -B build/host-classic -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DWAMR_BUILD_FAST_INTERP=0 \
 	  -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/host-classic psbt_host >/dev/null
 
 # 解析器リポジトリの UR ベクタ（参照エンコーダの出力）から、混在 PSBT の 60 byte 断片版を 1 行 1 パートで書き出す。
 # 純粋なパートを 3 つに 1 つ落として、混ぜたパートでの復元も通す
-build/psbt/own_mixed_nwu.ur: parser/tests/ur_vectors.json build/psbt/own_p2wpkh_1in.psbt
+build/psbt/own_mixed_nwu.ur: components/parser/tests/ur_vectors.json build/psbt/own_p2wpkh_1in.psbt
 	python3 -c "import json,re; v=[x for x in json.load(open('$<'))['vectors'] if x['name']=='own_mixed_nwu' and x['fragment_len']==60][0]; \
 	  print('\n'.join(p for p in v['parts'] if not (int(re.match(r'UR:[A-Z-]+/(\d+)', p).group(1)) <= v['seq_len'] and int(re.match(r'UR:[A-Z-]+/(\d+)', p).group(1)) % 3 == 0)))" > $@
 
@@ -244,7 +244,7 @@ check-psbt: build/host-classic/psbt_host build/psbt/own_p2wpkh_1in.psbt build/ps
 .PHONY: check-psbt
 
 check-qemu-psbt: build/parser_wasm.h build/signer_wasm.h build/font8x16.h build/psbt/own_mixed_nwu.ur
-	cmake -S platform/qemu-riscv32 -B build/qemu-psbt -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
+	cmake -S apps/host/qemu-riscv32 -B build/qemu-psbt -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
 	  -DCMAKE_C_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc -DCMAKE_ASM_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc \
 	  -DPOOL_KB=64 -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
@@ -254,17 +254,17 @@ check-qemu-psbt: build/parser_wasm.h build/signer_wasm.h build/font8x16.h build/
 	cmp build/psbt/own_mixed_nwu.qemu build/psbt/own_mixed_nwu.signed && echo "qemu output matches host"
 .PHONY: check-qemu-psbt
 
-build/test_ui: ui/tests/test_ui.c ui/ui.c ui/ui.h build/font8x16.h core/core.h
-	cc -O2 -Wall -Wextra -Icore -Iparser/include -Iui -Ibuild -I$(QRGEN) -o $@ ui/tests/test_ui.c ui/ui.c $(QRGEN)/qrcodegen.c $(CORE_SRC) \
-	  signer/secp256k1_unity.c -I$(SECP)/include $(SECP_DEFS) -Wno-unused-function
+build/test_ui: apps/device/ui/tests/test_ui.c apps/device/ui/ui.c apps/device/ui/ui.h build/font8x16.h components/signer/core.h
+	cc -O2 -Wall -Wextra -Icomponents/signer -Icomponents/parser/include -Iapps/device/ui -Ibuild -I$(QRGEN) -o $@ apps/device/ui/tests/test_ui.c apps/device/ui/ui.c $(QRGEN)/qrcodegen.c $(CORE_SRC) \
+	  components/signer/secp256k1_unity.c -I$(SECP)/include $(SECP_DEFS) -Wno-unused-function
 
 build/bip39_words.h: tools/gen_bip39_words.py
 	mkdir -p build && uv run -q $< $@
 
 # SeedQR は untrusted な入力を読むので、範囲外アクセスを sanitizer で見る
-build/test_seedqr: core/tests/test_seedqr.c core/seedqr.c core/seedqr.h build/bip39_words.h parser/src/sha256.c
+build/test_seedqr: components/signer/tests/test_seedqr.c components/signer/seedqr.c components/signer/seedqr.h build/bip39_words.h components/parser/src/sha256.c
 	cc -O1 -g -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all \
-	  -Icore -Iparser/include -Ibuild -o $@ core/tests/test_seedqr.c core/seedqr.c parser/src/sha256.c
+	  -Icomponents/signer -Icomponents/parser/include -Ibuild -o $@ components/signer/tests/test_seedqr.c components/signer/seedqr.c components/parser/src/sha256.c
 
 check-seedqr: build/test_seedqr
 	build/test_seedqr
@@ -279,29 +279,29 @@ build/test_psbt.h: build/psbt/own_p2wpkh_1in.psbt
 	  | sed 's/^unsigned char/const unsigned char/' > test_psbt.h
 
 build/rp2350/app.elf: build/parser_wasm.h build/signer_wasm.h build/font8x16.h build/test_psbt.h build/bip39_words.h \
-  platform/rp2350/app_main.c platform/rp2350/st7789.c platform/rp2350/buttons.c platform/rp2350/CMakeLists.txt \
-  runtime/host-abi/parser_host.c ui/ui.c $(CORE_SRC) parser/include/*.h
-	cmake -S platform/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
+  apps/device/rp2350/app_main.c apps/device/rp2350/st7789.c apps/device/rp2350/buttons.c apps/device/rp2350/CMakeLists.txt \
+  apps/device/runtime/host-abi/parser_host.c apps/device/ui/ui.c $(CORE_SRC) components/parser/include/*.h
+	cmake -S apps/device/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DPICO_SDK_PATH=$(CURDIR)/third_party/pico-sdk -DPICO_TOOLCHAIN_PATH=$(RISCV_TC) \
 	  -DWAMR_BUILD_AOT=0 -DTESTNET=$(TESTNET) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/rp2350 app
 
-build/rp2350/psbt_bench.elf: build/parser_wasm.h build/test_psbt.h platform/rp2350/psbt_bench.c \
-  platform/rp2350/CMakeLists.txt runtime/host-abi/parser_host.c ui/ui.c $(CORE_SRC) parser/include/*.h
-	cmake -S platform/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
+build/rp2350/psbt_bench.elf: build/parser_wasm.h build/test_psbt.h apps/device/rp2350/psbt_bench.c \
+  apps/device/rp2350/CMakeLists.txt apps/device/runtime/host-abi/parser_host.c apps/device/ui/ui.c $(CORE_SRC) components/parser/include/*.h
+	cmake -S apps/device/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DPICO_SDK_PATH=$(CURDIR)/third_party/pico-sdk -DPICO_TOOLCHAIN_PATH=$(RISCV_TC) \
 	  -DWAMR_BUILD_AOT=$(PARSER_AOT) -DPARSER_POOL_KB=$(PARSER_POOL_KB) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/rp2350 psbt_bench
 
-build/rp2350/qr_bench.elf: build/qr_frames.h host/qr_bench.c platform/rp2350/CMakeLists.txt build/rp2350/app.elf
+build/rp2350/qr_bench.elf: build/qr_frames.h apps/host/qr_bench.c apps/device/rp2350/CMakeLists.txt build/rp2350/app.elf
 	ninja -C build/rp2350 qr_bench
 
-build/rp2350/pio_loopback_test.elf: platform/rp2350/pio_loopback_test.c platform/rp2350/dvp_gen.pio \
-  platform/rp2350/camera.pio platform/rp2350/CMakeLists.txt build/rp2350/app.elf
+build/rp2350/pio_loopback_test.elf: apps/device/rp2350/pio_loopback_test.c apps/device/rp2350/dvp_gen.pio \
+  apps/device/rp2350/camera.pio apps/device/rp2350/CMakeLists.txt build/rp2350/app.elf
 	ninja -C build/rp2350 pio_loopback_test
 
-build/rp2350/camera_test.elf: platform/rp2350/camera_test.c platform/rp2350/camera.c platform/rp2350/camera.pio \
-  platform/rp2350/camera_ov7670.c platform/rp2350/CMakeLists.txt build/rp2350/app.elf
+build/rp2350/camera_test.elf: apps/device/rp2350/camera_test.c apps/device/rp2350/camera.c apps/device/rp2350/camera.pio \
+  apps/device/rp2350/camera_ov7670.c apps/device/rp2350/CMakeLists.txt build/rp2350/app.elf
 	ninja -C build/rp2350 camera_test
 
 # camera.pio を実機なしで確かめる（pioasm が生成した命令語を最小の PIO シミュレータで実行する）
@@ -324,19 +324,19 @@ flash: $(UF2)
 	      echo "ターミナルに「リムーバブルボリューム」を許可するか、Finder で $(UF2) をドラッグしてください"; false)
 
 # ブラウザで PSBT を表示する単一 HTML。実機と同じ parser.wasm を埋め込むので file:// でも動く
-build/address.wasm: core/address.c core/ripemd160.c parser/src/sha256.c web/addr_wasm.c
+build/address.wasm: components/signer/address.c components/signer/ripemd160.c components/parser/src/sha256.c apps/viewer/addr_wasm.c
 	mkdir -p build && $(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs \
-	  -Oz -Wall -Wextra -Icore -Iparser/include -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all \
-	  -o $@ web/addr_wasm.c core/address.c core/ripemd160.c parser/src/sha256.c -lc $(RTLIB)/libclang_rt.builtins.a
+	  -Oz -Wall -Wextra -Icomponents/signer -Icomponents/parser/include -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all \
+	  -o $@ apps/viewer/addr_wasm.c components/signer/address.c components/signer/ripemd160.c components/parser/src/sha256.c -lc $(RTLIB)/libclang_rt.builtins.a
 
 # 実機と同じ quirc。assert を外さないと wasi の stdio が入り、import が増える
-build/qr.wasm: web/qr_wasm.c $(QUIRC)/decode.c $(QUIRC)/identify.c $(QUIRC)/quirc.c $(QUIRC)/version_db.c
+build/qr.wasm: apps/viewer/qr_wasm.c $(QUIRC)/decode.c $(QUIRC)/identify.c $(QUIRC)/quirc.c $(QUIRC)/version_db.c
 	mkdir -p build && $(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs \
 	  -Oz -Wall -DNDEBUG $(QUIRC_DEFS) -I$(QUIRC) -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all \
-	  -Wl,--initial-memory=4194304 -o $@ web/qr_wasm.c $(QUIRC)/decode.c $(QUIRC)/identify.c \
+	  -Wl,--initial-memory=4194304 -o $@ apps/viewer/qr_wasm.c $(QUIRC)/decode.c $(QUIRC)/identify.c \
 	  $(QUIRC)/quirc.c $(QUIRC)/version_db.c -lc $(RTLIB)/libclang_rt.builtins.a
 
-viewer: build/parser.wasm build/address.wasm build/qr.wasm web/viewer.html tools/build_viewer.py
+viewer: build/parser.wasm build/address.wasm build/qr.wasm apps/viewer/viewer.html tools/build_viewer.py
 	uv run -q tools/build_viewer.py build/viewer.html
 	open build/viewer.html
 .PHONY: viewer
