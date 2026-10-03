@@ -99,6 +99,7 @@ make check-camera-sim  # camera.pio を Python のシミュレータで検証
 
 | 文書 | 内容 |
 |---|---|
+| [parser/docs/abi.md](parser/docs/abi.md) | `parser.wasm` の ABI。他の言語から呼ぶための仕様（英語） |
 | [docs/signet.md](docs/signet.md) | bitcoin-cli でのウォッチオンリー運用と一巡の手順 |
 | [docs/everywhere.md](docs/everywhere.md) | コンセプト「同じコードがどこでも動く」。図つき |
 | [docs/positioning.md](docs/positioning.md) | 何を作っていて、誰のどんな問題を解くのか。公開と資金申請の前提 |
