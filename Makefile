@@ -318,6 +318,12 @@ viewer: build/parser.wasm build/address.wasm build/qr.wasm web/viewer.html tools
 	open build/viewer.html
 .PHONY: viewer
 
+# コンセプト図（docs/everywhere.svg）
+everywhere: tools/draw_everywhere.py
+	uv run -q $< docs/everywhere.svg
+	open docs/everywhere.svg
+.PHONY: everywhere
+
 # 実配線から図を作る。wiring は信号の対応（WireViz、graphviz が要る）、breadboard は穴の位置
 wiring: docs/wiring.yml
 	uv run -q --with wireviz wireviz $< -o build/wiring

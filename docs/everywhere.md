@@ -27,38 +27,9 @@ WASI も JS のポリフィルも要らず、置かれた場所の違いが結�
 WASM に揃えてあるので、載せる先は「WASM を実行できる何か」でよい。
 OS の有無も、CPU が ARM か RISC-V か x86 かも、言語が C か JavaScript かも関係なくなる。
 
-```mermaid
-flowchart TB
-    src["C のソース<br/>wasm-psbt-parser / quirc / core"]
+<img src="everywhere.svg" alt="同じ WASM が、どこでも動く" width="900">
 
-    subgraph core["同じ WASM（import 0、WASI も要らない）"]
-        direction LR
-        p["parser.wasm<br/>15,598 B"]
-        q["qr.wasm<br/>16,546 B"]
-        a["address.wasm<br/>3,058 B"]
-    end
-    src --> core
-
-    core --> wamr["WAMR<br/>インタプリタ / AOT"]
-    core --> v8["V8"]
-    core --> jsc["JavaScriptCore"]
-    core --> sm["SpiderMonkey"]
-    core --> wt["wasmtime / wasmer"]
-
-    wamr --> mcu["ベアメタル MCU<br/>RP2350・OS なし・RAM 520KB"]
-    wamr --> andn["Android ネイティブ<br/>NDK に組み込む"]
-    v8 --> web["Web / PWA<br/>単一 HTML 56KB"]
-    v8 --> andc["Android<br/>Chrome / WebView"]
-    v8 --> node["Node<br/>CI・ベクタ照合・ファジング"]
-    jsc --> ios["iOS<br/>Safari / ホーム画面に追加"]
-    sm --> ff["Firefox<br/>デスクトップ・Android"]
-    wt --> linux["Linux / macOS<br/>デスクトップのツール"]
-
-    classDef done fill:#1f6f43,stroke:#2ea86a,color:#fff;
-    classDef todo fill:#2a2e37,stroke:#555,color:#ccc;
-    class mcu,web,node,linux done;
-    class andn,andc,ios,ff todo;
-```
+図は `make everywhere`（`tools/draw_everywhere.py`）で作る。
 
 緑が実際に動かして確認したもの、灰色は同じ経路なので動くはずだが未確認のもの。
 

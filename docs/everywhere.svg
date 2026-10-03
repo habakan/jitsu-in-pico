@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="620" viewBox="0 0 900 620" font-family="Hiragino Sans, Noto Sans JP, sans-serif"><rect width="900" height="620" fill="#13151a"/>
+<text x="450.0" y="38" fill="#e8e8e8" font-size="20" text-anchor="middle">同じ WASM が、どこでも動く</text>
+<text x="450.0" y="60" fill="#8b93a1" font-size="13" text-anchor="middle">import 0 個。WASI も JS のポリフィルも要らない</text>
+<line x1="450.0" y1="320.0" x2="450.0" y2="115.0" stroke="#2ea86a" stroke-width="2.4" opacity="0.85"/>
+<line x1="450.0" y1="320.0" x2="718.467875173176" y2="217.5" stroke="#3a404d" stroke-width="1.6" opacity="0.5"/>
+<line x1="450.0" y1="320.0" x2="718.467875173176" y2="422.5" stroke="#3a404d" stroke-width="1.6" opacity="0.5"/>
+<line x1="450.0" y1="320.0" x2="450.0" y2="525.0" stroke="#2ea86a" stroke-width="2.4" opacity="0.85"/>
+<line x1="450.0" y1="320.0" x2="181.53212482682397" y2="422.5" stroke="#2ea86a" stroke-width="2.4" opacity="0.85"/>
+<line x1="450.0" y1="320.0" x2="181.53212482682403" y2="217.49999999999997" stroke="#2ea86a" stroke-width="2.4" opacity="0.85"/>
+<rect x="325.0" y="256.0" width="250" height="128" rx="10" fill="#2a2113" stroke="#ffaa00" stroke-width="2"/>
+<text x="450.0" y="282.0" fill="#ffcf6b" font-size="15" text-anchor="middle">同じ WASM</text>
+<text x="343.0" y="308.0" fill="#e8e8e8" font-size="13">parser.wasm</text>
+<text x="557.0" y="308.0" fill="#8b93a1" font-size="12" text-anchor="end">15,598 B</text>
+<text x="343.0" y="331.0" fill="#e8e8e8" font-size="13">qr.wasm</text>
+<text x="557.0" y="331.0" fill="#8b93a1" font-size="12" text-anchor="end">16,546 B</text>
+<text x="343.0" y="354.0" fill="#e8e8e8" font-size="13">address.wasm</text>
+<text x="557.0" y="354.0" fill="#8b93a1" font-size="12" text-anchor="end">3,058 B</text>
+<rect x="347.0" y="78.0" width="206" height="74" rx="8" fill="#15362a" stroke="#2ea86a" stroke-width="1.6"/>
+<text x="450.0" y="107.0" fill="#9ff0c4" font-size="15" text-anchor="middle">ベアメタル MCU</text>
+<text x="450.0" y="128.0" fill="#8b93a1" font-size="11.5" text-anchor="middle">WAMR · RP2350 · OS なし</text>
+<text x="450.0" y="145.0" fill="#2ea86a" font-size="10.5" text-anchor="middle">動かして確認済み</text>
+<rect x="615.467875173176" y="180.5" width="206" height="74" rx="8" fill="#20242c" stroke="#4a515f" stroke-width="1.6"/>
+<text x="718.467875173176" y="209.5" fill="#e8e8e8" font-size="15" text-anchor="middle">Android</text>
+<text x="718.467875173176" y="230.5" fill="#8b93a1" font-size="11.5" text-anchor="middle">Chrome / NDK + WAMR</text>
+<text x="718.467875173176" y="247.5" fill="#8b93a1" font-size="10.5" text-anchor="middle">未確認（同じ経路）</text>
+<rect x="615.467875173176" y="385.5" width="206" height="74" rx="8" fill="#20242c" stroke="#4a515f" stroke-width="1.6"/>
+<text x="718.467875173176" y="414.5" fill="#e8e8e8" font-size="15" text-anchor="middle">iOS</text>
+<text x="718.467875173176" y="435.5" fill="#8b93a1" font-size="11.5" text-anchor="middle">Safari · JavaScriptCore</text>
+<text x="718.467875173176" y="452.5" fill="#8b93a1" font-size="10.5" text-anchor="middle">未確認（同じ経路）</text>
+<rect x="347.0" y="488.0" width="206" height="74" rx="8" fill="#15362a" stroke="#2ea86a" stroke-width="1.6"/>
+<text x="450.0" y="517.0" fill="#9ff0c4" font-size="15" text-anchor="middle">Node / CI</text>
+<text x="450.0" y="538.0" fill="#8b93a1" font-size="11.5" text-anchor="middle">V8 · ベクタ照合とファジング</text>
+<text x="450.0" y="555.0" fill="#2ea86a" font-size="10.5" text-anchor="middle">動かして確認済み</text>
+<rect x="78.53212482682397" y="385.5" width="206" height="74" rx="8" fill="#15362a" stroke="#2ea86a" stroke-width="1.6"/>
+<text x="181.53212482682397" y="414.5" fill="#9ff0c4" font-size="15" text-anchor="middle">Linux / macOS</text>
+<text x="181.53212482682397" y="435.5" fill="#8b93a1" font-size="11.5" text-anchor="middle">ネイティブ直リンク / wasmtime</text>
+<text x="181.53212482682397" y="452.5" fill="#2ea86a" font-size="10.5" text-anchor="middle">動かして確認済み</text>
+<rect x="78.53212482682403" y="180.49999999999997" width="206" height="74" rx="8" fill="#15362a" stroke="#2ea86a" stroke-width="1.6"/>
+<text x="181.53212482682403" y="209.49999999999997" fill="#9ff0c4" font-size="15" text-anchor="middle">Web / PWA</text>
+<text x="181.53212482682403" y="230.49999999999997" fill="#8b93a1" font-size="11.5" text-anchor="middle">ブラウザ · 単一 HTML 56KB</text>
+<text x="181.53212482682403" y="247.49999999999997" fill="#2ea86a" font-size="10.5" text-anchor="middle">動かして確認済み</text>
+<text x="24" y="598" fill="#8b93a1" font-size="11.5">緑＝実際に動かして確認したもの／灰＝同じ経路なので動くはずだが未確認</text>
+</svg>
