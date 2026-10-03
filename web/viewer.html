@@ -181,6 +181,13 @@ async function camera() {
 
   const sel = document.getElementById("camsel");
   let stream;
+  /* 安全なコンテキストでないと navigator.mediaDevices ごと無くなり、TypeError になって分かりにくい */
+  if (!navigator.mediaDevices?.getUserMedia) {
+    stat.textContent = `このページではカメラを使えません（${location.protocol}//${location.hostname}）。`
+      + " HTTPS か localhost、または file:// で開いてください。"
+      + "Android の Chrome は file:// でもカメラを拒むので、USB 経由の localhost を使います";
+    return;
+  }
   try {
     /* 解析は中央を等倍で切り出すので、センサーは高いほどモジュールが大きく写る */
     const want = Object.assign({ width: { ideal: 1920 }, height: { ideal: 1080 } },
