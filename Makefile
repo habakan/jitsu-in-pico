@@ -90,6 +90,8 @@ POOL_KB ?= 128
 RP2350_POOL_KB ?= 48
 PARSER_POOL_KB ?= 256
 TESTNET ?= 0
+# テストシードを選べるようにするかどうか。本番のビルドでは 0 のままにする
+TEST_SEED ?= 0
 FAST    ?= 0
 QEMU_DIR := build/qemu-fast$(FAST)-aot$(AOT)-$(POOL_KB)
 $(QEMU_DIR)/signer.elf: build/signer_wasm.h apps/host/wamr_main.c apps/host/qemu-riscv32/CMakeLists.txt runtime/wamr-platform/rp2350/rp2350_platform.c
@@ -288,7 +290,7 @@ build/rp2350/app.elf: build/parser_wasm.h build/signer_wasm.h build/font8x16.h b
   apps/device/runtime/host-abi/parser_host.c apps/device/ui/ui.c $(CORE_SRC) components/parser/include/*.h
 	cmake -S apps/device/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DPICO_SDK_PATH=$(CURDIR)/third_party/pico-sdk -DPICO_TOOLCHAIN_PATH=$(RISCV_TC) \
-	  -DWAMR_BUILD_AOT=0 -DTESTNET=$(TESTNET) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
+	  -DWAMR_BUILD_AOT=0 -DTESTNET=$(TESTNET) -DTEST_SEED=$(TEST_SEED) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/rp2350 app
 
 build/rp2350/psbt_bench.elf: build/parser_wasm.h build/test_psbt.h apps/device/rp2350/psbt_bench.c \

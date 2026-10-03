@@ -72,7 +72,8 @@ make run SECONDS=180              # flash, start listening, reset
 make run TESTNET=1 SECONDS=180    # signet
 ```
 
-Only a build with `TEST_SEED=1` can select the BIP39 test vector seed. Never put funds on it.
+Only a build with `TEST_SEED=1` can select the BIP39 test vector seed (the default is 0). Never put funds on it.
+What to do differently for real use is in [docs/architecture-b.md](docs/architecture-b.md) (Japanese).
 
 ## Check it yourself
 

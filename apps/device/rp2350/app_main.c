@@ -300,6 +300,9 @@ static int scan_seed(void) {
     struct quirc *q;
     char status[UI_COLS + 1], mnemonic[256];
     uint8_t seed[64];
+    /* SeedQR の中身はシードそのもの。スタックに置くには大きいので static にし、最後に消す */
+    static struct quirc_code code;
+    static struct quirc_data data;
     int ok = 0;
 
     if (!camera_ready) return message("No camera", "Wire it up or use the test seed.", 1), 0;
@@ -313,8 +316,6 @@ static int scan_seed(void) {
         show_preview(img, status);
         quirc_end(q);
         for (int i = 0; i < quirc_count(q) && !ok; i++) {
-            static struct quirc_code code;
-            static struct quirc_data data;
             quirc_extract(q, i, &code);
             if (quirc_decode(&code, &data)) {
                 snprintf(status, sizeof(status), "QR found, cannot read");
@@ -329,7 +330,11 @@ static int scan_seed(void) {
             ok = core_load_seed(seed);
         }
     }
+    /* 取り込んだ画像には SeedQR が写っている。SWD が繋がっていれば読めるので消してから解放する */
+    wipe(quirc_begin(q, NULL, NULL), (size_t)CAMERA_W * CAMERA_H);
     quirc_destroy(q);
+    wipe(&code, sizeof(code));
+    wipe(&data, sizeof(data));
     wipe(mnemonic, sizeof(mnemonic));
     wipe(seed, sizeof(seed));
     if (ok) printf("seed from SeedQR, fingerprint %08x\n", (unsigned)core_fingerprint());

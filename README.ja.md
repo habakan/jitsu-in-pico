@@ -69,7 +69,8 @@ make run SECONDS=180              # 書き込み → 受信開始 → リセッ�
 make run TESTNET=1 SECONDS=180    # signet 用
 ```
 
-`TEST_SEED=1` でビルドしたものだけ BIP39 のテストベクタを選べる。資金を扱ってはならない。
+`TEST_SEED=1` でビルドしたものだけ BIP39 のテストベクタを選べる（既定は 0）。資金を扱ってはならない。
+本番で使うときの手順は [docs/architecture-b.md](docs/architecture-b.md) の「本番で使うときの手順」。
 
 ## 自分で確かめる
 

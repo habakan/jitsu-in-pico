@@ -2,6 +2,10 @@ cmake_minimum_required(VERSION 3.13)
 set(PICO_PLATFORM rp2350-riscv)
 set(PICO_BOARD pico2)
 set(ROOT ${CMAKE_CURRENT_LIST_DIR}/../../..)
+
+# テスト用のシードを選べるのは、明示的に指定したビルドだけ
+set(TEST_SEED 0 CACHE STRING "allow selecting the BIP39 test vector seed")
+set(TESTNET 0 CACHE STRING "testnet / signet addresses and derivation")
 include(${ROOT}/third_party/pico-sdk/external/pico_sdk_import.cmake)
 project(signer_rp2350 C CXX ASM)
 pico_sdk_init()
@@ -60,7 +64,7 @@ foreach(t app app_nolcd)
   pico_generate_pio_header(${t} ${CMAKE_CURRENT_LIST_DIR}/camera.pio)
   target_compile_definitions(${t} PRIVATE PICO_BUILD=1 ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1
     ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1 COMB_BLOCKS=2 COMB_TEETH=5 PICO_STACK_SIZE=0x8000
-    NO_LCD=$<STREQUAL:${t},app_nolcd> TEST_SEED=1 TESTNET=${TESTNET}
+    NO_LCD=$<STREQUAL:${t},app_nolcd> TEST_SEED=${TEST_SEED} TESTNET=${TESTNET}
     QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH)
   target_compile_options(${t} PRIVATE -Wno-unused-function)
   target_include_directories(${t} PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/components/signer
