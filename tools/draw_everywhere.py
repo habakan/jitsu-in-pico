@@ -9,17 +9,41 @@ import sys
 W, H = 900, 620
 CX, CY = W / 2, H / 2 + 10
 RX, RY = 310, 205          # 置き先を並べる楕円
-CARD_W, CARD_H = 206, 74
+CARD_W, CARD_H = 236, 78
 
-# 名前, ランタイム, 確認済みか, 楕円上の角度（度、0 が右）
+# 名前, ランタイム, 確認済みか, 楕円上の角度（度、0 が右）, アイコン
+# ブランドのロゴは商標があるので使わず、種類が分かる図形を描く
 PLATFORMS = [
-    ("ベアメタル MCU", "WAMR · RP2350 · OS なし", True, -90),
-    ("Android", "Chrome / NDK + WAMR", False, -30),
-    ("iOS", "Safari · JavaScriptCore", False, 30),
-    ("Node / CI", "V8 · ベクタ照合とファジング", True, 90),
-    ("Linux / macOS", "ネイティブ直リンク / wasmtime", True, 150),
-    ("Web / PWA", "ブラウザ · 単一 HTML 56KB", True, 210),
+    ("ベアメタル MCU", "WAMR · RP2350 · OS なし", True, -90, "chip"),
+    ("Android", "Chrome / NDK + WAMR", False, -30, "phone"),
+    ("iOS", "Safari · JavaScriptCore", False, 30, "phone"),
+    ("Node / CI", "V8 · ベクタ照合とファジング", True, 90, "terminal"),
+    ("Linux / macOS", "ネイティブ直リンク / wasmtime", True, 150, "laptop"),
+    ("Web / PWA", "ブラウザ · 単一 HTML 56KB", True, 210, "globe"),
 ]
+
+def icon(kind, x, y, size, color):
+    """24x24 で描いた図形を (x, y) に size で置く"""
+    k = size / 24
+    d = {
+        "chip": ['<rect x="7" y="7" width="10" height="10" rx="1.5"/>'] +
+                [f'<line x1="{a}" y1="{b}" x2="{c}" y2="{e}"/>' for a, b, c, e in
+                 [(10, 7, 10, 4), (14, 7, 14, 4), (10, 17, 10, 20), (14, 17, 14, 20),
+                  (7, 10, 4, 10), (7, 14, 4, 14), (17, 10, 20, 10), (17, 14, 20, 14)]],
+        "phone": ['<rect x="7" y="3" width="10" height="18" rx="2"/>',
+                  '<line x1="10.5" y1="5.5" x2="13.5" y2="5.5"/>',
+                  '<circle cx="12" cy="18" r="0.9"/>'],
+        "globe": ['<circle cx="12" cy="12" r="8.5"/>', '<ellipse cx="12" cy="12" rx="4" ry="8.5"/>',
+                  '<line x1="3.5" y1="12" x2="20.5" y2="12"/>',
+                  '<path d="M5.5 7 Q12 10 18.5 7"/>', '<path d="M5.5 17 Q12 14 18.5 17"/>'],
+        "laptop": ['<rect x="4" y="5" width="16" height="10" rx="1.5"/>',
+                   '<path d="M2 18.5 h20"/>', '<path d="M9.5 15.5 h5"/>'],
+        "terminal": ['<rect x="3" y="4.5" width="18" height="15" rx="2"/>',
+                     '<path d="M7 9.5 l3 2.5 l-3 2.5"/>', '<line x1="12.5" y1="15" x2="17" y2="15"/>'],
+    }[kind]
+    body = "".join(d)
+    return (f'<g transform="translate({x},{y}) scale({k})" fill="none" stroke="{color}" '
+            f'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">{body}</g>')
 ARTIFACTS = [("parser.wasm", "15,598 B"), ("qr.wasm", "16,546 B"), ("address.wasm", "3,058 B")]
 
 FONT = "Hiragino Sans, Noto Sans JP, sans-serif"
@@ -38,7 +62,7 @@ s.append(f'<text x="{W/2}" y="60" fill="{DIM}" font-size="13" text-anchor="middl
 
 # 中心から各カードへの線（カードの下に描く）
 pos = []
-for name, rt, done, deg in PLATFORMS:
+for name, rt, done, deg, _ in PLATFORMS:
     r = math.radians(deg)
     x, y = CX + RX * math.cos(r), CY + RY * math.sin(r)
     pos.append((x, y))
@@ -55,16 +79,18 @@ for i, (n, sz) in enumerate(ARTIFACTS):
     s.append(f'<text x="{CX - hw/2 + 18}" y="{y}" fill="{FG}" font-size="13">{n}</text>')
     s.append(f'<text x="{CX + hw/2 - 18}" y="{y}" fill="{DIM}" font-size="12" text-anchor="end">{sz}</text>')
 
-# 置き先のカード
-for (name, rt, done, deg), (x, y) in zip(PLATFORMS, pos):
+# 置き先のカード。左にアイコン、右に文字
+for (name, rt, done, deg, kind), (x, y) in zip(PLATFORMS, pos):
     fill, stroke = (OK_FILL, OK_LINE) if done else (TODO_FILL, TODO_LINE)
-    s.append(f'<rect x="{x - CARD_W/2}" y="{y - CARD_H/2}" width="{CARD_W}" height="{CARD_H}" rx="8" '
+    left = x - CARD_W / 2
+    s.append(f'<rect x="{left}" y="{y - CARD_H/2}" width="{CARD_W}" height="{CARD_H}" rx="8" '
              f'fill="{fill}" stroke="{stroke}" stroke-width="1.6"/>')
-    s.append(f'<text x="{x}" y="{y - 8}" fill="{OK_FG if done else FG}" font-size="15" '
-             f'text-anchor="middle">{name}</text>')
-    s.append(f'<text x="{x}" y="{y + 13}" fill="{DIM}" font-size="11.5" text-anchor="middle">{rt}</text>')
-    s.append(f'<text x="{x}" y="{y + 30}" fill="{OK_LINE if done else DIM}" font-size="10.5" '
-             f'text-anchor="middle">{"動かして確認済み" if done else "未確認（同じ経路）"}</text>')
+    s.append(icon(kind, left + 14, y - 17, 34, OK_LINE if done else DIM))
+    tx = left + 60
+    s.append(f'<text x="{tx}" y="{y - 12}" fill="{OK_FG if done else FG}" font-size="15">{name}</text>')
+    s.append(f'<text x="{tx}" y="{y + 7}" fill="{DIM}" font-size="11.5">{rt}</text>')
+    s.append(f'<text x="{tx}" y="{y + 24}" fill="{OK_LINE if done else DIM}" font-size="10.5">'
+             f'{"動かして確認済み" if done else "未確認（同じ経路）"}</text>')
 
 s.append(f'<text x="24" y="{H - 22}" fill="{DIM}" font-size="11.5">'
          f'緑＝実際に動かして確認したもの／灰＝同じ経路なので動くはずだが未確認</text>')

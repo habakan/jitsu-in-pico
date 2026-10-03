@@ -15,29 +15,35 @@
 <text x="557.0" y="331.0" fill="#8b93a1" font-size="12" text-anchor="end">16,546 B</text>
 <text x="343.0" y="354.0" fill="#e8e8e8" font-size="13">address.wasm</text>
 <text x="557.0" y="354.0" fill="#8b93a1" font-size="12" text-anchor="end">3,058 B</text>
-<rect x="347.0" y="78.0" width="206" height="74" rx="8" fill="#15362a" stroke="#2ea86a" stroke-width="1.6"/>
-<text x="450.0" y="107.0" fill="#9ff0c4" font-size="15" text-anchor="middle">ベアメタル MCU</text>
-<text x="450.0" y="128.0" fill="#8b93a1" font-size="11.5" text-anchor="middle">WAMR · RP2350 · OS なし</text>
-<text x="450.0" y="145.0" fill="#2ea86a" font-size="10.5" text-anchor="middle">動かして確認済み</text>
-<rect x="615.467875173176" y="180.5" width="206" height="74" rx="8" fill="#20242c" stroke="#4a515f" stroke-width="1.6"/>
-<text x="718.467875173176" y="209.5" fill="#e8e8e8" font-size="15" text-anchor="middle">Android</text>
-<text x="718.467875173176" y="230.5" fill="#8b93a1" font-size="11.5" text-anchor="middle">Chrome / NDK + WAMR</text>
-<text x="718.467875173176" y="247.5" fill="#8b93a1" font-size="10.5" text-anchor="middle">未確認（同じ経路）</text>
-<rect x="615.467875173176" y="385.5" width="206" height="74" rx="8" fill="#20242c" stroke="#4a515f" stroke-width="1.6"/>
-<text x="718.467875173176" y="414.5" fill="#e8e8e8" font-size="15" text-anchor="middle">iOS</text>
-<text x="718.467875173176" y="435.5" fill="#8b93a1" font-size="11.5" text-anchor="middle">Safari · JavaScriptCore</text>
-<text x="718.467875173176" y="452.5" fill="#8b93a1" font-size="10.5" text-anchor="middle">未確認（同じ経路）</text>
-<rect x="347.0" y="488.0" width="206" height="74" rx="8" fill="#15362a" stroke="#2ea86a" stroke-width="1.6"/>
-<text x="450.0" y="517.0" fill="#9ff0c4" font-size="15" text-anchor="middle">Node / CI</text>
-<text x="450.0" y="538.0" fill="#8b93a1" font-size="11.5" text-anchor="middle">V8 · ベクタ照合とファジング</text>
-<text x="450.0" y="555.0" fill="#2ea86a" font-size="10.5" text-anchor="middle">動かして確認済み</text>
-<rect x="78.53212482682397" y="385.5" width="206" height="74" rx="8" fill="#15362a" stroke="#2ea86a" stroke-width="1.6"/>
-<text x="181.53212482682397" y="414.5" fill="#9ff0c4" font-size="15" text-anchor="middle">Linux / macOS</text>
-<text x="181.53212482682397" y="435.5" fill="#8b93a1" font-size="11.5" text-anchor="middle">ネイティブ直リンク / wasmtime</text>
-<text x="181.53212482682397" y="452.5" fill="#2ea86a" font-size="10.5" text-anchor="middle">動かして確認済み</text>
-<rect x="78.53212482682403" y="180.49999999999997" width="206" height="74" rx="8" fill="#15362a" stroke="#2ea86a" stroke-width="1.6"/>
-<text x="181.53212482682403" y="209.49999999999997" fill="#9ff0c4" font-size="15" text-anchor="middle">Web / PWA</text>
-<text x="181.53212482682403" y="230.49999999999997" fill="#8b93a1" font-size="11.5" text-anchor="middle">ブラウザ · 単一 HTML 56KB</text>
-<text x="181.53212482682403" y="247.49999999999997" fill="#2ea86a" font-size="10.5" text-anchor="middle">動かして確認済み</text>
+<rect x="332.0" y="76.0" width="236" height="78" rx="8" fill="#15362a" stroke="#2ea86a" stroke-width="1.6"/>
+<g transform="translate(346.0,98.0) scale(1.4166666666666667)" fill="none" stroke="#2ea86a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="10" height="10" rx="1.5"/><line x1="10" y1="7" x2="10" y2="4"/><line x1="14" y1="7" x2="14" y2="4"/><line x1="10" y1="17" x2="10" y2="20"/><line x1="14" y1="17" x2="14" y2="20"/><line x1="7" y1="10" x2="4" y2="10"/><line x1="7" y1="14" x2="4" y2="14"/><line x1="17" y1="10" x2="20" y2="10"/><line x1="17" y1="14" x2="20" y2="14"/></g>
+<text x="392.0" y="103.0" fill="#9ff0c4" font-size="15">ベアメタル MCU</text>
+<text x="392.0" y="122.0" fill="#8b93a1" font-size="11.5">WAMR · RP2350 · OS なし</text>
+<text x="392.0" y="139.0" fill="#2ea86a" font-size="10.5">動かして確認済み</text>
+<rect x="600.467875173176" y="178.5" width="236" height="78" rx="8" fill="#20242c" stroke="#4a515f" stroke-width="1.6"/>
+<g transform="translate(614.467875173176,200.5) scale(1.4166666666666667)" fill="none" stroke="#8b93a1" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2"/><line x1="10.5" y1="5.5" x2="13.5" y2="5.5"/><circle cx="12" cy="18" r="0.9"/></g>
+<text x="660.467875173176" y="205.5" fill="#e8e8e8" font-size="15">Android</text>
+<text x="660.467875173176" y="224.5" fill="#8b93a1" font-size="11.5">Chrome / NDK + WAMR</text>
+<text x="660.467875173176" y="241.5" fill="#8b93a1" font-size="10.5">未確認（同じ経路）</text>
+<rect x="600.467875173176" y="383.5" width="236" height="78" rx="8" fill="#20242c" stroke="#4a515f" stroke-width="1.6"/>
+<g transform="translate(614.467875173176,405.5) scale(1.4166666666666667)" fill="none" stroke="#8b93a1" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2"/><line x1="10.5" y1="5.5" x2="13.5" y2="5.5"/><circle cx="12" cy="18" r="0.9"/></g>
+<text x="660.467875173176" y="410.5" fill="#e8e8e8" font-size="15">iOS</text>
+<text x="660.467875173176" y="429.5" fill="#8b93a1" font-size="11.5">Safari · JavaScriptCore</text>
+<text x="660.467875173176" y="446.5" fill="#8b93a1" font-size="10.5">未確認（同じ経路）</text>
+<rect x="332.0" y="486.0" width="236" height="78" rx="8" fill="#15362a" stroke="#2ea86a" stroke-width="1.6"/>
+<g transform="translate(346.0,508.0) scale(1.4166666666666667)" fill="none" stroke="#2ea86a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2"/><path d="M7 9.5 l3 2.5 l-3 2.5"/><line x1="12.5" y1="15" x2="17" y2="15"/></g>
+<text x="392.0" y="513.0" fill="#9ff0c4" font-size="15">Node / CI</text>
+<text x="392.0" y="532.0" fill="#8b93a1" font-size="11.5">V8 · ベクタ照合とファジング</text>
+<text x="392.0" y="549.0" fill="#2ea86a" font-size="10.5">動かして確認済み</text>
+<rect x="63.532124826823974" y="383.5" width="236" height="78" rx="8" fill="#15362a" stroke="#2ea86a" stroke-width="1.6"/>
+<g transform="translate(77.53212482682397,405.5) scale(1.4166666666666667)" fill="none" stroke="#2ea86a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="5" width="16" height="10" rx="1.5"/><path d="M2 18.5 h20"/><path d="M9.5 15.5 h5"/></g>
+<text x="123.53212482682397" y="410.5" fill="#9ff0c4" font-size="15">Linux / macOS</text>
+<text x="123.53212482682397" y="429.5" fill="#8b93a1" font-size="11.5">ネイティブ直リンク / wasmtime</text>
+<text x="123.53212482682397" y="446.5" fill="#2ea86a" font-size="10.5">動かして確認済み</text>
+<rect x="63.53212482682403" y="178.49999999999997" width="236" height="78" rx="8" fill="#15362a" stroke="#2ea86a" stroke-width="1.6"/>
+<g transform="translate(77.53212482682403,200.49999999999997) scale(1.4166666666666667)" fill="none" stroke="#2ea86a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><ellipse cx="12" cy="12" rx="4" ry="8.5"/><line x1="3.5" y1="12" x2="20.5" y2="12"/><path d="M5.5 7 Q12 10 18.5 7"/><path d="M5.5 17 Q12 14 18.5 17"/></g>
+<text x="123.53212482682403" y="205.49999999999997" fill="#9ff0c4" font-size="15">Web / PWA</text>
+<text x="123.53212482682403" y="224.49999999999997" fill="#8b93a1" font-size="11.5">ブラウザ · 単一 HTML 56KB</text>
+<text x="123.53212482682403" y="241.49999999999997" fill="#2ea86a" font-size="10.5">動かして確認済み</text>
 <text x="24" y="598" fill="#8b93a1" font-size="11.5">緑＝実際に動かして確認したもの／灰＝同じ経路なので動くはずだが未確認</text>
 </svg>
