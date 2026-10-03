@@ -296,7 +296,7 @@ check-camera-sim: build/rp2350/camera_test.elf
 
 # 実機の立ち上げ: BOOTSEL を押しながら USB を挿すと RP2350 ドライブとして見えるので、そこへ uf2 をコピーする
 # ドライブ名は RP2350 のこともラベル無し（NO NAME）のこともあるので、134MB の FAT16 を探す
-UF2 ?= build/rp2350/signer.uf2
+UF2 ?= build/rp2350/app.uf2
 SECONDS ?= 60
 BOOT_VOL = $$(diskutil list | awk '/Windows_FAT_16/ && /134.2 MB/ {print $$NF}' | head -1 | \
   xargs -I{} sh -c 'diskutil info {} | sed -n "s/.*Mount Point: *//p"')
