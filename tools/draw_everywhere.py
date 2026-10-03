@@ -14,12 +14,12 @@ CARD_W, CARD_H = 236, 78
 # 名前, ランタイム, 確認済みか, 楕円上の角度（度、0 が右）, アイコン
 # ブランドのロゴは商標があるので使わず、種類が分かる図形を描く
 PLATFORMS = [
-    ("ベアメタル MCU", "WAMR · RP2350 · OS なし", True, -90, "chip"),
+    ("Bare metal MCU", "WAMR · RP2350 · no OS", True, -90, "chip"),
     ("Android", "Chrome / NDK + WAMR", False, -30, "phone"),
     ("iOS", "Safari · JavaScriptCore", False, 30, "phone"),
-    ("Node / CI", "V8 · ベクタ照合とファジング", True, 90, "terminal"),
-    ("Linux / macOS", "ネイティブ直リンク / wasmtime", True, 150, "laptop"),
-    ("Web / PWA", "ブラウザ · 単一 HTML 56KB", True, 210, "globe"),
+    ("Node / CI", "V8 · vectors and fuzzing", True, 90, "terminal"),
+    ("Linux / macOS", "native link / wasmtime", True, 150, "laptop"),
+    ("Web / PWA", "browser · single 56KB HTML", True, 210, "globe"),
 ]
 
 def icon(kind, x, y, size, color):
@@ -56,9 +56,9 @@ s = [f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox=
      f'font-family="{FONT}"><rect width="{W}" height="{H}" fill="{BG}"/>']
 
 s.append(f'<text x="{W/2}" y="38" fill="{FG}" font-size="20" text-anchor="middle">'
-         f'同じ WASM が、どこでも動く</text>')
+         f'The same WASM runs everywhere</text>')
 s.append(f'<text x="{W/2}" y="60" fill="{DIM}" font-size="13" text-anchor="middle">'
-         f'import 0 個。WASI も JS のポリフィルも要らない</text>')
+         f'Zero imports. No WASI, no JS polyfill.</text>')
 
 # 中心から各カードへの線（カードの下に描く）
 pos = []
@@ -73,7 +73,7 @@ for name, rt, done, deg, _ in PLATFORMS:
 hw, hh = 250, 128
 s.append(f'<rect x="{CX - hw/2}" y="{CY - hh/2}" width="{hw}" height="{hh}" rx="10" '
          f'fill="{HUB_FILL}" stroke="{HUB_LINE}" stroke-width="2"/>')
-s.append(f'<text x="{CX}" y="{CY - hh/2 + 26}" fill="{HUB_FG}" font-size="15" text-anchor="middle">同じ WASM</text>')
+s.append(f'<text x="{CX}" y="{CY - hh/2 + 26}" fill="{HUB_FG}" font-size="15" text-anchor="middle">the same WASM</text>')
 for i, (n, sz) in enumerate(ARTIFACTS):
     y = CY - hh/2 + 52 + i * 23
     s.append(f'<text x="{CX - hw/2 + 18}" y="{y}" fill="{FG}" font-size="13">{n}</text>')
@@ -90,10 +90,10 @@ for (name, rt, done, deg, kind), (x, y) in zip(PLATFORMS, pos):
     s.append(f'<text x="{tx}" y="{y - 12}" fill="{OK_FG if done else FG}" font-size="15">{name}</text>')
     s.append(f'<text x="{tx}" y="{y + 7}" fill="{DIM}" font-size="11.5">{rt}</text>')
     s.append(f'<text x="{tx}" y="{y + 24}" fill="{OK_LINE if done else DIM}" font-size="10.5">'
-             f'{"動かして確認済み" if done else "未確認（同じ経路）"}</text>')
+             f'{"verified on real hardware" if done else "not tried yet (same path)"}</text>')
 
 s.append(f'<text x="24" y="{H - 22}" fill="{DIM}" font-size="11.5">'
-         f'緑＝実際に動かして確認したもの／灰＝同じ経路なので動くはずだが未確認</text>')
+         f'green = actually run and verified / grey = same path, should work, not tried yet</text>')
 s.append("</svg>")
 
 out = sys.argv[1] if len(sys.argv) > 1 else "docs/everywhere.svg"
