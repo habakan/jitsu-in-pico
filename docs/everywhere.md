@@ -134,6 +134,7 @@ flowchart LR
 | 単一 HTML で PSBT を解析・表示 | 済（`make viewer`） |
 | 単一 HTML でカメラから UR を読む | 実装済、実機の画面での確認はこれから |
 | デバイスから xpub / 出力ディスクリプタを QR で出す | 済。PC 側をウォッチオンリーにできる |
+| PC に鍵を置かない一巡 | 済。[signet の取引](https://mempool.space/signet/tx/de849e8c01a39fcf2aa84aaeeccb2ac8aea128086b2f4252539bcab90a0a432f)（[手順](signet.md)） |
 | デバイスが自分の `parser.wasm` のハッシュを表示 | 未。これが入るとハッシュの突き合わせが閉じる |
 | 自分の鍵かどうかの判定（ブラウザ側） | 未。xpub の入力欄が要る |
 | 回復モード（`bitcoin-signer.wasm` を載せる） | 未。wasm 自体は動作確認済み |

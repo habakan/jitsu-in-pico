@@ -98,7 +98,7 @@ Service Worker の登録には HTTPS（または localhost）が要るので、*
 |---|---|---|
 | [wasm-psbt-parser](https://github.com/habakan/wasm-psbt-parser) | PSBT と UR の解析、Plan 生成、署名の差し込み、UR 符号化。import 0 個、15,598 byte | 動作。非公開 |
 | wasm-bitcoin-signer（本リポジトリの `signer/` を切り出す） | BIP39 シード、BIP32 導出、ECDSA / Schnorr 署名。import 0 個、34,410 byte | 動作。未分離 |
-| 署名器（本リポジトリ） | 参照実装。RP2350 + カメラ + 液晶。**常用で鍵を置くのはここだけ** | signet で一巡。非公開 |
+| 署名器（本リポジトリ） | 参照実装。RP2350 + カメラ + 液晶。**常用で鍵を置くのはここだけ** | signet で一巡（PC に鍵を置かない運用も確認）。非公開 |
 | PWA（相方） | 上の 2 つの wasm を載せる。既定は鍵なし、検証と回復のモードを別に持つ | 未着手 |
 
 **2 つの wasm が部品、デバイスが参照実装、PWA が検証と回復の相方**、という形で見る。
