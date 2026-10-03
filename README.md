@@ -1,137 +1,156 @@
 # baremetal-wasm-signer
 
-Raspberry Pi Pico 2（RP2350 / RISC-V Hazard3）上で動くベアメタルの Bitcoin 署名器。
-untrusted な入力（PSBT、QR）の解析を WASM に隔離し、鍵と署名はネイティブに置く（案 B）。
-OS もファイルシステムも持たず、Flash には鍵を一切書かない。
+**署名器の中身を、UI から切り離した部品にした。**
+取引を読み解く部分（PSBT・UR の解析）と鍵を扱う部分を、それぞれ import を 1 個も持たない WASM にしてある。
+だから、どんな言語・どんな画面の裏にでも置ける。
 
-設計の背景と判断は [docs/design.md](docs/design.md)、構成は [docs/architecture-b.md](docs/architecture-b.md)。
+<img src="docs/everywhere.svg" alt="The same WASM runs everywhere" width="900">
 
-## リポジトリの歩き方
+OS の無いマイコン（RP2350）と iPhone の Safari で、**同じ 15,598 byte** が動く。
+`parser.wasm` はバイト単位で同じものが載り、その SHA-256 をデバイスも画面に出すので、
+手元で `make check-repro` した結果と突き合わせられる。
 
 | | |
 |---|---|
-| `components/parser` | PSBT と UR の解析（submodule）。[ABI 仕様](components/parser/docs/abi.md)、ホスト実装例、ファジング |
-| `components/qr` | QR デコーダ（submodule）。固定小数点化した quirc |
-| `components/signer` | 鍵・導出・署名・アドレス。実機にはネイティブ、ブラウザには wasm で載る |
-| `apps/device` | RP2350 の参照実装（基板まわり、画面、WAMR との境界） |
-| `apps/viewer` | 単一 HTML のビューア |
-| `apps/host` | PC・QEMU で動かす開発用のプログラム |
-| `tools` `docs` | スクリプトと、設計・実測の記録 |
+| コンセプト（図つき） | [docs/everywhere.md](docs/everywhere.md) |
+| 何を作っていて誰のどんな問題を解くのか | [docs/positioning.md](docs/positioning.md) |
+| 他の言語から呼ぶための仕様 | [components/parser/docs/abi.md](components/parser/docs/abi.md)（英語） |
 
-**部品が主で、実機とビューアはその用例**という関係になっている（[positioning.md](docs/positioning.md)）。
+> **まだ本番の資金に使わないこと。** signet で一巡したところで、第三者のレビューを受けていない。
+> mainnet の前提は [docs/architecture-b.md](docs/architecture-b.md) §15 にある。
 
-## 現状（2026-10-01）
+## 何ができるか
 
-実機（Pico 2 H + 1.54 インチ ST7789 液晶 + タクトスイッチ 2 個 + Debug Probe）で一巡する。
+カメラから SeedQR で鍵を読み、アニメーション QR（UR）で PSBT を受け取り、確認画面を経て署名し、
+署名済み PSBT を QR で返す。PC 側には鍵も復元句も一度も置かない運用で、
+[signet の取引](https://mempool.space/signet/tx/de849e8c01a39fcf2aa84aaeeccb2ac8aea128086b2f4252539bcab90a0a432f)
+を通した（手順は [docs/signet.md](docs/signet.md)）。
 
-| 段 | 実測 | 備考 |
+| 段 | 実測 | |
 |---|---|---|
 | BIP39 シード（PBKDF2 2048 回） | 0.47 s | ネイティブ |
 | PSBT 解析 | 25 ms | **parser.wasm**（WAMR classic interp） |
 | 検査・確認画面の組み立て | 147 ms | ネイティブ |
-| 署名（2 入力、ECDSA + Schnorr） | 126 ms | ネイティブ。embit で独立検証済み |
-| finalize（署名の差し込み） | 0.8 ms | **parser.wasm** |
-| アニメーション QR（UR）出力 | 1 パート 95 ms | スマホで読取可、`@ngraveio/bc-ur` で復元・バイト一致 |
+| 署名（2 入力、ECDSA + Schnorr） | 126 ms | ネイティブ。embit で独立検証 |
+| アニメーション QR 出力 | 1 パート 95 ms | `@ngraveio/bc-ur` で復元・バイト一致 |
 | RAM | 約 341KB / 520KB | quirc と PSBT バッファはヒープを共有 |
 
-カメラから SeedQR で鍵を読み、アニメーション QR（UR）で PSBT を受け取り、確認画面を経て署名し、
-署名済み PSBT を QR で返すところまで実機で一巡する。Sparrow（signet）と繋いだ実機の署名が
-[ブロックに取り込まれた](https://mempool.space/signet/tx/d22944daeb353fc4e02012f080c632ddc8973b0395442f59d55e091a78610253)。
+実際に動かして確かめた環境: ベアメタル MCU（RP2350）、ブラウザ、Android 10、iOS、Linux / macOS、Node。
 
-## 構成
+未対応: マルチシグ、パスフレーズ、PSBT v2。単署名の P2WPKH / P2TR だけ。
 
-| ディレクトリ | 中身 | TCB |
-|---|---|---|
-| `components/signer/` | 鍵と署名の中核。BIP32 導出、BIP143/BIP341 sighash、アドレス生成、plan の検査（`core_review`）、low-R grinding、SeedQR | 内 |
-| `components/signer/` | 署名ロジック全体を WASM にした版（案 A の比較用。`bitcoin-signer.wasm`） | - |
-| `components/parser/` | PSBT・UR の解析器（submodule [wasm-psbt-parser](https://github.com/habakan/wasm-psbt-parser)）。`parser.wasm` になる | **外** |
-| `apps/device/runtime/host-abi/` | parser.wasm の呼び出し口。線形メモリとの出入りを範囲検証する境界 | 内 |
-| `apps/device/runtime/wamr-platform/` | WAMR の RP2350 向けプラットフォーム層（malloc も時刻も使わない） | 内 |
-| `components/qr/quirc` | QR デコーダ（submodule [quirc](https://github.com/habakan/quirc) の `mcu` ブランチ。FPU 無し向けに固定小数点化） | 外 |
-| `apps/device/ui/` | 240x240 の画面を組む。確認画面、メニュー、QR 描画。表示先に依存しない | 内 |
-| `apps/device/rp2350/` | 実機のファーム。液晶（ST7789）、ボタン、カメラ（PIO + DMA）、各確認用ファーム | 内 |
-| `apps/host/qemu-riscv32/` | QEMU virt 向けの起動コードとリンク設定（命令数の計測用） | - |
-| `apps/host/` | Mac / QEMU で動かす検査用のホスト（署名・PSBT 一巡・QR ベンチ） | - |
-| `apps/viewer/` | ブラウザ用。実機と同じ `parser.wasm` で PSBT を表示する単一 HTML（`make viewer`） | - |
-| `tools/` | ベクタ生成、参照実装との照合、UART モニタ、PIO シミュレータ | - |
-| `patches/` | third_party に当てるパッチ（現在は WAMR 1 件。上流に取り込まれ済み） | - |
-| `docs/` | 設計と実現性検証。`docs/internal/` はコミットしない内部メモ | - |
+## 試す
 
-依存（`third_party/`、gitignore 済み）は `make deps` で clone する: libsecp256k1、WAMR 2.4.3、pico-sdk 2.3.1、
-QR-Code-generator、spleen フォント、RISC-V ツールチェーン。
+### 基板が無くても
 
-## 実機のファーム（`apps/device/rp2350`）
-
-| ターゲット | 用途 |
-|---|---|
-| `app` | 本体。メニューから PSBT 署名の一巡（確認画面 → 署名 → アニメーション QR） |
-| `app_nolcd` | `app` と同じで、画面の内容を UART に文字で出す（液晶なしでの確認・回帰） |
-| `signer` | 署名ロジックを WASM で回したときの時間とメモリを測る（案 A の計測） |
-| `psbt_bench` | PSBT 一巡の時間・プール使用量・ヒープ共有の確認（表示とボタンを使わない） |
-| `qr_bench` | 埋め込んだ画像で quirc のデコード時間を測る（カメラ不要） |
-| `camera_test` | カメラから取り込んで液晶に出し、quirc で読む |
-| `pio_loopback_test` | カメラ無しで DVP 取り込みを検証（PIO が同じピンを駆動して読む） |
-| `button_test` | GP2〜GP28 のどのピンが GND に落ちたかを出す（配線の切り分け） |
-
-`TEST_SEED=1` でビルドしたものだけ、BIP39 のテストベクタ（`abandon ... about`）を選べる。資金を扱ってはならない。
-
-## 使い方
-
-```
+```sh
 git submodule update --init
-make deps                                    # third_party を取得してパッチを当てる
-make deps-openocd                            # 一度だけ。SWD 書き込み用（Raspberry Pi のフォーク）
-
-make run ELF=build/rp2350/app.elf SECONDS=180  # 書き込み → 受信開始 → リセット
-make flash-swd ELF=build/rp2350/app.elf        # 書き込みだけ
-make monitor SECONDS=60                        # UART を受けるだけ
-make viewer                                    # 実機と同じ wasm でブラウザに PSBT を表示（単一 HTML）
+make deps          # third_party を取得してパッチを当てる
+make viewer        # build/viewer.html を作ってブラウザで開く
 ```
 
-配線と部品は [docs/hardware.md](docs/hardware.md)。BOOTSEL から `.uf2` を書く手順も残してある（`make flash`）。
+189KB の HTML 1 枚に 3 つの WASM（解析・QR・アドレス）が入っている。オフラインで動き、
+`file://` のままカメラも使える（Android は localhost か HTTPS が要る）。
 
-## 検査
+### 他の言語から
 
+`components/parser/examples/` に Kotlin（Chicory）と Swift（WasmKit）の例がある。
+どちらも JNI もネイティブのビルドも要らない。**C・JS・Kotlin・Swift・実機の 5 つが同じ答えを返す。**
+
+### 実機
+
+部品と配線は [docs/hardware.md](docs/hardware.md)、実配線は [docs/breadboard.md](docs/breadboard.md)。
+
+```sh
+make deps-openocd                 # 一度だけ。SWD 書き込み用（Raspberry Pi のフォーク）
+make run SECONDS=180              # 書き込み → 受信開始 → リセット
+make run TESTNET=1 SECONDS=180    # signet 用
 ```
+
+`TEST_SEED=1` でビルドしたものだけ BIP39 のテストベクタを選べる。資金を扱ってはならない。
+
+## 自分で確かめる
+
+```sh
+make check-repro   # 版を固定したツールチェーンで parser.wasm を作り直し、記録と突き合わせる
+```
+
+デバイスの `Parser hash` 画面、ビューアのページ下部、この出力の 3 つが一致すれば、
+**デバイスの中で動いている解析器は公開ソースから出たもの**だと言える
+（[docs/reproducible-build.md](docs/reproducible-build.md)）。
+
+```sh
 make check-core        # 中核のベクタ（71 項目）
-make check-parser      # 解析器（submodule 側のテスト）
+make check-xpub        # 口座 xpub とディスクリプタ（BIP84 の公式ベクタ）
 make check-psbt        # PSBT 一巡 + UR の往復 + 署名を embit で独立検証
 make check-ui          # 画面の組み立て
 make check-seedqr      # SeedQR の読み取り（ASan 付き）
 make check-host        # Mac: ネイティブ / WAMR classic / fast
-make check-qemu        # RV32 の命令数（-icount shift=0）
 make check-qemu-psbt   # RV32 で PSBT 一巡（ホストの出力と一致するか）
 make check-qemu-qr     # quirc の命令数
 make check-qr-mac      # quirc と zxing-cpp の読取可否を比べる
 make check-camera-sim  # camera.pio を Python のシミュレータで検証
+make -C components/parser test        # 解析器のベクタ（529 項目）
+make -C components/parser check-fuzz  # 解析器へのファジング
 ```
 
-期待値は独立に作る（`tools/` の embit / hashlib / `@ngraveio/bc-ur` / zxing-cpp）。
-テストを足したら必ずミューテーションテストで検出力を確かめる。
+期待値は独立に作る（embit / hashlib / `@ngraveio/bc-ur` / zxing-cpp / Bitcoin Core）。
+テストを足したらミューテーションテストで検出力を確かめる。
 
-## 検証の記録
+## リポジトリの歩き方
+
+**部品が主で、実機とビューアはその用例**という関係になっている。
+
+| | | TCB |
+|---|---|---|
+| `components/parser/` | PSBT・UR の解析（submodule [wasm-psbt-parser](https://github.com/habakan/wasm-psbt-parser)）。`parser.wasm` になる。ABI 仕様・ホスト実装例・ファジングもここ | **外** |
+| `components/qr/` | QR デコーダ（submodule [quirc](https://github.com/habakan/quirc) の `mcu` ブランチ。FPU 無し向けに固定小数点化） | 外 |
+| `components/signer/` | 鍵と署名。BIP32 導出、BIP143/BIP341 sighash、アドレス、plan の検査、SeedQR。実機にはネイティブ、ブラウザには wasm で載る | 内 |
+| `apps/device/rp2350/` | 実機のファーム。液晶（ST7789）、ボタン、カメラ（PIO + DMA） | 内 |
+| `apps/device/ui/` | 240x240 の画面を組む。表示先に依存しない | 内 |
+| `apps/device/runtime/` | parser.wasm の呼び出し口（線形メモリとの出入りを範囲検証する境界）と WAMR のプラットフォーム層 | 内 |
+| `apps/viewer/` | 実機と同じ wasm で PSBT を表示する単一 HTML | - |
+| `apps/host/` | Mac / QEMU で動かす検査用のホスト | - |
+| `tools/` `docs/` | ベクタ生成・参照実装との照合・配線図などのスクリプトと、設計・実測の記録 | - |
+
+依存（`third_party/`、gitignore 済み）は `make deps` で clone する:
+libsecp256k1、WAMR 2.4.3、pico-sdk 2.3.1、QR-Code-generator、spleen フォント、RISC-V ツールチェーン。
+
+### 実機のファームの種類
+
+| ターゲット | 用途 |
+|---|---|
+| `app` | 本体。PSBT 署名の一巡、xpub 表示、解析器ハッシュ表示 |
+| `app_nolcd` | 同じ内容を UART に文字で出す（液晶なしでの回帰） |
+| `psbt_bench` `qr_bench` `signer` | 時間・メモリの計測 |
+| `camera_test` `pio_loopback_test` `button_test` | 配線とカメラの切り分け |
+
+## 設計と実測の記録
 
 | 文書 | 内容 |
 |---|---|
-| [components/parser/docs/abi.md](components/parser/docs/abi.md) | `parser.wasm` の ABI。他の言語から呼ぶための仕様（英語） |
-| [docs/signet.md](docs/signet.md) | bitcoin-cli でのウォッチオンリー運用と一巡の手順 |
-| [docs/everywhere.md](docs/everywhere.md) | コンセプト「同じコードがどこでも動く」。図つき |
-| [docs/positioning.md](docs/positioning.md) | 何を作っていて、誰のどんな問題を解くのか。公開と資金申請の前提 |
 | [docs/architecture.md](docs/architecture.md) | システム構成（信頼境界・一巡・メモリ）。図つき |
 | [docs/design.md](docs/design.md) | 設計と、何を信頼しないかの線引き |
-| [docs/architecture-b.md](docs/architecture-b.md) | 解析器を WASM に隔離する構成、plan の形式、実装状況、実機計測 |
+| [docs/architecture-b.md](docs/architecture-b.md) | 解析器を WASM に隔離する構成、plan の形式、残作業 |
+| [docs/reproducible-build.md](docs/reproducible-build.md) | 再現可能ビルドと、`wasm-opt` が PATH にあるだけで成果物が変わる罠 |
+| [docs/signet.md](docs/signet.md) | bitcoin-cli でのウォッチオンリー運用と一巡 |
 | [docs/feasibility.md](docs/feasibility.md) | RP2350 に載るか（サイズ・速度）、実機 4 構成の比較 |
 | [docs/kdf-feasibility.md](docs/kdf-feasibility.md) | BIP39 / BIP32 の速度と、SHA-512 を import に出す判断 |
-| [docs/aot-feasibility.md](docs/aot-feasibility.md) | WAMR AOT。XIP は実機で 7 倍遅く、RAM 展開なら命令数どおり |
+| [docs/aot-feasibility.md](docs/aot-feasibility.md) | WAMR AOT。XIP は実機で 7 倍遅い |
 | [docs/qr-feasibility.md](docs/qr-feasibility.md) | QR の読み書き、quirc の固定小数点化、RAM 見積り |
-| [docs/hardware.md](docs/hardware.md) | GPIO 割り当て、部品ごとの配線、組むときの注意 |
-| [docs/breadboard.md](docs/breadboard.md) | ブレッドボードの実配線（行と穴の番号まで） |
-| [docs/breadboard.yml](docs/breadboard.yml) | 同じ配線を機械可読にしたもの。`make breadboard` でブレッドボードの絵 |
-| [docs/wiring.yml](docs/wiring.yml) | 信号の対応（WireViz）。`make wiring` で配線図と部品表 |
+| [docs/hardware.md](docs/hardware.md) [docs/breadboard.md](docs/breadboard.md) | 配線。`make wiring` `make breadboard` で図を作る |
+
+失敗もそのまま残してある。AOT の XIP が 7 倍遅いこと、WAMR の非整列 `i64.store`、
+`wasm-opt` が PATH にあるだけで成果物が 2.7KB 変わること、quirc が液晶の遠景を読めないこと。
 
 ## 上流への還元
 
-- WAMR: classic interpreter の `i64.store` が 4 byte 境界を前提にしていたバグを修正
+- **WAMR**: classic interpreter の `i64.store` が 4 byte 境界を前提にしていたバグを修正
   （[PR #5123](https://github.com/wasm-micro-runtime/wasm-micro-runtime/pull/5123)、2026-09-30 マージ）。
   非整列アクセスを許さない CPU で踏む。QEMU では再現しない
-- quirc: 自前フォーク（`mcu` ブランチ）で固定小数点化、未マージのセキュリティ修正の取り込み、UBSan とファジング
+- **quirc**: 自前フォーク（`mcu` ブランチ）で固定小数点化、未マージのセキュリティ修正の取り込み、
+  UBSan とファジング
+
+## ライセンス
+
+MIT（[LICENSE](LICENSE)）。取り込んでいる第三者のコードは [NOTICE](NOTICE) を見る。

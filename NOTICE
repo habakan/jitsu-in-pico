@@ -1,0 +1,10 @@
+baremetal-wasm-signer
+Copyright (c) 2026 habakan
+
+このリポジトリのコードは MIT ライセンス（LICENSE）で配布する。
+取り込んでいる第三者のコードは、それぞれのライセンスに従う。
+
+- components/qr/quirc — quirc のフォーク（ISC License）
+- apps/viewer/vendor/jsQR.min.js — jsQR（Apache License 2.0、apps/viewer/vendor/jsQR-LICENSE.txt）
+- third_party/ — make deps で取得する。libsecp256k1（MIT）、WAMR（Apache-2.0 with LLVM exception）、
+  pico-sdk（BSD-3-Clause）、QR-Code-generator（MIT）、spleen フォント（BSD-2-Clause）
