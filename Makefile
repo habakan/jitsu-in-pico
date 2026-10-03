@@ -6,6 +6,8 @@ COMB    ?= -DCOMB_BLOCKS=2 -DCOMB_TEETH=5
 SECP_DEFS := -DENABLE_MODULE_EXTRAKEYS=1 -DENABLE_MODULE_SCHNORRSIG=1 -DECMULT_WINDOW_SIZE=2 \
              -DUSE_EXTERNAL_DEFAULT_CALLBACKS=1 $(COMB)
 RTLIB   ?= /opt/homebrew/opt/wasi-runtimes/share/wasi-runtimes/lib/wasm32-unknown-wasip1
+# clang のドライバは PATH にある wasm-opt を黙って走らせる。版を固定して明示的に呼ぶ
+WASM_OPT ?= wasm-opt
 # SHA512_HOST=1 で SHA-512 圧縮関数をホストの import にする
 SHA512_HOST ?= 0
 CFLAGS  := -Oz -Wall -Wno-unused-function -Icomponents/signer -I$(SECP)/include $(SECP_DEFS) $(if $(filter 1,$(SHA512_HOST)),-DSHA512_HOST_COMPRESS)
@@ -16,7 +18,9 @@ build/bitcoin-signer.wasm: components/signer/signer.c components/signer/sha512.c
 	$(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs $(CFLAGS) \
 	  -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all -Wl,-z,stack-size=$(STACK) \
 	  -Wl,--export=__heap_base -Wl,--export=__data_end -Wl,--initial-memory=65536 -Wl,--max-memory=65536 \
+	  --no-wasm-opt -Wl,--keep-section=target_features \
 	  -o $@ components/signer/signer.c components/signer/sha512.c components/signer/bip32.c components/signer/secp_callbacks.c components/signer/secp256k1_unity.c -lc $(RTLIB)/libclang_rt.builtins.a
+	$(WASM_OPT) $@ -Oz -o $@
 
 clean:
 	rm -rf build
@@ -179,21 +183,22 @@ check-qemu-core: build/qemu-test-core.elf
 # parser.wasm は wasm-psbt-parser（submodule）の Makefile でビルドする
 build/parser.wasm: components/parser/src/*.c components/parser/include/*.h
 	mkdir -p build
-	$(MAKE) -C components/parser build/parser.wasm LLVM=$(LLVM) WASI=$(WASI) RTLIB=$(RTLIB)
+	$(MAKE) -C components/parser build/parser.wasm LLVM=$(LLVM) WASI=$(WASI) RTLIB=$(RTLIB) WASM_OPT=$(WASM_OPT)
 	cp components/parser/build/parser.wasm $@
 
-# 版とハッシュを固定したツールチェーンで作り直し、記録と突き合わせる。
-# 第三者が同じ parser.wasm を出せることの確認（docs/reproducible-build.md）
+# 版とハッシュを固定したツールチェーンで 4 つの wasm を作り直し、記録と突き合わせる。
+# 第三者が同じものを出せることの確認（docs/reproducible-build.md）
 SDK = $(shell ./tools/toolchain.sh)
+REPRO_WASM := build/parser.wasm build/bitcoin-signer.wasm build/address.wasm build/qr.wasm
+
 check-repro: tools/toolchain.sh checksums.txt
-	$(MAKE) -C components/parser clean-wasm 2>/dev/null || rm -f components/parser/build/parser.wasm
-	$(MAKE) -C components/parser build/parser.wasm \
+	rm -f $(REPRO_WASM) components/parser/build/parser.wasm
+	$(MAKE) $(REPRO_WASM) \
 	  LLVM=$(CURDIR)/$(SDK)/bin WASI=$(CURDIR)/$(SDK)/share/wasi-sysroot \
 	  RTLIB=$(CURDIR)/$(SDK)/lib/clang/23/lib/wasm32-unknown-wasi \
 	  WASM_OPT=$(CURDIR)/build/toolchain/binaryen-version_132/bin/wasm-opt
-	@cd components/parser/build && (shasum -a 256 parser.wasm 2>/dev/null || sha256sum parser.wasm) \
-	  | sed 's|parser.wasm|build/parser.wasm|' > /tmp/repro.txt
-	@diff /tmp/repro.txt checksums.txt && echo "一致した（再現可能）" \
+	@(shasum -a 256 $(REPRO_WASM) 2>/dev/null || sha256sum $(REPRO_WASM)) > /tmp/repro.txt
+	@diff /tmp/repro.txt checksums.txt && echo "4 つとも一致した（再現可能）" \
 	  || { echo "一致しない。docs/reproducible-build.md を見る"; exit 1; }
 .PHONY: check-repro
 
@@ -327,14 +332,18 @@ flash: $(UF2)
 build/address.wasm: components/signer/address.c components/signer/ripemd160.c components/parser/src/sha256.c apps/viewer/addr_wasm.c
 	mkdir -p build && $(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs \
 	  -Oz -Wall -Wextra -Icomponents/signer -Icomponents/parser/include -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all \
+	  --no-wasm-opt -Wl,--keep-section=target_features \
 	  -o $@ apps/viewer/addr_wasm.c components/signer/address.c components/signer/ripemd160.c components/parser/src/sha256.c -lc $(RTLIB)/libclang_rt.builtins.a
+	$(WASM_OPT) $@ -Oz -o $@
 
 # 実機と同じ quirc。assert を外さないと wasi の stdio が入り、import が増える
 build/qr.wasm: apps/viewer/qr_wasm.c $(QUIRC)/decode.c $(QUIRC)/identify.c $(QUIRC)/quirc.c $(QUIRC)/version_db.c
 	mkdir -p build && $(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs \
 	  -Oz -Wall -DNDEBUG $(QUIRC_DEFS) -I$(QUIRC) -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all \
-	  -Wl,--initial-memory=4194304 -o $@ apps/viewer/qr_wasm.c $(QUIRC)/decode.c $(QUIRC)/identify.c \
+	  --no-wasm-opt -Wl,--keep-section=target_features -Wl,--initial-memory=4194304 \
+	  -o $@ apps/viewer/qr_wasm.c $(QUIRC)/decode.c $(QUIRC)/identify.c \
 	  $(QUIRC)/quirc.c $(QUIRC)/version_db.c -lc $(RTLIB)/libclang_rt.builtins.a
+	$(WASM_OPT) $@ -Oz -o $@
 
 viewer: build/parser.wasm build/address.wasm build/qr.wasm apps/viewer/viewer.html tools/build_viewer.py
 	uv run -q tools/build_viewer.py build/viewer.html

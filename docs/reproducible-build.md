@@ -9,11 +9,14 @@
 make check-repro
 ```
 
-版とハッシュを固定したツールチェーンを `build/toolchain/` に落とし、それで `parser.wasm` を
+版とハッシュを固定したツールチェーンを `build/toolchain/` に落とし、4 つの wasm を
 作り直して `checksums.txt` と突き合わせる。一致すれば「再現可能」。
 
 ```
-a6766d13e1eb2e79fe036658ab5d3a6b60609e7b83d8bd3309dbed0eee156356  build/parser.wasm
+a6766d13…  build/parser.wasm           解析器（実機にもブラウザにも同じものが載る）
+f4841a11…  build/bitcoin-signer.wasm   鍵・導出・署名
+55d8d85d…  build/address.wasm          scriptPubKey → アドレス
+4409a16e…  build/qr.wasm               QR デコーダ（quirc）
 ```
 
 ## 固定しているもの
@@ -27,8 +30,8 @@ a6766d13e1eb2e79fe036658ab5d3a6b60609e7b83d8bd3309dbed0eee156356  build/parser.w
 
 ## 確かめたこと（2026-10-03）
 
-**macOS arm64 と Linux x86_64 で、同じ `a6766d13…` が出る。** 別の OS、別の CPU、別のマシンで
-同じバイト列になることを実際に確認した。
+**macOS arm64 と Linux x86_64 で同じハッシュが出る。** 別の OS、別の CPU、別のマシンで
+同じバイト列になることを実際に確認した（`parser.wasm` は 2026-10-03、残り 3 つも同日）。
 
 ## 引っかかったこと: `wasm-opt` が PATH にあるだけで結果が変わる
 
@@ -58,8 +61,5 @@ WASM_OPT ?= wasm-opt
 
 ## まだやっていないこと
 
-- `address.wasm` と `qr.wasm`（ビューアが載せている残り 2 つ）は親の Makefile で作っていて、
-  同じ暗黙の `wasm-opt` の影響を受ける。`check-repro` の対象に入れる
-- `bitcoin-signer.wasm` も同じ
 - ツールチェーンの取得元は GitHub のリリース。配布物そのものの再現可能性は上流に依存する
 - デバイスのファームウェア全体（pico-sdk、WAMR を含む）の再現可能ビルドは未着手
