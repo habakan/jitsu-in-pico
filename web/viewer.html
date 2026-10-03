@@ -54,7 +54,10 @@
       <span><select id="camsel" style="display:none;background:#242833;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px"></select>
       <button id="camstart">開始</button></span>
     </div>
-    <video id="video" playsinline muted style="width:100%;margin-top:8px;display:none;border-radius:6px"></video>
+    <div style="position:relative;margin-top:8px">
+      <video id="video" playsinline muted style="width:100%;display:none;border-radius:6px"></video>
+      <div id="cambox" style="display:none;position:absolute;left:25%;top:25%;width:50%;height:50%;border:2px dashed #ffaa00;border-radius:6px;pointer-events:none"></div>
+    </div>
     <div class="k" id="camstat"></div>
   </div>
 
@@ -175,7 +178,9 @@ async function camera() {
   const sel = document.getElementById("camsel");
   let stream;
   try {
-    const want = sel.value ? { deviceId: { exact: sel.value } } : { facingMode: "environment" };
+    /* 解析は中央を等倍で切り出すので、センサーは高いほどモジュールが大きく写る */
+    const want = Object.assign({ width: { ideal: 1920 }, height: { ideal: 1080 } },
+                               sel.value ? { deviceId: { exact: sel.value } } : { facingMode: "environment" });
     stream = await navigator.mediaDevices.getUserMedia({ video: want });
   } catch (e) {
     stat.textContent = `カメラを開けません: ${e.name}。file:// では使えないブラウザがあります`;
@@ -193,14 +198,19 @@ async function camera() {
   video.style.display = "block";
   await video.play();
 
+  /* 画面全体を縮めると 1 モジュールが 2px 程度になって復号できない。
+   * 中央の半分を等倍で切り出し、解像度を保ったままデコーダのメモリに収める */
+  const box = document.getElementById("cambox");
   const tick = () => {
     if (!video.videoWidth) return requestAnimationFrame(tick);
-    if (W !== video.videoWidth) {
-      W = canvas.width = video.videoWidth;
-      H = canvas.height = video.videoHeight;
+    if (W !== (video.videoWidth >> 1)) {
+      W = canvas.width = video.videoWidth >> 1;
+      H = canvas.height = video.videoHeight >> 1;
+      box.style.display = "block";
       if (!qr.qr_init(W, H)) { stat.textContent = "QR デコーダの初期化に失敗"; return; }
+      stat.textContent = `${video.videoWidth}x${video.videoHeight} の中央 ${W}x${H} を見ている`;
     }
-    ctx.drawImage(video, 0, 0, W, H);
+    ctx.drawImage(video, W >> 1, H >> 1, W, H, 0, 0, W, H);
     const rgba = ctx.getImageData(0, 0, W, H).data;
     const gray = new Uint8Array(qr.memory.buffer, qr.qr_image(), W * H);
     for (let i = 0, j = 0; i < gray.length; i++, j += 4)  // ITU-R BT.601 の輝度
