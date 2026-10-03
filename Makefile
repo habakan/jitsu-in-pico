@@ -306,7 +306,14 @@ build/address.wasm: core/address.c core/ripemd160.c parser/src/sha256.c web/addr
 	  -Oz -Wall -Wextra -Icore -Iparser/include -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all \
 	  -o $@ web/addr_wasm.c core/address.c core/ripemd160.c parser/src/sha256.c -lc $(RTLIB)/libclang_rt.builtins.a
 
-viewer: build/parser.wasm build/address.wasm web/viewer.html tools/build_viewer.py
+# 実機と同じ quirc。assert を外さないと wasi の stdio が入り、import が増える
+build/qr.wasm: web/qr_wasm.c $(QUIRC)/decode.c $(QUIRC)/identify.c $(QUIRC)/quirc.c $(QUIRC)/version_db.c
+	mkdir -p build && $(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs \
+	  -Oz -Wall -DNDEBUG $(QUIRC_DEFS) -I$(QUIRC) -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all \
+	  -Wl,--initial-memory=4194304 -o $@ web/qr_wasm.c $(QUIRC)/decode.c $(QUIRC)/identify.c \
+	  $(QUIRC)/quirc.c $(QUIRC)/version_db.c -lc $(RTLIB)/libclang_rt.builtins.a
+
+viewer: build/parser.wasm build/address.wasm build/qr.wasm web/viewer.html tools/build_viewer.py
 	uv run -q tools/build_viewer.py build/viewer.html
 	open build/viewer.html
 .PHONY: viewer

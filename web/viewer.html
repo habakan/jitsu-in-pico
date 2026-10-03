@@ -48,21 +48,31 @@
     </div>
   </div>
 
+  <div class="card" id="cam">
+    <div class="row">
+      <span class="k">カメラでアニメーション QR（UR）を読む</span>
+      <button id="camstart">開始</button>
+    </div>
+    <video id="video" playsinline muted style="width:100%;margin-top:8px;display:none;border-radius:6px"></video>
+    <div class="k" id="camstat"></div>
+  </div>
+
   <div id="out"></div>
 
   <footer>
     parser.wasm __PARSER_SHA256__<br>
-    address.wasm __ADDRESS_SHA256__
+    address.wasm __ADDRESS_SHA256__<br>
+    qr.wasm __QR_SHA256__
   </footer>
 </main>
 
 <script>
-const PARSER_WASM = "__PARSER_WASM__", ADDRESS_WASM = "__ADDRESS_WASM__";
+const PARSER_WASM = "__PARSER_WASM__", ADDRESS_WASM = "__ADDRESS_WASM__", QR_WASM = "__QR_WASM__";
 const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 /* instantiateStreaming は MIME 型を要求するので、file:// でも動くようバイト列から読む */
 const load = async s => (await WebAssembly.instantiate(b64(s), {})).instance.exports;
 
-let parser, address;
+let parser, address, qr;
 const OFF = { // plan.h のレイアウト。_Static_assert で固定してある
   inputs: 24, outputs: 2840, inSize: 176, outSize: 136,
   in: { amount: 40, spk: 48, key: 132 }, out: { amount: 0, spk: 8, key: 92 },
@@ -147,6 +157,73 @@ async function parse(bytes) {
     out.innerHTML = `<div class="card err">${e.message}</div>`;
   }
 }
+
+/* カメラ: 実機と同じ quirc（qr.wasm）で読み、parser.wasm の UR 復元に渡す */
+async function camera() {
+  const video = document.getElementById("video"), stat = document.getElementById("camstat");
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  const seen = new Set();
+  let W = 0, H = 0;
+
+  parser ||= await load(PARSER_WASM);
+  address ||= await load(ADDRESS_WASM);
+  qr ||= await load(QR_WASM);
+  parser.parser_ur_reset();
+
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+  } catch (e) {
+    stat.textContent = `カメラを開けません: ${e.name}。file:// では使えないブラウザがあります`;
+    return;
+  }
+  video.srcObject = stream;
+  video.style.display = "block";
+  await video.play();
+
+  const tick = () => {
+    if (!video.videoWidth) return requestAnimationFrame(tick);
+    if (W !== video.videoWidth) {
+      W = canvas.width = video.videoWidth;
+      H = canvas.height = video.videoHeight;
+      if (!qr.qr_init(W, H)) { stat.textContent = "QR デコーダの初期化に失敗"; return; }
+    }
+    ctx.drawImage(video, 0, 0, W, H);
+    const rgba = ctx.getImageData(0, 0, W, H).data;
+    const gray = new Uint8Array(qr.memory.buffer, qr.qr_image(), W * H);
+    for (let i = 0, j = 0; i < gray.length; i++, j += 4)  // ITU-R BT.601 の輝度
+      gray[i] = (rgba[j] * 77 + rgba[j + 1] * 150 + rgba[j + 2] * 29) >> 8;
+
+    const n = qr.qr_decode();
+    if (n > 0) {
+      const text = new TextDecoder().decode(new Uint8Array(qr.memory.buffer, qr.qr_payload(), n));
+      const pm = new Uint8Array(parser.memory.buffer);
+      pm.set(new TextEncoder().encode(text), parser.parser_input());
+      const rc = parser.parser_ur_receive(n);
+      if (rc > 0) {                                   // PSBT が揃った
+        stream.getTracks().forEach(t => t.stop());
+        video.style.display = "none";
+        stat.textContent = `${seen.size + 1} パートで復元（${rc} byte）`;
+        const psbt = new Uint8Array(parser.memory.buffer, parser.parser_input(), rc).slice();
+        return parse(psbt);
+      }
+      if (rc === 0) {
+        seen.add(text.split("/")[1]);
+        const m = text.match(/\/(\d+)-(\d+)\//);
+        stat.textContent = m ? `${seen.size}/${m[2]} パート` : `${seen.size} パート`;
+      } else {
+        stat.textContent = `UR エラー ${rc}`;
+      }
+    } else if (n < 0) {
+      stat.textContent = "QR は見えているが読めない";
+    }
+    requestAnimationFrame(tick);
+  };
+  requestAnimationFrame(tick);
+}
+
+document.getElementById("camstart").onclick = camera;
 
 function fromText(s) {
   s = s.trim().replace(/\s+/g, "");
