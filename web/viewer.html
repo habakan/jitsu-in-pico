@@ -170,6 +170,8 @@ async function camera() {
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   const seen = new Set();
   let W = 0, H = 0, mode = 0;
+  /* Chrome / Android などは OS のデコーダを持っている。あれば使う（追加の容量は要らない） */
+  const bd = ("BarcodeDetector" in window) ? new BarcodeDetector({ formats: ["qr_code"] }) : null;
 
   parser ||= await load(PARSER_WASM);
   address ||= await load(ADDRESS_WASM);
@@ -211,37 +213,46 @@ async function camera() {
     a.download = "qr-frame.png";
     a.click();
   });
-  const tick = () => {
+  const tick = async () => {
     if (!video.videoWidth) return requestAnimationFrame(tick);
     if (W !== (video.videoWidth >> 1)) {
       W = canvas.width = video.videoWidth >> 1;
       H = canvas.height = video.videoHeight >> 1;
       box.style.display = "block";
       if (!qr.qr_init(W, H)) { stat.textContent = "QR デコーダの初期化に失敗"; return; }
-      stat.textContent = `${video.videoWidth}x${video.videoHeight} の中央 ${W}x${H} を見ている`;
+      stat.textContent = `${video.videoWidth}x${video.videoHeight} の中央 ${W}x${H} を見ている`
+        + (bd ? "（ブラウザ内蔵のデコーダが使える）" : "（quirc のみ）");
     }
-    /* 中央の等倍（QR が小さく写るとき）と全体の縮小（枠からはみ出すとき）を交互に試す。
-     * 鏡像だと位置検出だけ通って復号が落ちるので、失敗したら左右を反転してもう一度 */
+    /* 中央の等倍（QR が小さく写るとき）と全体の縮小（枠からはみ出すとき）を交互に試す */
     if (mode & 1) ctx.drawImage(video, W >> 1, H >> 1, W, H, 0, 0, W, H);
     else ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight, 0, 0, W, H);
     box.style.display = (mode & 1) ? "block" : "none";
-    const rgba = ctx.getImageData(0, 0, W, H).data;
-    const gray = new Uint8Array(qr.memory.buffer, qr.qr_image(), W * H);
-    for (let i = 0, j = 0; i < gray.length; i++, j += 4)  // ITU-R BT.601 の輝度
-      gray[i] = (rgba[j] * 77 + rgba[j + 1] * 150 + rgba[j + 2] * 29) >> 8;
-
-    let n = qr.qr_decode(), how = (mode & 1) ? "中央" : "全体";
-    if (n <= 0) {
-      for (let y = 0; y < H; y++)
-        for (let a = y * W, b = a + W - 1; a < b; a++, b--) {
-          const t = gray[a]; gray[a] = gray[b]; gray[b] = t;
-        }
-      const m = qr.qr_decode();
-      if (m > 0) { n = m; how += "・鏡像"; }
-    }
     mode++;
-    if (n > 0) {
-      const text = new TextDecoder().decode(new Uint8Array(qr.memory.buffer, qr.qr_payload(), n));
+
+    /* まずブラウザ内蔵のデコーダ（OS のもの）。実機の液晶を離れて撮ると quirc は読めないが
+     * こちらは読める。鍵に関わるのは parser.wasm なので、運搬側は読める方を使ってよい */
+    let text = null, how = (mode & 1) ? "中央" : "全体";
+    if (bd) {
+      const codes = await bd.detect(canvas).catch(() => []);
+      if (codes.length) { text = codes[0].rawValue; how += "・内蔵"; }
+    }
+    if (text === null) {
+      const rgba = ctx.getImageData(0, 0, W, H).data;
+      const gray = new Uint8Array(qr.memory.buffer, qr.qr_image(), W * H);
+      for (let i = 0, j = 0; i < gray.length; i++, j += 4)  // ITU-R BT.601 の輝度
+        gray[i] = (rgba[j] * 77 + rgba[j + 1] * 150 + rgba[j + 2] * 29) >> 8;
+      const n = qr.qr_decode();
+      if (n > 0) {
+        text = new TextDecoder().decode(new Uint8Array(qr.memory.buffer, qr.qr_payload(), n));
+        how += "・quirc";
+      } else if (n < 0) {
+        const px = qr.qr_last_px(), cells = qr.qr_last_cells();
+        stat.textContent = `QR は見えているが読めない: ${px}px / ${cells}モジュール`
+          + ` = ${(px / (cells || 1)).toFixed(1)}px/モジュール（${how}）`;
+      }
+    }
+    if (text !== null) {
+      const n = text.length;
       /* デバイスの Show xpub は UR ではなく素のディスクリプタを出す。手で打たずに済むよう拾う */
       if (!text.startsWith("UR:")) {
         stream.getTracks().forEach(t => t.stop());
@@ -270,10 +281,6 @@ async function camera() {
       } else {
         stat.textContent = `UR エラー ${rc}`;
       }
-    } else if (n < 0) {
-      const px = qr.qr_last_px(), cells = qr.qr_last_cells();
-      stat.textContent = `QR は見えているが読めない: ${px}px / ${cells}モジュール`
-        + ` = ${(px / (cells || 1)).toFixed(1)}px/モジュール（${how}、${qr.qr_last_err()}）`;
     }
     requestAnimationFrame(tick);
   };
