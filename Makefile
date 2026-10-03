@@ -54,6 +54,16 @@ deps:
 	curl -sL -o third_party/rv.zip $(RISCV_TC_URL) && unzip -q third_party/rv.zip -d third_party/riscv-toolchain && rm third_party/rv.zip
 	$(MAKE) patch-deps
 
+# CI 用。実機と QEMU を除いた、ホストで動かす検査に要るものだけ
+deps-host:
+	mkdir -p third_party
+	$(call clone_at,secp256k1,https://github.com/bitcoin-core/secp256k1.git,$(SECP_REV))
+	$(call clone_at,wasm-micro-runtime,https://github.com/bytecodealliance/wasm-micro-runtime.git,$(WAMR_REV))
+	$(call clone_at,QR-Code-generator,https://github.com/nayuki/QR-Code-generator.git,$(QRGEN_REV))
+	$(call clone_at,spleen,https://github.com/fcambus/spleen.git,$(SPLEEN_REV))
+	$(MAKE) patch-deps
+.PHONY: deps-host
+
 # 取得済みの third_party が固定した commit と一致するか
 check-deps:
 	@for d in secp256k1:$(SECP_REV) wasm-micro-runtime:$(WAMR_REV) pico-sdk:$(PICO_REV) \
