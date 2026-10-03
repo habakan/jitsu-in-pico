@@ -68,6 +68,10 @@ void ui_hash(ui_screen_t *s, const char *name, unsigned len, const uint8_t h[32]
 int ui_qr_set(const char *text);
 /* 周囲に 4 モジュールの余白を付けて、画面いっぱいに整数倍で拡大する */
 void ui_qr_render_line(int y, uint16_t line[UI_W]);
+
+/* QR の白の濃さを 1 段変える。明るすぎるとカメラが飽和して読めない */
+void ui_qr_level(int delta);
+int ui_qr_level_get(void);
 /* 直前に ui_qr_set した QR の一辺のモジュール数（表示の確認用） */
 int ui_qr_modules(void);
 

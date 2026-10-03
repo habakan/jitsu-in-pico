@@ -60,7 +60,7 @@
 | RES | 3V3（起動時は SWRESET コマンドでリセットする） |
 | DC | GP16 |
 | CS | GND |
-| BLK | 3V3 |
+| BLK | 3V3（GPIO に繋げば PWM で調光できる。今は QR の白の濃さで代用） |
 
 CS を固定しているので、SPI は mode 3（CPOL=1, CPHA=1）で送る（`platform/rp2350/st7789.c`）。
 表示の上下左右やオフセットがずれていたら、`MADCTL`（0x36）と窓の設定を直す。

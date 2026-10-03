@@ -185,6 +185,19 @@ static int trng(uint8_t *buf, size_t len) {
     return 1;
 }
 
+static void draw_qr(void) {
+    uint16_t line[UI_W];
+#if NO_LCD
+    for (int y = 0; y < UI_H; y++) ui_qr_render_line(y, line);
+#else
+    st7789_begin_frame();
+    for (int y = 0; y < UI_H; y++) {
+        ui_qr_render_line(y, line);
+        st7789_write_line(line);
+    }
+#endif
+}
+
 /* 署名済み PSBT をアニメーション QR で返す。純粋なパートだけを周回させるので、混ぜたパートを
  * 使えない受信側でも完成でき、取りこぼしても次の周回で拾える。どのキーでも終える */
 static void export_qr(uint32_t len) {
@@ -193,24 +206,22 @@ static void export_qr(uint32_t len) {
     unsigned long part = 0;
     for (uint64_t next = 0; ;) {
         static char text[1024];
-        if (buttons_poll() >= 0) return;
+        int key = buttons_poll();
+        if (key == UI_KEY_UP || key == UI_KEY_DOWN) {
+            ui_qr_level(key == UI_KEY_UP ? 1 : -1);
+            printf("qr level %d\n", ui_qr_level_get());
+            draw_qr();
+        } else if (key >= 0) {
+            return;
+        }
         if (time_us_64() >= next) {
-            uint16_t line[UI_W];
             if (part && part % (unsigned long)seq_len == 0) parser_host_ur_encode_start(len, UI_UR_FRAGMENT);
             if (!parser_host_ur_encode_next(text, sizeof(text)) || !ui_qr_set(text))
                 return message("QR failed", NULL, 1);
             part++;
             /* カメラで読めないときのために、UART にも出しておく */
             printf("%s\n", text);
-#if NO_LCD
-            for (int y = 0; y < UI_H; y++) ui_qr_render_line(y, line);
-#else
-            st7789_begin_frame();
-            for (int y = 0; y < UI_H; y++) {
-                ui_qr_render_line(y, line);
-                st7789_write_line(line);
-            }
-#endif
+            draw_qr();
             /* 250ms だとスマホがピントを合わせる前に切り替わり、パートを取りこぼす */
             next = time_us_64() + 500 * 1000;
         }
@@ -380,19 +391,14 @@ static void show_xpub(void) {
     /* ディスクリプタは 145 文字ほどで QR の v8 に収まるので、1 枚の静止画で渡せる */
     if (!ui_qr_set(desc)) return message("QR failed", NULL, 1);
     printf("descriptor QR: %d modules\n", ui_qr_modules());
-    {
-        uint16_t line[UI_W];
-#if NO_LCD
-        for (int y = 0; y < UI_H; y++) ui_qr_render_line(y, line);
-#else
-        st7789_begin_frame();
-        for (int y = 0; y < UI_H; y++) {
-            ui_qr_render_line(y, line);
-            st7789_write_line(line);
-        }
-#endif
+    for (;;) {
+        int key;
+        draw_qr();
+        key = wait_key();
+        if (key != UI_KEY_UP && key != UI_KEY_DOWN) return;
+        ui_qr_level(key == UI_KEY_UP ? 1 : -1);
+        printf("qr level %d\n", ui_qr_level_get());
     }
-    wait_key();
 }
 
 /* 積んでいる parser.wasm のハッシュ。ビューアのページが出す値と一致すれば、

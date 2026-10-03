@@ -218,13 +218,26 @@ int ui_qr_set(const char *text) {
 
 int ui_qr_modules(void) { return qrcodegen_getSize(qr); }
 
+/* バックライトが 3V3 直結なので、白の濃さで明るさを変える。
+ * 明るすぎるとカメラの露出が飽和して読めない */
+static const uint16_t qr_white[] = {RGB565(255, 255, 255), RGB565(190, 190, 190),
+                                    RGB565(130, 130, 130), RGB565(80, 80, 80)};
+static unsigned qr_level = 1;
+
+void ui_qr_level(int delta) {
+    unsigned n = sizeof(qr_white) / sizeof(*qr_white);
+    qr_level = (qr_level + (unsigned)(delta > 0 ? 1 : n - 1)) % n;
+}
+
+int ui_qr_level_get(void) { return (int)qr_level; }
+
 void ui_qr_render_line(int y, uint16_t line[UI_W]) {
     int size = qrcodegen_getSize(qr), scale = UI_W / (size + 8), off = (UI_W - size * scale) / 2;
     int my = (y - off) / scale;
     for (int x = 0; x < UI_W; x++) {
         int mx = (x - off) / scale;
         int dark = y >= off && x >= off && my < size && mx < size && qrcodegen_getModule(qr, mx, my);
-        line[x] = dark ? 0x0000 : 0xffff;
+        line[x] = dark ? 0x0000 : qr_white[qr_level];
     }
 }
 
