@@ -62,6 +62,9 @@ ssh gpu1 '/mnt/sandisk/bitcoin-29.1/bin/bitcoind -datadir=/mnt/sandisk/bitcoin-s
 tools/watchonly.sh tunnel
 ```
 
+手元の bitcoind が 38332 を握っていると、トンネルが張れない。先に止める。
+ssh の設定に別のポート転送があると `ExitOnForwardFailure=yes` で全体が落ちるので付けない。
+
 `~/.bitcoin-signet-rpc` に `CLI="bitcoin-cli -signet -rpcconnect=127.0.0.1 -rpcport=38332 -rpcuser=... -rpcpassword=..."`
 を書くと `tools/watchonly.sh` がそれを使う。**ウォレットはノード側にある**ので、
 切り替えたら `init` をやり直す。
@@ -77,5 +80,8 @@ tools/watchonly.sh tunnel
 | 釣りアドレスの判定 | 実機の「自分のもの」判定と Core の内部判定が一致 |
 | UR のラウンドトリップ | 送り 4 パート、戻り 32 パート（5 パートで復元、553µs） |
 | 署名 | 1 入力 2 出力の P2WPKH、ECDSA |
+
+2026-10-03 に、手元の 26GB を消して gpu1 のノードへ移した。
+ディスクリプタから作り直した残高が 1 sat まで一致することで、移行を確かめた。
 
 テスト用のシードと期待値は `docs/internal/signet-test-seed.md`（コミットしない）。
