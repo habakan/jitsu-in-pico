@@ -97,6 +97,7 @@ make check-camera-sim  # camera.pio を Python のシミュレータで検証
 
 | 文書 | 内容 |
 |---|---|
+| [docs/positioning.md](docs/positioning.md) | 何を作っていて、誰のどんな問題を解くのか。公開と資金申請の前提 |
 | [docs/architecture.md](docs/architecture.md) | システム構成（信頼境界・一巡・メモリ）。図つき |
 | [docs/design.md](docs/design.md) | 設計と、何を信頼しないかの線引き |
 | [docs/architecture-b.md](docs/architecture-b.md) | 解析器を WASM に隔離する構成、plan の形式、実装状況、実機計測 |
