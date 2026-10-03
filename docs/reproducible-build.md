@@ -6,7 +6,7 @@
 ## 使い方
 
 ```sh
-make repro
+make check-repro
 ```
 
 版とハッシュを固定したツールチェーンを `build/toolchain/` に落とし、それで `parser.wasm` を
@@ -59,7 +59,7 @@ WASM_OPT ?= wasm-opt
 ## まだやっていないこと
 
 - `address.wasm` と `qr.wasm`（ビューアが載せている残り 2 つ）は親の Makefile で作っていて、
-  同じ暗黙の `wasm-opt` の影響を受ける。`repro` の対象に入れる
+  同じ暗黙の `wasm-opt` の影響を受ける。`check-repro` の対象に入れる
 - `bitcoin-signer.wasm` も同じ
 - ツールチェーンの取得元は GitHub のリリース。配布物そのものの再現可能性は上流に依存する
 - デバイスのファームウェア全体（pico-sdk、WAMR を含む）の再現可能ビルドは未着手

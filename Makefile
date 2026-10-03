@@ -185,7 +185,7 @@ build/parser.wasm: parser/src/*.c parser/include/*.h
 # 版とハッシュを固定したツールチェーンで作り直し、記録と突き合わせる。
 # 第三者が同じ parser.wasm を出せることの確認（docs/reproducible-build.md）
 SDK = $(shell ./tools/toolchain.sh)
-repro: tools/toolchain.sh checksums.txt
+check-repro: tools/toolchain.sh checksums.txt
 	$(MAKE) -C parser clean-wasm 2>/dev/null || rm -f parser/build/parser.wasm
 	$(MAKE) -C parser build/parser.wasm \
 	  LLVM=$(CURDIR)/$(SDK)/bin WASI=$(CURDIR)/$(SDK)/share/wasi-sysroot \
@@ -195,7 +195,7 @@ repro: tools/toolchain.sh checksums.txt
 	  | sed 's|parser.wasm|build/parser.wasm|' > /tmp/repro.txt
 	@diff /tmp/repro.txt checksums.txt && echo "一致した（再現可能）" \
 	  || { echo "一致しない。docs/reproducible-build.md を見る"; exit 1; }
-.PHONY: repro
+.PHONY: check-repro
 
 check-parser:
 	$(MAKE) -C parser test
