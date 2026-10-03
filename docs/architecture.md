@@ -85,7 +85,7 @@ sequenceDiagram
 
 ## 3. 同じ `.wasm` をどこでも検証できる
 
-解析器はバイト単位で同じものが 4 か所で動く。実機でしか再現しない不具合を切り分けられるのと、
+解析器はバイト単位で同じものが 6 か所で動く。実機でしか再現しない不具合を切り分けられるのと、
 第三者が同じ成果物を独立に検証できるのが利点。
 
 ```mermaid
@@ -94,10 +94,13 @@ flowchart LR
     wasm --> mac["Mac ネイティブ<br/>make check-psbt"]
     wasm --> qemu["QEMU RV32<br/>命令数を数える"]
     wasm --> dev["RP2350 実機<br/>WAMR interp"]
-    wasm -.-> browser["ブラウザ<br/>未実装"]
+    wasm --> browser["ブラウザ<br/>単一 HTML のビューア"]
+    wasm --> other["Kotlin / Swift<br/>components/parser/examples"]
     mac --> ref["参照実装と突き合わせ<br/>embit / @ngraveio/bc-ur /<br/>Bitcoin Core の rpc_psbt.json"]
     qemu --> ref
     dev --> ref
+    browser --> ref
+    other --> ref
 ```
 
 ## 4. メモリ（520KB をどう使うか）

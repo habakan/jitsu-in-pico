@@ -27,16 +27,41 @@ clean:
 .PHONY: clean
 
 RISCV_TC_URL := https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.3.1-0/riscv-toolchain-16-mac.zip
+# 依存はすべて commit で固定する。鍵を扱うものを master の先頭から取ってはいけない。
+# 上げるときは差分を読んでからここを書き換える
+SECP_REV   := 46db787112beabdb5e17e0dc35680716f1057e7b
+WAMR_REV   := b70d708d46be750bfcf008218b42c7b98c49368a
+PICO_REV   := 079c6f39023649b154152db30f1d781e884879bc
+QUIRC_REV  := 927d680904dc95fdff4cd9d022eb374b438ff8f2
+QRGEN_REV  := 3c6d0b3cefb4e049dc337e82237c9644399716a8
+SPLEEN_REV := 57f9219328c9f5873085320fe8bc8f7dd34b8791
+
+# $(1) 置き先, $(2) URL, $(3) commit
+define clone_at
+	git clone --filter=blob:none $(2) third_party/$(1)
+	cd third_party/$(1) && git checkout --detach $(3)
+endef
+
 deps:
 	mkdir -p third_party
-	cd third_party && git clone --depth 1 https://github.com/bitcoin-core/secp256k1.git
-	cd third_party && git clone --depth 1 -b WAMR-2.4.3 https://github.com/bytecodealliance/wasm-micro-runtime.git
-	cd third_party && git clone --depth 1 -b 2.3.1 https://github.com/raspberrypi/pico-sdk.git
-	cd third_party && git clone --depth 1 https://github.com/dlbeer/quirc.git
-	cd third_party && git clone --depth 1 https://github.com/nayuki/QR-Code-generator.git
-	cd third_party && git clone --depth 1 https://github.com/fcambus/spleen.git
+	$(call clone_at,secp256k1,https://github.com/bitcoin-core/secp256k1.git,$(SECP_REV))
+	$(call clone_at,wasm-micro-runtime,https://github.com/bytecodealliance/wasm-micro-runtime.git,$(WAMR_REV))
+	$(call clone_at,pico-sdk,https://github.com/raspberrypi/pico-sdk.git,$(PICO_REV))
+	$(call clone_at,quirc,https://github.com/dlbeer/quirc.git,$(QUIRC_REV))
+	$(call clone_at,QR-Code-generator,https://github.com/nayuki/QR-Code-generator.git,$(QRGEN_REV))
+	$(call clone_at,spleen,https://github.com/fcambus/spleen.git,$(SPLEEN_REV))
+	cd third_party/pico-sdk && git submodule update --init --depth 1 lib/tinyusb 2>/dev/null || true
 	curl -sL -o third_party/rv.zip $(RISCV_TC_URL) && unzip -q third_party/rv.zip -d third_party/riscv-toolchain && rm third_party/rv.zip
 	$(MAKE) patch-deps
+
+# 取得済みの third_party が固定した commit と一致するか
+check-deps:
+	@for d in secp256k1:$(SECP_REV) wasm-micro-runtime:$(WAMR_REV) pico-sdk:$(PICO_REV) \
+	          quirc:$(QUIRC_REV) QR-Code-generator:$(QRGEN_REV) spleen:$(SPLEEN_REV); do \
+	  n=$${d%%:*}; want=$${d#*:}; got=$$(git -C third_party/$$n rev-parse HEAD 2>/dev/null); \
+	  if [ "$$got" != "$$want" ]; then echo "$$n: $$got != $$want"; exit 1; fi; done
+	@echo "third_party はすべて固定した commit"
+.PHONY: check-deps
 
 # classic interp の i64.store は 4 byte 境界を前提にしており、Hazard3 では非整列ストアで例外になる。
 # 上流は PR #5123 で修正済み（2026-09-30 に main へマージ）なので、2.4.3 を使う間だけ要る
