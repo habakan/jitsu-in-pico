@@ -209,6 +209,17 @@ async function camera() {
     const n = qr.qr_decode();
     if (n > 0) {
       const text = new TextDecoder().decode(new Uint8Array(qr.memory.buffer, qr.qr_payload(), n));
+      /* デバイスの Show xpub は UR ではなく素のディスクリプタを出す。手で打たずに済むよう拾う */
+      if (!text.startsWith("UR:")) {
+        stream.getTracks().forEach(t => t.stop());
+        video.style.display = "none";
+        stat.innerHTML = "";
+        const box = document.createElement("textarea");
+        box.readOnly = true; box.rows = 3; box.value = text;
+        box.style.cssText = "width:100%;background:#242833;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px;font:12px ui-monospace,monospace";
+        stat.append(`${n} 文字を読んだ`, box);
+        return;
+      }
       const pm = new Uint8Array(parser.memory.buffer);
       pm.set(new TextEncoder().encode(text), parser.parser_input());
       const rc = parser.parser_ur_receive(n);
