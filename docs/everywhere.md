@@ -45,7 +45,8 @@ OS の有無も、CPU が ARM か RISC-V か x86 かも、言語が C か JavaSc
 | Web / PWA（単一 HTML） | ブラウザの WASM エンジン | **確認済み。** 同じ PSBT から同じ出力・同じアドレス |
 | Node（CI・検査） | V8 | **確認済み。** `parser.wasm` を import 0 のまま読み、実機と同じ解析結果 |
 | Linux / macOS のツール | ネイティブ直リンク / wasmtime | **確認済み**（ネイティブ直リンクで `make check-psbt`） |
-| Android | Chrome（V8）または NDK + WAMR | 未確認。ブラウザ経路はそのまま使えるはず |
+| Android | Chrome（V8） | **確認済み**（A80 / Android 10）。`file://` で単一 HTML が動き、ハッシュ 3 つも一致。
+ただし `file://` ではカメラが `NotAllowedError` になるので、読み取りは localhost か HTTPS が要る |
 | iOS | Safari（JavaScriptCore） | 未確認。ローカルファイルを開けないので一度オンラインで読み込む必要がある |
 
 **同じ成果物のまま、載せる先だけを変えられる**のが要点になる。

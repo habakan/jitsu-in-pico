@@ -2,7 +2,7 @@
 <text x="450.0" y="38" fill="#e8e8e8" font-size="20" text-anchor="middle">The same WASM runs everywhere</text>
 <text x="450.0" y="60" fill="#8b93a1" font-size="13" text-anchor="middle">Zero imports. No WASI, no JS polyfill.</text>
 <line x1="450.0" y1="320.0" x2="450.0" y2="115.0" stroke="#2ea86a" stroke-width="2.4" opacity="0.85"/>
-<line x1="450.0" y1="320.0" x2="718.467875173176" y2="217.5" stroke="#3a404d" stroke-width="1.6" opacity="0.5"/>
+<line x1="450.0" y1="320.0" x2="718.467875173176" y2="217.5" stroke="#2ea86a" stroke-width="2.4" opacity="0.85"/>
 <line x1="450.0" y1="320.0" x2="718.467875173176" y2="422.5" stroke="#3a404d" stroke-width="1.6" opacity="0.5"/>
 <line x1="450.0" y1="320.0" x2="450.0" y2="525.0" stroke="#2ea86a" stroke-width="2.4" opacity="0.85"/>
 <line x1="450.0" y1="320.0" x2="181.53212482682397" y2="422.5" stroke="#2ea86a" stroke-width="2.4" opacity="0.85"/>
@@ -20,11 +20,11 @@
 <text x="392.0" y="103.0" fill="#9ff0c4" font-size="15">Bare metal MCU</text>
 <text x="392.0" y="122.0" fill="#8b93a1" font-size="11.5">WAMR · RP2350 · no OS</text>
 <text x="392.0" y="139.0" fill="#2ea86a" font-size="10.5">verified on real hardware</text>
-<rect x="600.467875173176" y="178.5" width="236" height="78" rx="8" fill="#20242c" stroke="#4a515f" stroke-width="1.6"/>
-<g transform="translate(614.467875173176,200.5) scale(1.4166666666666667)" fill="none" stroke="#8b93a1" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2"/><line x1="10.5" y1="5.5" x2="13.5" y2="5.5"/><circle cx="12" cy="18" r="0.9"/></g>
-<text x="660.467875173176" y="205.5" fill="#e8e8e8" font-size="15">Android</text>
-<text x="660.467875173176" y="224.5" fill="#8b93a1" font-size="11.5">Chrome / NDK + WAMR</text>
-<text x="660.467875173176" y="241.5" fill="#8b93a1" font-size="10.5">not tried yet (same path)</text>
+<rect x="600.467875173176" y="178.5" width="236" height="78" rx="8" fill="#15362a" stroke="#2ea86a" stroke-width="1.6"/>
+<g transform="translate(614.467875173176,200.5) scale(1.4166666666666667)" fill="none" stroke="#2ea86a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2"/><line x1="10.5" y1="5.5" x2="13.5" y2="5.5"/><circle cx="12" cy="18" r="0.9"/></g>
+<text x="660.467875173176" y="205.5" fill="#9ff0c4" font-size="15">Android</text>
+<text x="660.467875173176" y="224.5" fill="#8b93a1" font-size="11.5">Chrome · single HTML</text>
+<text x="660.467875173176" y="241.5" fill="#2ea86a" font-size="10.5">verified on real hardware</text>
 <rect x="600.467875173176" y="383.5" width="236" height="78" rx="8" fill="#20242c" stroke="#4a515f" stroke-width="1.6"/>
 <g transform="translate(614.467875173176,405.5) scale(1.4166666666666667)" fill="none" stroke="#8b93a1" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="3" width="10" height="18" rx="2"/><line x1="10.5" y1="5.5" x2="13.5" y2="5.5"/><circle cx="12" cy="18" r="0.9"/></g>
 <text x="660.467875173176" y="410.5" fill="#e8e8e8" font-size="15">iOS</text>

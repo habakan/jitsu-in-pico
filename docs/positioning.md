@@ -72,7 +72,8 @@ Service Worker の登録には HTTPS（または localhost）が要るので、*
 
 | | Android | iOS |
 |---|---|---|
-| 単一 HTML をファイルで渡す（wasm を base64 で埋める） | **できる**（USB / SD / Bluetooth でコピーし `file://` で開く。SW 不要） | **できない**（Safari はローカル FS を開けず、Files のプレビューでは JS が制限される） |
+| 単一 HTML をファイルで渡す（wasm を base64 で埋める） | **できる**（USB / SD / Bluetooth でコピーし `file://` で開く。SW 不要）。2026-10-03 に A80 / Android 10 で確認 | **できない**（Safari はローカル FS を開けず、Files のプレビューでは JS が制限される） |
+| その `file://` のページでカメラを使う | **できない**（`getUserMedia` が `NotAllowedError`）。読み取りには localhost か HTTPS が要る | 同上 |
 | 一度オンラインで読み、ホーム画面に追加してから機内モード | できる（WebAPK） | できる（iOS 16.4 以降は Chrome / Edge / Firefox の共有メニューからも）。ただしオフラインの制約が多い |
 
 この制約はモードの分け方と噛み合う。
