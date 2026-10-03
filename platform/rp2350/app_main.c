@@ -9,6 +9,7 @@
 #include "pico/rand.h"
 #include "core.h"
 #include "parser_host.h"
+#include "sha256.h"
 #include "sha512.h"
 #include "wipe.h"
 #include "ui.h"
@@ -396,22 +397,38 @@ static void show_xpub(void) {
     wait_key();
 }
 
+/* 積んでいる parser.wasm のハッシュ。ビューアのページが出す値と一致すれば、
+ * 手元で動かしているものとデバイスの中身が同じだと言える */
+static void show_parser_hash(void) {
+    static ui_screen_t s;
+    uint8_t h[32];
+
+    sha256(parser_wasm, sizeof(parser_wasm), h);
+    ui_hash(&s, "parser.wasm", (unsigned)sizeof(parser_wasm), h);
+    show(&s);
+    printf("parser.wasm %u B sha256 ", (unsigned)sizeof(parser_wasm));
+    for (int i = 0; i < 32; i++) printf("%02x", h[i]);
+    printf("\n");
+    wait_key();
+}
+
 static void main_menu(void) {
-    static const char *const items[] = {"Scan PSBT", "Show xpub", "Sign test PSBT", "Lock (wipe seed)"};
-    static const char *const items_notest[] = {"Scan PSBT", "Show xpub", "Lock (wipe seed)"};
+    static const char *const items[] = {"Scan PSBT", "Show xpub", "Parser hash", "Sign test PSBT", "Lock (wipe seed)"};
+    static const char *const items_notest[] = {"Scan PSBT", "Show xpub", "Parser hash", "Lock (wipe seed)"};
     static char title[UI_COLS + 1];
 
     snprintf(title, sizeof(title), "%s fp %08x", TESTNET ? "Signet" : "Signer", (unsigned)core_fingerprint());
-    ui_menu_init(&menu, title, TEST_SEED ? items : items_notest, TEST_SEED ? 4 : 3);
+    ui_menu_init(&menu, title, TEST_SEED ? items : items_notest, TEST_SEED ? 5 : 4);
     show(&menu.screen);
     for (;;) {
         int sel = ui_menu_key(&menu, wait_key());
         if (sel == 0) scan_and_sign();
         if (sel == 1) show_xpub();
+        if (sel == 2) show_parser_hash();
 #if TEST_SEED
-        if (sel == 2) sign_flow(test_psbt, sizeof(test_psbt));
+        if (sel == 3) sign_flow(test_psbt, sizeof(test_psbt));
 #endif
-        if (sel == (TEST_SEED ? 3 : 2)) {
+        if (sel == (TEST_SEED ? 4 : 3)) {
             core_unload();
             printf("locked (seed wiped)\n");
             return;

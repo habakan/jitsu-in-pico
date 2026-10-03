@@ -62,6 +62,9 @@ void ui_message(ui_screen_t *s, const char *title, const char *body, int warn);
 /* 口座の拡張公開鍵の画面。文字列は折り返して全部出す */
 void ui_xpub(ui_screen_t *s, const char *xpub, uint32_t fp, int testnet);
 
+/* 積んでいる wasm のハッシュを見せる画面 */
+void ui_hash(ui_screen_t *s, const char *name, unsigned len, const uint8_t h[32]);
+
 int ui_qr_set(const char *text);
 /* 周囲に 4 モジュールの余白を付けて、画面いっぱいに整数倍で拡大する */
 void ui_qr_render_line(int y, uint16_t line[UI_W]);

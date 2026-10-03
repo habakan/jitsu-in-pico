@@ -247,3 +247,26 @@ void ui_xpub(ui_screen_t *s, const char *xpub, uint32_t fp, int testnet) {
     w.row = UI_ROWS - 1;
     put(&w, C_HINT, "PUSH: show QR");
 }
+
+/* 積んでいる wasm のハッシュ。ブラウザ側が出す値と目で突き合わせるので、8 文字ずつ区切る */
+void ui_hash(ui_screen_t *s, const char *name, unsigned len, const uint8_t h[32]) {
+    writer_t w = {s, 0};
+    char line[UI_COLS + 1];
+
+    memset(s, 0, sizeof(*s));
+    put_header(&w);
+    put(&w, C_TITLE, "Parser hash");
+    snprintf(line, sizeof(line), "%s  %u B", name, len);
+    put(&w, C_HINT, line);
+    put(&w, C_TEXT, "");
+    for (int r = 0; r < 4; r++) {
+        const uint8_t *p = h + r * 8;
+        snprintf(line, sizeof(line), "%02x%02x%02x%02x %02x%02x%02x%02x",
+                 p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
+        put(&w, C_OURS, line);
+    }
+    put(&w, C_TEXT, "");
+    put_wrapped(&w, C_HINT, "Must match the viewer page");
+    w.row = UI_ROWS - 1;
+    put(&w, C_HINT, "PUSH: ok");
+}
