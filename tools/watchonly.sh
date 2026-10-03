@@ -7,9 +7,12 @@
 #   tools/watchonly.sh balance
 #   tools/watchonly.sh send <宛先> <BTC> [sat/vB] PSBT を作り、実機に見せる QR を書き出す
 #   tools/watchonly.sh broadcast <署名済み.ur>     finalize して送信する
+#   tools/watchonly.sh tunnel                     gpu1 のノードへ SSH トンネルを張る
 set -e
 
 CLI="bitcoin-cli -signet"
+# 別ホストのノードを使う場合はここで CLI を上書きする（gpu1 への SSH トンネル越しなど）
+[ -f "$HOME/.bitcoin-signet-rpc" ] && . "$HOME/.bitcoin-signet-rpc"
 WALLET=signer
 W="$CLI -rpcwallet=$WALLET"
 OUT=build/psbt
@@ -24,10 +27,11 @@ init)
     chg=$(printf '%s' "$desc" | sed 's|/<0;1>/\*|/1/*|')
     $CLI -named createwallet wallet_name=$WALLET disable_private_keys=true blank=true descriptors=true \
         load_on_startup=true >/dev/null 2>&1 || $CLI loadwallet $WALLET >/dev/null 2>&1 || true
-    for d in "$recv" "$chg"; do
+    # 受取と釣りを取り違えると getnewaddress が釣り側の鍵を返すので、internal は明示で渡す
+    for pair in "$recv:false" "$chg:true"; do
+        d=${pair%:*}; internal=${pair##*:}
         sum=$($CLI getdescriptorinfo "$d" | sed -n 's/.*"checksum": "\([^"]*\)".*/\1/p')
         [ -n "$sum" ] || { echo "ディスクリプタが不正: $d"; exit 1; }
-        internal=false; case "$d" in *"/1/*") internal=true;; esac
         # timestamp 0 で頭から再走査する。signet なので数分で終わる
         $W importdescriptors "[{\"desc\":\"$d#$sum\",\"active\":true,\"internal\":$internal,\"timestamp\":0}]"
     done
@@ -51,6 +55,10 @@ send)
     uv run -q tools/show_ur.py $OUT/spend.ur $OUT/spend.gif 400
     echo "$OUT/spend.gif を実機に見せる（$(wc -c < $OUT/spend.psbt) byte）"
     $CLI decodepsbt "$psbt" | sed -n 's/.*"fee"/  fee/p'
+    ;;
+tunnel)
+    echo "gpu1 の signet RPC を 127.0.0.1:38332 に繋ぐ。終わるときは Ctrl-C"
+    exec ssh -N -L 38332:127.0.0.1:38332 gpu1
     ;;
 broadcast)
     [ -n "$2" ] || { echo "署名済みの .ur を渡す"; exit 2; }
