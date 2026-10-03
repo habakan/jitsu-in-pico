@@ -50,8 +50,10 @@ send)
     psbt=$($W -named walletcreatefundedpsbt outputs="{\"$2\":$3}" fee_rate=$rate \
         | sed -n 's/.*"psbt": "\([^"]*\)".*/\1/p')
     [ -n "$psbt" ] || { echo "PSBT を作れなかった"; exit 1; }
-    printf '%s' "$psbt" | base64 -d > $OUT/spend.psbt
-    $HOST bin2ur $OUT/spend.psbt $OUT/spend.ur
+    printf '%s' "$psbt" | base64 -d > $OUT/spend.full.psbt
+    # faucet の入力は出力 2000 個超で 77KB になる。前トランザクションを落とさないと QR に載らない
+    uv run -q tools/strip_psbt.py $OUT/spend.full.psbt $OUT/spend.psbt
+    $HOST bin2ur $OUT/spend.psbt $OUT/spend
     uv run -q tools/show_ur.py $OUT/spend.ur $OUT/spend.gif 400
     echo "$OUT/spend.gif を実機に見せる（$(wc -c < $OUT/spend.psbt) byte）"
     $CLI decodepsbt "$psbt" | sed -n 's/.*"fee"/  fee/p'
