@@ -58,11 +58,15 @@ int parser_host_parse(const uint8_t *psbt, uint32_t len, uint32_t fingerprint, u
     if (len > PARSER_PSBT_MAX || !copy_in("parser_input", psbt, len) || !call("parser_parse", 2, a)) return 0;
     if ((*rc = a[0]) != 0) return 1;
     if (!call("parser_plan", 0, a) || !copy_out(a[0], sizeof(*plan), plan)) return 0;
+    /* prevtx offsets are relative to parser_input(), so the base has to be added */
+    uint32_t base[1] = {0};
+    if (!call("parser_input", 0, base)) return 0;
     for (unsigned i = 0; i < plan->n_inputs && i < PLAN_MAX_INPUTS; i++) {
         uint32_t off[1] = {i}, n[1] = {i};
         if (!call("parser_prevtx_off", 1, off) || !call("parser_prevtx_len", 1, n)) return 0;
         if (!n[0]) continue;
-        if (n[0] > arena_cap - used || !copy_out(off[0], n[0], arena + used)) return 0;
+        if (off[0] > PARSER_PSBT_MAX || n[0] > PARSER_PSBT_MAX - off[0]) return 0;
+        if (n[0] > arena_cap - used || !copy_out(base[0] + off[0], n[0], arena + used)) return 0;
         prev[i].raw = arena + used, prev[i].len = n[0];
         used += n[0];
     }
