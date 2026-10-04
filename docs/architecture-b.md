@@ -256,26 +256,38 @@ Verification (`make check-psbt`, `make check-qemu-psbt`):
 Core has no WASM target. Its PSBT code does compile to wasm32, though — measured, not assumed, with
 our pinned wasi-sdk 34 (2026-10-04):
 
-| | bytes | imports |
-|---|---:|---:|
-| `parser.wasm` | 15,570 | **0** |
-| `psbt.cpp` and 17 files of its closure | 2,841,674 | 17 |
+| | code | data | total | imports |
+|---|---:|---:|---:|---:|
+| `parser.wasm` | 13,562 | 1,369 | 15,570 | **0** |
+| C++ with no STL and no exceptions | 7,658 | 0 | 8,022 | 3 |
+| the same plus `string`, `vector`, `map` | 21,343 | 2,459 | 24,316 | 4 |
+| `psbt.cpp` and 17 files of its closure | 103,219 | 9,746 | 114,549 | 17 |
 
-Two things rule it out, and the first is decisive.
+Stripped and `wasm-opt -Oz`'d, it is 114,549 bytes, about 7x ours — not the 2.8 MB an unstripped link
+reports, 93% of which is debug info. Where the difference comes from: a C++ floor of 7.7KB for
+wasi-libc's startup and malloc, 13.7KB more for the STL templates and their allocator, and the rest
+Core's own breadth — every script type, finalize, combine, miniscript, against our P2WPKH and P2TR key
+path. Template instantiation in `serialize.h`, dynamic allocation and per-function unwind tables are
+what grow it; our 13.5KB is barely above the bare C++ floor because there is none of that.
 
-**Core's script code requires C++ exceptions.** `-fno-exceptions` does not compile at all
-(`script/script.h:248: cannot use 'throw' with exceptions disabled`). In wasm that means the
+Two things still rule it out.
+
+**Core's script code requires C++ exceptions**, and they do not link. `-fno-exceptions` fails to
+compile (`script/script.h:248: cannot use 'throw' with exceptions disabled`), and with them enabled
+wasi-sdk 34's prebuilt `libc++abi.a` leaves `_Unwind_RaiseException` and `__cpp_exception` undefined.
+The 114,549-byte figure above only links because `--allow-undefined` turns those into imports, so it
+is a module that would not run. Closing it means building libc++ from source, which gives up the
+pinned official tarball the reproducible build rests on. In wasm, exceptions also mean the
 exception-handling proposal, which is not one of Lime1's seven features, so the link-time gate rejects
-the module outright — which is exactly what that gate is for.
+it anyway — exactly what that gate is for. Clang 23 emits the new form (`try_table`, `exnref`) while
+our pinned WAMR implements the old one (`TRY`, `CATCH`, `DELEGATE`), so the two do not even meet.
 
-**The WASI imports are unavoidable**: `proc_exit`, `fd_write`, `fd_prestat_get`,
-`fd_prestat_dir_name`, `fd_close`, `args_sizes_get`, `args_get`, from libc++ and wasi-libc's startup,
-assert and abort paths. Having nothing to call — no clock, no filesystem, no network — is the property
-this module exists for.
+**On the device it does not fit regardless.** The classic interpreter rewrites bytecode as it loads,
+so the module has to sit in writable RAM, and the RP2350 has 520KB in total for everything.
 
-Neither is strictly a wall. Patching out the throws, supplying an allocator and stubbing the abort
-paths would get closer. But patching `script.h` means forking Core, and "verifiably the same code as
-Core" is then the thing that has been lost.
+So this could run in a browser, where none of that binds, but never on the device. Patching out the
+throws would change the picture — and would mean forking Core, at which point "verifiably the same
+code as Core" is the thing that has been lost.
 
 What we do take from Core verbatim is the part where being identical matters most —
 **libsecp256k1, pinned to a commit**. Everything else is ours: PSBT parsing, sighash, BIP32, base58
