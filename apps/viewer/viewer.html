@@ -72,38 +72,18 @@
 </main>
 
 <script>__JSQR_JS__</script>
+<script>__PARSER_HOST_JS__</script>
 <script>
 const PARSER_WASM = "__PARSER_WASM__", ADDRESS_WASM = "__ADDRESS_WASM__", QR_WASM = "__QR_WASM__";
 const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 /* instantiateStreaming は MIME 型を要求するので、file:// でも動くようバイト列から読む */
 const load = async s => (await WebAssembly.instantiate(b64(s), {})).instance.exports;
+/* 解析器は components/parser/hosts/js のホストを通して使う。offset も範囲検査もそちらが持つ */
+const loadParser = async () => Parser.load(b64(PARSER_WASM));
 
 let parser, address, qr;
-const OFF = { // plan.h のレイアウト。_Static_assert で固定してある
-  inputs: 24, outputs: 2840, inSize: 176, outSize: 136,
-  in: { amount: 40, spk: 48, key: 132 }, out: { amount: 0, spk: 8, key: 92 },
-  key: { depth: 0, fp: 4, path: 8 },
-};
-
 const btc = sats => (Number(sats) / 1e8).toFixed(8);
 const hex = u8 => [...u8].map(b => b.toString(16).padStart(2, "0")).join("");
-
-function script(dv, base) { // plan_script_t: len + bytes
-  const len = dv.getUint8(base);
-  return new Uint8Array(dv.buffer, dv.byteOffset + base + 1, len);
-}
-
-function keypath(dv, base) {
-  const depth = dv.getUint8(base + OFF.key.depth);
-  if (!depth) return null;
-  const fp = dv.getUint32(base + OFF.key.fp, true).toString(16).padStart(8, "0");
-  const path = [];
-  for (let i = 0; i < depth; i++) {
-    const v = dv.getUint32(base + OFF.key.path + 4 * i, true);
-    path.push((v & 0x7fffffff) + (v & 0x80000000 ? "'" : ""));
-  }
-  return { fp, path: "m/" + path.join("/") };
-}
 
 function toAddress(spk, testnet) {
   const mem = new Uint8Array(address.memory.buffer);
@@ -114,51 +94,32 @@ function toAddress(spk, testnet) {
   return s;
 }
 
-function render(dv, testnet) {
-  const nIn = dv.getUint8(16), nOut = dv.getUint8(17);
-  let spent = 0n, sent = 0n;
-  const parts = [];
+function render(plan, testnet) {
+  const parts = plan.outputs.map((o, i) => {
+    const addr = toAddress(o.spk, testnet);
+    return `<div class="card ${o.key ? "mine" : ""}">
+      <div class="row"><span class="k">出力 ${i + 1}/${plan.outputs.length}${o.key ? "（自分の鍵）" : ""}</span>
+        <span class="amount">${btc(o.amount)} BTC</span></div>
+      <div class="addr">${addr || hex(o.spk)}</div>
+      ${o.key ? `<div class="k">m/${o.key.path.map(v => (v & 0x80000000 ? `${v & 0x7fffffff}'` : v)).join("/")}  fp ${o.key.fingerprint.toString(16).padStart(8, "0")}</div>` : ""}
+    </div>`;
+  });
 
-  for (let i = 0; i < nOut; i++) {
-    const base = OFF.outputs + i * OFF.outSize;
-    const amount = dv.getBigUint64(base + OFF.out.amount, true);
-    const key = keypath(dv, base + OFF.out.key);
-    const spk = script(dv, base + OFF.out.spk);
-    const addr = toAddress(spk, testnet);
-    sent += amount;
-    parts.push(`<div class="card ${key ? "mine" : ""}">
-      <div class="row"><span class="k">出力 ${i + 1}/${nOut}${key ? "（自分の鍵）" : ""}</span>
-        <span class="amount">${btc(amount)} BTC</span></div>
-      <div class="addr">${addr || hex(spk)}</div>
-      ${key ? `<div class="k">${key.path}  fp ${key.fp}</div>` : ""}
-    </div>`);
-  }
-
-  for (let i = 0; i < nIn; i++) {
-    const base = OFF.inputs + i * OFF.inSize;
-    spent += dv.getBigUint64(base + OFF.in.amount, true);
-  }
-
-  const fee = spent - sent;
   return `<div class="card">
-      <div class="row"><span class="k">入力 ${nIn} 件の合計</span><span>${btc(spent)} BTC</span></div>
-      <div class="row"><span class="k">手数料</span><span class="amount">${btc(fee)} BTC</span></div>
-      <div class="k">version ${dv.getInt32(8, true)}  locktime ${dv.getUint32(12, true)}</div>
+      <div class="row"><span class="k">入力 ${plan.inputs.length} 件の合計</span><span>${btc(plan.totalIn)} BTC</span></div>
+      <div class="row"><span class="k">手数料</span><span class="amount">${btc(plan.fee)} BTC</span></div>
+      <div class="k">version ${plan.txVersion}  locktime ${plan.locktime}</div>
     </div>` + parts.join("");
 }
 
 async function parse(bytes) {
   const out = document.getElementById("out");
   try {
-    parser ||= await load(PARSER_WASM);
+    parser ||= await loadParser();
     address ||= await load(ADDRESS_WASM);
-    const mem = new Uint8Array(parser.memory.buffer);
-    if (bytes.length > parser.parser_input_cap()) throw new Error("PSBT が大きすぎます");
-    mem.set(bytes, parser.parser_input());
-    const rc = parser.parser_parse(bytes.length, 0); // fingerprint 0 = 鍵を持たないので所有判定はしない
-    if (rc !== 0) throw new Error(`parser_parse が ${rc} を返しました（0 が受理）`);
-    const dv = new DataView(parser.memory.buffer, parser.parser_plan(), 5016);
-    out.innerHTML = render(dv, document.getElementById("testnet").checked);
+    // fingerprint 0: 鍵を持たないので所有の判定はしない
+    const plan = parser.parse(bytes, 0);
+    out.innerHTML = render(plan, document.getElementById("testnet").checked);
   } catch (e) {
     out.innerHTML = `<div class="card err">${e.message}</div>`;
   }
@@ -174,10 +135,10 @@ async function camera() {
   /* Chrome / Android などは OS のデコーダを持っている。あれば使う（追加の容量は要らない） */
   const bd = ("BarcodeDetector" in window) ? new BarcodeDetector({ formats: ["qr_code"] }) : null;
 
-  parser ||= await load(PARSER_WASM);
+  parser ||= await loadParser();
   address ||= await load(ADDRESS_WASM);
   qr ||= await load(QR_WASM);
-  parser.parser_ur_reset();
+  parser.urReset();
 
   const sel = document.getElementById("camsel");
   let stream;
@@ -278,23 +239,17 @@ async function camera() {
         stat.append(`${n} 文字を読んだ（${how}）`, box);
         return;
       }
-      const pm = new Uint8Array(parser.memory.buffer);
-      pm.set(new TextEncoder().encode(text), parser.parser_input());
-      const rc = parser.parser_ur_receive(n);
-      if (rc > 0) {                                   // PSBT が揃った
+      let psbt = null;
+      try { psbt = parser.urReceive(text); } catch (e) { stat.textContent = e.message; }
+      if (psbt) {                                     // PSBT が揃った
         stream.getTracks().forEach(t => t.stop());
         video.style.display = "none";
-        stat.textContent = `${seen.size + 1} パートで復元（${rc} byte、${how}）`;
-        const psbt = new Uint8Array(parser.memory.buffer, parser.parser_input(), rc).slice();
+        stat.textContent = `${seen.size + 1} パートで復元（${psbt.length} byte、${how}）`;
         return parse(psbt);
       }
-      if (rc === 0) {
-        seen.add(text.split("/")[1]);
-        const m = text.match(/\/(\d+)-(\d+)\//);
-        stat.textContent = m ? `${seen.size}/${m[2]} パート` : `${seen.size} パート`;
-      } else {
-        stat.textContent = `UR エラー ${rc}`;
-      }
+      seen.add(text.split("/")[1]);
+      const m = text.match(/\/(\d+)-(\d+)\//);
+      stat.textContent = m ? `${seen.size}/${m[2]} パート` : `${seen.size} パート`;
     }
     requestAnimationFrame(tick);
   };
