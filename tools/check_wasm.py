@@ -19,6 +19,17 @@ import sys
 
 ALLOWED_CUSTOM = {"target_features", "producers"}
 
+# wasm-tools validate の既定は「phase 4 以降の提案を全部有効」で、help が自ら
+# "relatively bleeding edge" と書いている。MCU の WAMR で動かすものの検査としては逆向きなので、
+# 要求する機能をモジュールごとに固定して、知らないうちに広がらないようにする。
+# -mutable-global を入れているのは、可変 global の import/export だけを対象にする提案だから。
+# これで「可変 global を輸出していない」が spec レベルの検査になる
+BASE_FEATURES = "-all,floats,bulk-memory,saturating-float-to-int,-mutable-global"
+EXTRA_FEATURES = {
+    # 署名側は secp256k1 由来で sign-extension を使う
+    "signer.wasm": ",sign-extension",
+}
+
 
 def wat(path):
     r = subprocess.run(["wasm-tools", "print", path], capture_output=True, text=True)
@@ -28,8 +39,10 @@ def wat(path):
 
 
 def check(path):
-    r = subprocess.run(["wasm-tools", "validate", path], capture_output=True, text=True)
-    bad = [] if r.returncode == 0 else [f"検証に失敗: {r.stderr.strip()}"]
+    features = BASE_FEATURES + EXTRA_FEATURES.get(path.rsplit("/", 1)[-1], "")
+    r = subprocess.run(["wasm-tools", "validate", f"--features={features}", path],
+                       capture_output=True, text=True)
+    bad = [] if r.returncode == 0 else [f"検証に失敗（{features}）: {r.stderr.strip().splitlines()[0]}"]
     text = wat(path)
 
     # import
