@@ -253,11 +253,33 @@ Verification (`make check-psbt`, `make check-qemu-psbt`):
 
 ### Bitcoin Core as the oracle (2026-10-04)
 
-Core has no WASM target, and its PSBT code cannot come along: `psbt.cpp` pulls in the serialization
-templates, `CMutableTransaction`, `std::map` and libc++, which would end the 15,570-byte zero-import
-module this exists to be. What we do take from Core verbatim is the part where being identical matters
-most — **libsecp256k1, pinned to a commit**. Everything else is ours: PSBT parsing, sighash, BIP32,
-base58 and bech32, the hashes.
+Core has no WASM target. Its PSBT code does compile to wasm32, though — measured, not assumed, with
+our pinned wasi-sdk 34 (2026-10-04):
+
+| | bytes | imports |
+|---|---:|---:|
+| `parser.wasm` | 15,570 | **0** |
+| `psbt.cpp` and 17 files of its closure | 2,841,674 | 17 |
+
+Two things rule it out, and the first is decisive.
+
+**Core's script code requires C++ exceptions.** `-fno-exceptions` does not compile at all
+(`script/script.h:248: cannot use 'throw' with exceptions disabled`). In wasm that means the
+exception-handling proposal, which is not one of Lime1's seven features, so the link-time gate rejects
+the module outright — which is exactly what that gate is for.
+
+**The WASI imports are unavoidable**: `proc_exit`, `fd_write`, `fd_prestat_get`,
+`fd_prestat_dir_name`, `fd_close`, `args_sizes_get`, `args_get`, from libc++ and wasi-libc's startup,
+assert and abort paths. Having nothing to call — no clock, no filesystem, no network — is the property
+this module exists for.
+
+Neither is strictly a wall. Patching out the throws, supplying an allocator and stubbing the abort
+paths would get closer. But patching `script.h` means forking Core, and "verifiably the same code as
+Core" is then the thing that has been lost.
+
+What we do take from Core verbatim is the part where being identical matters most —
+**libsecp256k1, pinned to a commit**. Everything else is ours: PSBT parsing, sighash, BIP32, base58
+and bech32, the hashes.
 
 So rather than sharing Core's code, we require Core's answers (`make check-core-diff`).
 
