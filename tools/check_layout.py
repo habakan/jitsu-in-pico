@@ -84,6 +84,33 @@ def main():
         elif int(m.group(1)) != want:
             bad.append(f"Signer.kt: {name} is {m.group(1)}, C says {want}")
 
+    # The Swift host library's constants
+    sw = Path("components/signer/hosts/swift/Sources/WasmSigner/Signer.swift").read_text()
+    want_sw = {
+        "planSize": truth["plan_t"]["size"],
+        "planNInputs": truth["plan_t"]["n_inputs"],
+        "planNOutputs": truth["plan_t"]["n_outputs"],
+        "rvSize": truth["core_review_t"]["size"],
+        "rvFee": truth["core_review_t"]["fee"],
+        "rvOwner": truth["core_review_t"]["owner"],
+        "rvWillSign": truth["core_review_t"]["will_sign"],
+        "rvNSign": truth["core_review_t"]["n_sign"],
+        "dpSize": truth["core_display_t"]["size"],
+        "dpOutputs": truth["core_display_t"]["outputs"],
+        "dpOutSize": truth["core_display_t"]["output_size"],
+        "dpOutText": truth["core_display_t"]["output_text"],
+        "dpOutTextCap": truth["core_display_t"]["output_text_cap"],
+        "sigSize": truth["plan_sig_t"]["size"],
+        "sigLen": truth["plan_sig_t"]["sig_len"],
+        "sigSig": truth["plan_sig_t"]["sig"],
+    }
+    for name, want in want_sw.items():
+        m = re.search(r"\b" + name + r" = (\d+)", sw)
+        if not m:
+            bad.append(f"Signer.swift: {name} not found")
+        elif int(m.group(1)) != want:
+            bad.append(f"Signer.swift: {name} is {m.group(1)}, C says {want}")
+
     # The error codes, in the library and in the spec
     for code, name in [(v, k) for k, v in truth["errors"].items()]:
         if f'{code}: "{name}"' not in js.replace("'", '"'):
@@ -103,7 +130,7 @@ def main():
 
     for b in bad:
         print(f"  {b}")
-    print(f"check-layout: {'FAILED' if bad else 'the spec, both host libraries and the structs agree'}")
+    print(f"check-layout: {'FAILED' if bad else 'the spec, all three host libraries and the structs agree'}")
     return 1 if bad else 0
 
 

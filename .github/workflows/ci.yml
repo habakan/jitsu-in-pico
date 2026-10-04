@@ -82,7 +82,10 @@ jobs:
           echo "/tmp/kotlinc/bin" >> $GITHUB_PATH
       - name: signer.wasm driven from Kotlin (25 checks)
         run: make -C components/signer/hosts/kotlin check
-      - name: The JavaScript and Kotlin hosts agree byte for byte
+      # The Swift host is not run here: WasmKit 0.4.1 needs Swift 6.3 or newer and the runners do
+      # not have it yet, so it is verified locally on macOS. check-layout does check its constants
+      # against the structs, which is the part that can rot silently
+      - name: The hosts that can run here agree byte for byte
         run: make check-hosts-agree REQUIRE_KOTLIN=1
 
       # Bitcoin Core as the oracle: it decides what a PSBT means, and our signatures have to equal

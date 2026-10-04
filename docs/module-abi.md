@@ -62,23 +62,23 @@ by accident is how a module starts offering more than it documents.
 | module | prefix | what it does | spec | host libraries |
 |---|---|---|---|---|
 | `parser.wasm` | `parser_` | UR reassembly, PSBT parsing, building the Plan, taking signatures back, UR encoding | [abi.md](../components/parser/docs/abi.md) | JS, Kotlin, Swift |
-| `signer.wasm` | `signer_` | keys, derivation, re-checking a Plan, the display model, signing, xpub export | [abi.md](../components/signer/docs/abi.md) | JS, Kotlin |
+| `signer.wasm` | `signer_` | keys, derivation, re-checking a Plan, the display model, signing, xpub export | [abi.md](../components/signer/docs/abi.md) | JS, Kotlin, Swift |
 | `bitcoin-signer.wasm` | `prim_` | the signing primitives on their own; what the RV32 benchmark exercises | none | none |
 | `address.wasm` | `addr_` | a scriptPubKey to an address string | none | none |
 | `qr.wasm` | `qr_` | QR decoding (quirc), for the browser | none | none |
 
 **`parser.wasm` is finished as a part**: a specification, three host libraries, 529 vectors,
-fuzzing, its own CI and a signed release. **`signer.wasm` now has a specification, host libraries for
-JavaScript and Kotlin, and 49 checks of its own** — which is the first of the conditions in
-[design.md](design.md) §16 for giving it a repository of its own. Swift is not written yet.
+fuzzing, its own CI and a signed release. **`signer.wasm` now matches it** — a specification, host
+libraries for JavaScript, Kotlin and Swift, and 74 checks of its own — which satisfies the first of
+the conditions in [design.md](design.md) §16 for giving it a repository of its own.
 
 An Android app built on the Kotlin host is in [../apps/android](../apps/android). Its signatures are
 byte-identical to the native implementation's, which is the first evidence that these modules are
 usable by someone other than this repository's own applications. What building it found is in its
 README: the ABI itself needed no Android-specific anything, and the two problems were both packaging.
 
-Two hosts matter more than twice one host: `make check-hosts-agree` runs both over the same PSBT and
-requires their output to match byte for byte. A single host's tests pass just as happily when the
+Three hosts matter more than three times one host: `make check-hosts-agree` runs all of them over
+the same PSBT and requires their output to match byte for byte. A single host's tests pass just as happily when the
 library and its expectations are wrong together, which is what caught `signer_xpub` returning the
 opposite sense from its neighbours.
 

@@ -315,26 +315,33 @@ check-layout: build/layout
 	uv run -q tools/check_layout.py $<
 .PHONY: check-layout
 
-# Two independent hosts driving the same module have to agree byte for byte. If they do not, one of
-# them is reading the layout wrong, which no single-host test would catch. Needs kotlinc and a JDK
-# Two independent hosts driving the same module have to agree byte for byte. If they do not, one of
-# them is reading the layout wrong, which no single-host test would catch.
-# One shell for the whole recipe, so the guard can actually skip the rest; REQUIRE_KOTLIN=1 turns a
-# missing kotlinc into a failure, because a check that silently succeeds without its tool is worse
-# than no check. CI passes it
+# Independent hosts driving the same module have to agree byte for byte. If they do not, one of them
+# is reading the layout wrong, which no single-host test would catch: a lone host's tests pass just
+# as happily when the library and its expectations are wrong together.
+# One shell for the whole recipe, so a guard can actually skip the rest. REQUIRE_KOTLIN=1 and
+# REQUIRE_SWIFT=1 turn a missing tool into a failure, because a check that silently succeeds without
+# its tools is worse than no check. CI passes REQUIRE_KOTLIN=1; it cannot require Swift, because
+# WasmKit needs Swift 6.3 or newer and the runners do not have it
 check-hosts-agree: build/signer.wasm build/parser.wasm build/psbt/own_mixed_nwu.psbt
 	@set -e; \
-	if ! command -v kotlinc >/dev/null; then \
-	  if [ "$(REQUIRE_KOTLIN)" = "1" ]; then echo "kotlinc not found and REQUIRE_KOTLIN=1"; exit 1; fi; \
-	  echo "kotlinc not found; skipping (pass REQUIRE_KOTLIN=1 to make this a failure)"; exit 0; \
-	fi; \
-	$(MAKE) -C components/signer/hosts/kotlin dump.jar; \
 	node components/signer/hosts/js/dump.mjs \
 	  build/signer.wasm build/parser.wasm build/psbt/own_mixed_nwu.psbt > build/host-js.out; \
-	$(MAKE) -s -C components/signer/hosts/kotlin dump \
-	  SIGNER=$(PWD)/build/signer.wasm PARSER=$(PWD)/build/parser.wasm \
-	  PSBT=$(PWD)/build/psbt/own_mixed_nwu.psbt > build/host-kotlin.out; \
-	diff build/host-js.out build/host-kotlin.out && echo "the JavaScript and Kotlin hosts agree"
+	if command -v kotlinc >/dev/null; then \
+	  $(MAKE) -s -C components/signer/hosts/kotlin dump.jar; \
+	  $(MAKE) -s -C components/signer/hosts/kotlin dump \
+	    SIGNER=$(PWD)/build/signer.wasm PARSER=$(PWD)/build/parser.wasm \
+	    PSBT=$(PWD)/build/psbt/own_mixed_nwu.psbt > build/host-kotlin.out; \
+	  diff build/host-js.out build/host-kotlin.out && echo "JavaScript and Kotlin agree"; \
+	elif [ "$(REQUIRE_KOTLIN)" = "1" ]; then echo "kotlinc not found and REQUIRE_KOTLIN=1"; exit 1; \
+	else echo "kotlinc not found; skipping the Kotlin host"; fi; \
+	if command -v swift >/dev/null; then \
+	  $(MAKE) -s -C components/signer/hosts/swift dump \
+	    SIGNER=$(PWD)/build/signer.wasm PARSER=$(PWD)/build/parser.wasm \
+	    PSBT=$(PWD)/build/psbt/own_mixed_nwu.psbt 2>/dev/null \
+	    | grep -vE '^Building|^Build complete|^\[' > build/host-swift.out; \
+	  diff build/host-js.out build/host-swift.out && echo "JavaScript and Swift agree"; \
+	elif [ "$(REQUIRE_SWIFT)" = "1" ]; then echo "swift not found and REQUIRE_SWIFT=1"; exit 1; \
+	else echo "swift not found; skipping the Swift host"; fi
 .PHONY: check-hosts-agree
 
 # signer.wasm driven from JavaScript, with the signatures compared against the native side's.
