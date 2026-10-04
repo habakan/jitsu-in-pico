@@ -1,54 +1,58 @@
-# 再現可能ビルド
+# Reproducible builds
 
-デバイスが画面に出す `parser.wasm` の SHA-256 と、手元で作った `parser.wasm` の SHA-256 が
-一致することを、第三者が確かめられるようにする。これが無いと「同じものが動いている」と言えない。
+The device shows the SHA-256 of the `parser.wasm` it loaded. The point of this page is that anyone
+can build that same file and get that same hash. Without it, "the device runs what you can read"
+is a claim rather than something you can check.
 
-## 使い方
+## Using it
 
 ```sh
 make check-repro
 ```
 
-版とハッシュを固定したツールチェーンを `build/toolchain/` に落とし、4 つの wasm を
-作り直して `checksums.txt` と突き合わせる。一致すれば「再現可能」。
+This downloads a toolchain pinned by version and hash into `build/toolchain/`, rebuilds all five
+wasm modules, and compares them against `checksums.txt`.
 
 ```
-a6766d13…  build/parser.wasm           解析器（実機にもブラウザにも同じものが載る）
-f4841a11…  build/bitcoin-signer.wasm   鍵・導出・署名
-55d8d85d…  build/address.wasm          scriptPubKey → アドレス
-4409a16e…  build/qr.wasm               QR デコーダ（quirc）
+21ea6dbc…  build/parser.wasm           the parser; the device and the browser load the same file
+372f6284…  build/signer.wasm           keys, derivation and signing, as a wasm component
+3f922e3c…  build/bitcoin-signer.wasm   the signing primitives the viewer uses
+d98b87b1…  build/address.wasm          scriptPubKey to an address
+9e75254d…  build/qr.wasm               the QR decoder (quirc)
 ```
 
-## 固定しているもの
+## What is pinned
 
-| | 版 | tar.gz の SHA-256 |
+| | version | SHA-256 of the tarball |
 |---|---|---|
 | wasi-sdk | 34.0 | arm64-macos `9c593981…` / x86_64-linux `b761e3a0…` |
-| binaryen（`wasm-opt`） | 132 | arm64-macos `98aad827…` / x86_64-linux `195ddc94…` |
+| binaryen (`wasm-opt`) | 132 | arm64-macos `98aad827…` / x86_64-linux `195ddc94…` |
 
-`tools/toolchain.sh` が落として検証する。別の環境を足すときは、その環境のハッシュを同じ場所に書く。
+`tools/toolchain.sh` fetches and verifies them. To add another platform, put its hash in the same place.
 
-## 確かめたこと（2026-10-03）
+## What has been confirmed
 
-**macOS arm64 と Linux x86_64 で同じハッシュが出る。** 別の OS、別の CPU、別のマシンで
-同じバイト列になることを実際に確認した（2026-10-03、Lime1 採用後に 2026-10-04 再確認）。
+**macOS arm64 and Linux x86_64 produce identical hashes.** Checked on a different OS, a different CPU
+and a different machine (2026-10-03, and again on 2026-10-04 after adopting Lime1). CI rebuilds all
+five on Linux for every commit, so the claim does not quietly rot.
 
-## 引っかかったこと: `wasm-opt` が PATH にあるだけで結果が変わる
+## The trap: `wasm-opt` merely being on the `PATH` changes the output
 
-最初に試したとき、同じ版の wasi-sdk なのに macOS は 15,598 byte、Linux は 18,278 byte になった。
-ソースも、コンパイラの既定機能も、sysroot の `libc.a` も、リンカの版も同じだった。
+The first attempt gave 15,598 bytes on macOS and 18,278 on Linux, from the same wasi-sdk version.
+The source, the compiler's default features, the sysroot's `libc.a` and the linker version were all
+the same.
 
-原因は **clang のドライバが、PATH に `wasm-opt` があれば黙って後段で実行する**こと。
-macOS には Homebrew の binaryen が入っていたので走り、gpu1 には無かったので走らなかった。
+The cause is that **clang's driver silently runs `wasm-opt` afterwards if it finds one on the `PATH`.**
+macOS had binaryen from Homebrew, so it ran; the Linux machine did not, so it did not.
 
 ```
 clang ... -o out.wasm     ->  wasm-ld ... && /opt/homebrew/bin/wasm-opt out.wasm -Oz -o out.wasm
 ```
 
-対処として、`--no-wasm-opt` でドライバの自動実行を止め、版を固定した `wasm-opt` を明示的に呼ぶ。
-このとき **`-Wl,--keep-section=target_features` が要る**。ドライバは wasm-opt を走らせるときだけ
-この指定を足していて、外すと `--strip-all` が `target_features` を消し、後から呼んだ `wasm-opt` が
-「bulk memory が有効か分からない」と言って検証に失敗する。
+The fix is `--no-wasm-opt` to stop the driver doing it, then calling a pinned `wasm-opt` explicitly.
+That needs **`-Wl,--keep-section=target_features`**: the driver only adds it when it is going to run
+wasm-opt itself, and without it `--strip-all` removes `target_features`, after which the wasm-opt we
+call cannot tell whether bulk memory is enabled and refuses to validate.
 
 ```make
 WASM_OPT ?= wasm-opt
@@ -56,25 +60,25 @@ WASM_OPT ?= wasm-opt
 	$(WASM_OPT) $@ -Oz -o $@
 ```
 
-この罠は、**環境に何が入っているかで成果物が変わる**という最も厄介な種類で、
-ハッシュを突き合わせて初めて見つかった。再現可能ビルドを用意する理由そのものでもある。
+This is the worst kind of build bug — **the artifact depends on what happens to be installed** — and
+comparing hashes is what surfaced it. It is also the reason to have reproducible builds at all.
 
-## 要求する wasm の機能を Lime1 に固定する
+## Pinning the wasm features to Lime1
 
-[Lime1](https://github.com/WebAssembly/tool-conventions/blob/main/Lime.md) は
-**WebAssembly 1.0 + phase-5（標準化済み）の 7 機能**という、名前の付いた水準。
-定義した以上は「変えない」と明言されているので、引用しても将来ずれない。
+[Lime1](https://github.com/WebAssembly/tool-conventions/blob/main/Lime.md) is a named level:
+**WebAssembly 1.0 plus seven phase-5 (standardised) features.** Having defined it, the authors state
+it will not change, so citing it does not drift.
 
 ```
 -mcpu=lime1 -Xlinker --features=mutable-globals,multivalue,sign-ext,nontrapping-fptoint,bulk-memory-opt,extended-const,call-indirect-overlong
 ```
 
-**リンカに渡すのが肝で、関門になる。** 依存が将来 SIMD や threads を引き込もうとした時点で
-リンクが失敗する。黙って要求ランタイムが広がることがなくなる。
+**Passing it to the linker is the point, because that makes it a gate.** The day a dependency tries to
+bring in SIMD or threads, the link fails. What a runtime has to support can no longer widen quietly.
 
-副作用として全部小さくなった。
+Everything got smaller as a side effect.
 
-| | 変更前 | 変更後 |
+| | before | after |
 |---|---:|---:|
 | `parser.wasm` | 15,603 | **15,570** |
 | `signer.wasm` | 56,508 | **56,475** |
@@ -82,50 +86,53 @@ WASM_OPT ?= wasm-opt
 | `qr.wasm` | 16,754 | **16,722** |
 | `bitcoin-signer.wasm` | 34,410 | **34,377** |
 
-検証に要求する機能も狭くなった（完全な `bulk-memory` → `bulk-memory-opt`）。
+What validation demands narrowed too, from full `bulk-memory` to `bulk-memory-opt`.
 
-**`-mcpu=mvp` は逆効果**なので採らない。実測で 2.5KB 増える上、依然 `bulk-memory` を要求する。
-`-mcpu` は自分の翻訳単位にしか効かず、wasi-libc は既にその機能でビルド済みで、
-`target_features` はその和集合になるため。
+**`-mcpu=mvp` does the opposite** and is not used: measured, it adds 2.5KB and still demands
+`bulk-memory`. `-mcpu` only affects our own translation units, wasi-libc is already built with those
+features, and `target_features` is the union of the inputs.
 
-`--max-memory=N` ではなく **`--no-growable-memory`** を使う。出力はバイト単位で同じだが、
-`--initial-memory` と数値がずれる事故が起きない（`address.wasm` と `qr.wasm` で実際に起きた）。
+**`--no-growable-memory`** is used rather than `--max-memory=N`. The output is identical byte for byte,
+but the number cannot drift out of step with `--initial-memory` — which it did, in `address.wasm`
+and `qr.wasm`.
 
-## 配る形が正しいかを検査する
+## Checking that what we ship has the right shape
 
 ```sh
-make check-wasm     # wasm-tools が要る（brew install wasm-tools）
+make check-wasm     # needs wasm-tools (brew install wasm-tools)
 ```
 
-**利用者が「中身を信じなくても確かめられる」性質**を、こちらでも常に確かめる。
+The properties that let a user **check rather than trust** are worth checking continuously on our side
+too.
 
-| 見るもの | なぜ |
+| what | why |
 |---|---|
-| import が無い | ホスト関数を呼べない。時計もネットワークも触れない |
-| メモリに上限がある | `memory.grow` でホストのメモリを食えない |
-| 可変 global を輸出しない | ホストから内部状態を書き換えられない |
-| table を輸出しない | 間接呼び出しの表を差し替えられない |
-| start 関数が無い | 読み込んだだけでは何も動かない |
-| 見覚えのない custom 節が無い | 余計なものが混ざっていない |
+| no imports | it cannot call a host function: no clock, no network |
+| memory has a maximum | it cannot eat the host's memory through `memory.grow` |
+| no mutable global exported | the host cannot reach in and rewrite internal state |
+| no table exported | the indirect call table cannot be swapped out |
+| no start function | loading it does not run anything |
+| no unfamiliar custom sections | nothing extra came along |
 
-この検査を入れたときに、**`address.wasm` と `qr.wasm` のメモリに上限が無い**ことが見つかった
-（`--max-memory` の付け忘れ）。固定バッファしか使わないので、伸ばせる必要はなかった。
+Adding this check is what found that **`address.wasm` and `qr.wasm` had no memory maximum** — a missing
+`--max-memory`. They only ever use fixed buffers, so there was never a reason to let them grow.
 
-## 依存も固定する
+## Pinning the dependencies too
 
-ツールチェーンだけ固定しても、入力が動けば成果物は動く。`third_party/` は全部 commit で固定してある
-（`make check-deps` で確認）。とくに **secp256k1 を master の先頭から取ってはいけない**。
-鍵を扱うライブラリを、取得した日によって変わる状態で使うことになる。
+A pinned toolchain means nothing if the inputs move. Everything in `third_party/` is pinned to a commit
+(`make check-deps`). In particular, **secp256k1 must not be taken from the tip of master**: that would
+mean the library holding the keys varies by the day it was fetched.
 
 | | |
 |---|---|
-| libsecp256k1 | commit 固定 |
-| WAMR / pico-sdk | タグに対応する commit 固定 |
-| quirc / QR-Code-generator / spleen | commit 固定 |
+| libsecp256k1 | pinned commit |
+| WAMR / pico-sdk | commit matching a tag |
+| quirc / QR-Code-generator / spleen | pinned commit |
 
-上げるときは差分を読んでから `Makefile` の `*_REV` を書き換える。
+Moving one means reading the diff, then changing the matching `*_REV` in the `Makefile`.
 
-## まだやっていないこと
+## Not done yet
 
-- ツールチェーンの取得元は GitHub のリリース。配布物そのものの再現可能性は上流に依存する
-- デバイスのファームウェア全体（pico-sdk、WAMR を含む）の再現可能ビルドは未着手
+- The toolchain comes from GitHub releases. Whether those tarballs are themselves reproducible is
+  upstream's business
+- A reproducible build of the whole device firmware, pico-sdk and WAMR included, has not been started

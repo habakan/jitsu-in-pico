@@ -1,164 +1,199 @@
-# 試作ハードウェアと配線
+# The prototype hardware and its wiring
 
-2026-09-22 時点。秋月で購入した部品（Pico 2 H、Debug Probe、1.54 インチ ST7789 液晶、OV7670 基板、
-5 方向スイッチキット、タクトスイッチ 3 個）で組む前提。ピン定義は `apps/device/rp2350/board_pins.h` と一致させる。
-実物のシルク印刷とピン番号は、配線前に必ず見比べる。
+As of 2026-09-22. Built from parts bought at Akizuki Denshi: a Pico 2 H, a Debug Probe, a 1.54 inch
+ST7789 panel, an OV7670 board, a five-way switch kit and three tactile switches. The pin assignment
+has to match `apps/device/rp2350/board_pins.h`. Always compare the silkscreen on the actual part
+against its pin numbers before wiring anything.
 
-## GPIO 割り当て（Pico 2、使える 26 本を全部使う）
+## GPIO assignment (Pico 2, using all 26 available pins)
 
-| GPIO | 物理ピン | 用途 | 接続先 |
+| GPIO | pin | what | goes to |
 |---|---|---|---|
-| GP0 | 1 | UART0 TX | Debug Probe の UART「RX」 |
-| GP1 | 2 | ボタン C | タクトスイッチ → GND（UART RX は使わない） |
-| GP2〜GP9 | 4〜7, 9〜12 | カメラ D0〜D7 | PIO で 8 本まとめて読むので連番にする |
-| GP10 | 14 | カメラ PCLK | |
-| GP11 | 15 | カメラ HREF | |
-| GP12 | 16 | カメラ VSYNC | |
-| GP13 | 17 | ジョイスティック UP（A） | |
-| GP14 | 19 | カメラ SIO-D（I2C1 SDA） | |
-| GP15 | 20 | カメラ SIO-C（I2C1 SCL） | |
-| GP16 | 21 | 液晶 DC | |
-| GP17 | 22 | ジョイスティック DOWN（D） | |
-| GP18 | 24 | 液晶 SCL（SPI0 SCK） | |
-| GP19 | 25 | 液晶 SDA（SPI0 TX） | |
-| GP20 | 26 | ジョイスティック LEFT（C） | |
-| GP21 | 27 | カメラ XCLK（CLOCK GPOUT0） | OV7670 / OV7675 のみ。水晶付きの OV2640 基板では空き |
-| GP22 | 29 | ジョイスティック RIGHT（B） | |
-| GP26 | 31 | ジョイスティック SW（押し込み） | |
-| GP27 | 32 | ボタン A（キャンセル） | タクトスイッチ → GND |
-| GP28 | 34 | ボタン B | タクトスイッチ → GND |
+| GP0 | 1 | UART0 TX | the Debug Probe's UART "RX" |
+| GP1 | 2 | button C | tactile switch to GND (UART RX is unused) |
+| GP2-GP9 | 4-7, 9-12 | camera D0-D7 | consecutive, because PIO reads all eight as a run |
+| GP10 | 14 | camera PCLK | |
+| GP11 | 15 | camera HREF | |
+| GP12 | 16 | camera VSYNC | |
+| GP13 | 17 | joystick UP (A) | |
+| GP14 | 19 | camera SIO-D (I2C1 SDA) | |
+| GP15 | 20 | camera SIO-C (I2C1 SCL) | |
+| GP16 | 21 | panel DC | |
+| GP17 | 22 | joystick DOWN (D) | |
+| GP18 | 24 | panel SCL (SPI0 SCK) | |
+| GP19 | 25 | panel SDA (SPI0 TX) | |
+| GP20 | 26 | joystick LEFT (C) | |
+| GP21 | 27 | camera XCLK (CLOCK GPOUT0) | OV7670 / OV7675 only; spare on an OV2640 board with a crystal |
+| GP22 | 29 | joystick RIGHT (B) | |
+| GP26 | 31 | joystick SW (press in) | |
+| GP27 | 32 | button A (cancel) | tactile switch to GND |
+| GP28 | 34 | button B | tactile switch to GND |
 
-ブレッドボードで組むときの注意:
+Things to watch when building this on a breadboard:
 
-- **Pico の基板が D〜G 列を覆う**ので、行 1〜20 で使えるのは A・B 列（C 列の左）と I・J 列（H 列の右）だけ。
-  3V3 と GND を複数へ配る場合は、Pico から 1 本だけ引いて周辺機器側の行で数珠つなぎにする
-- 液晶 M154-240240-RGB は**ピンヘッダが実装済みで届いた**（はんだ付けは不要だった）。基板が本体側へ張り出すので、
-  ピン列を外周の列（J 列など）に挿して本体をボードの外へはみ出させると、隣の列が空いて配線できる
-- タクトスイッチ TVDP01-G73BB は、溝をまたぐ 2 本が内部でつながっている向きだった（押すと行 n と行 n+2 がつながる）。
-  GND を行 n、信号を行 n+2 に取る。反応しないときは `button_test.uf2` でどの GPIO が落ちるかを見る
-- 確認画面を送るだけなら「進む（GP17）」「承認（GP26）」の 2 個で足りる
+- **The Pico's board covers columns D to G**, so in rows 1 to 20 only columns A and B (left of C) and
+  I and J (right of H) are usable. To feed 3V3 and GND to several things, run one lead from the Pico
+  and daisy-chain them along the rows on the peripheral side
+- The M154-240240-RGB panel **arrived with its header already fitted**, so no soldering was needed.
+  Its board overhangs towards the panel, so putting the pin row in an outer column (J, say) and
+  letting the panel hang off the edge of the board leaves the next column free to wire
+- On the TVDP01-G73BB tactile switches, the two pins that straddle the channel turned out to be the
+  connected pair: pressing joins row n to row n+2. Take GND from row n and the signal from row n+2.
+  If one does not respond, `button_test.uf2` shows which GPIO actually goes low
+- Just stepping through the review screens needs only two: "next" (GP17) and "approve" (GP26)
 
-- GP23（電源制御）、GP24（VBUS 検出）、GP25（LED）、GP29（VSYS 監視）はボード内部で使われていて引き出されていない
-- 使う周辺機能（UART0、I2C1、SPI0、CLOCK GPOUT0）が上のピンに出せることは、pico-sdk の `io_bank0.h` の FUNCSEL 定義で確認した
-- 固定する信号: 液晶 CS → GND、液晶 RES → 3V3、液晶 BLK → 3V3、カメラ RESET → カメラの I/O 電源、カメラ PWDN → GND
-- 3V3(OUT)（物理ピン 36）から液晶・ジョイスティック・カメラに給電する。GND は物理ピン 3, 8, 13, 18, 23, 28, 33, 38
+- GP23 (power control), GP24 (VBUS sense), GP25 (LED) and GP29 (VSYS monitor) are used by the board
+  itself and not brought out
+- That the peripherals in use (UART0, I2C1, SPI0, CLOCK GPOUT0) can reach the pins above was checked
+  against the FUNCSEL tables in pico-sdk's `io_bank0.h`
+- Signals that are tied off: panel CS to GND, panel RES to 3V3, panel BLK to 3V3, camera RESET to the
+  camera's I/O supply, camera PWDN to GND
+- 3V3(OUT) (pin 36) feeds the panel, the joystick and the camera. GND is on pins 3, 8, 13, 18, 23, 28,
+  33 and 38
 
-ピンが足りなくなったら、まず液晶 CS を GP1 に移してボタン C を外す（CS 固定で SPI の同期が崩れる場合の逃げ道）。
+If the pins run out, the first thing to give up is button C: move the panel's CS to GP1. That is also
+the way out if tying CS low turns out to break SPI synchronisation.
 
-実際に組んでいるブレッドボードの配線は [docs/breadboard.md](breadboard.md)。
+The wiring of the breadboard as actually built is in [docs/breadboard.md](breadboard.md).
 
-## 部品ごとの配線
+## Wiring, part by part
 
-### 液晶 M154-240240-RGB（ST7789V、8 ピン）
+### The M154-240240-RGB panel (ST7789V, 8 pins)
 
-| 液晶 | 接続先 |
+| panel | goes to |
 |---|---|
 | GND | GND |
-| VCC | 3V3（2.4〜3.3V。5V 不可） |
+| VCC | 3V3 (2.4 to 3.3V; not 5V) |
 | SCL | GP18 |
 | SDA | GP19 |
-| RES | 3V3（起動時は SWRESET コマンドでリセットする） |
+| RES | 3V3 (reset at startup is done with the SWRESET command) |
 | DC | GP16 |
 | CS | GND |
-| BLK | 3V3（GPIO に繋げば PWM で調光できる。今は QR の白の濃さで代用） |
+| BLK | 3V3 (on a GPIO this could be dimmed with PWM; for now the QR's white level stands in) |
 
-CS を固定しているので、SPI は mode 3（CPOL=1, CPHA=1）で送る（`apps/device/rp2350/st7789.c`）。
-表示の上下左右やオフセットがずれていたら、`MADCTL`（0x36）と窓の設定を直す。
+Because CS is tied off, SPI runs in mode 3 (CPOL=1, CPHA=1) — see `apps/device/rp2350/st7789.c`.
+If the image is mirrored or offset, the things to fix are `MADCTL` (0x36) and the window setup.
 
-### ジョイスティック AE-SKRHAAE010-BO（8 ピン、要はんだ付け）
+### The AE-SKRHAAE010-BO joystick (8 pins, needs soldering)
 
-秋月の回路図（`AE-SKRHAAE010-BO.pdf`）で確認した。各方向と押し込みは 10kΩ で +V にプルアップ済みで、押すと GND に落ちる。
+Checked against Akizuki's schematic (`AE-SKRHAAE010-BO.pdf`). Every direction and the press are
+already pulled up to +V through 10k and go to GND when pressed.
 
-| キット | 接続先 |
+| kit | goes to |
 |---|---|
 | +V | 3V3 |
-| GND（2 本） | GND |
+| GND (two of them) | GND |
 | SW | GP26 |
-| A（UP） | GP13 |
-| B（RIGHT） | GP22 |
-| C（LEFT） | GP20 |
-| D（DOWN） | GP17 |
+| A (UP) | GP13 |
+| B (RIGHT) | GP22 |
+| C (LEFT) | GP20 |
+| D (DOWN) | GP17 |
 
-### タクトスイッチ ×3
+### Three tactile switches
 
-片側を GPIO（GP27 / GP28 / GP1）、反対側を GND。プルアップは RP2350 の内蔵を使う。
+One side to a GPIO (GP27, GP28 or GP1), the other to GND. The pull-ups are the RP2350's internal ones.
 
-### カメラ
+### The camera
 
-#### OV7670 基板 ST-HL-08-V1（購入済み、24 ピン DIP）
+#### The OV7670 board, ST-HL-08-V1 (bought, 24-pin DIP)
 
-秋月の技術参考資料で確認したピン配置: 1 AVDD、2 AGND、3 DOGND、4 DVDD、5 DOVDD、6 PWDN、7 RESET、8 STROBE、
-9 VSYNC、10 PCLK、11 SIO-C、12 SIO-D、13 XCLK、14 HREF、15 VREF1、16 VREF2、17〜24 D0〜D7。
+Pin assignment per Akizuki's reference document: 1 AVDD, 2 AGND, 3 DOGND, 4 DVDD, 5 DOVDD, 6 PWDN,
+7 RESET, 8 STROBE, 9 VSYNC, 10 PCLK, 11 SIO-C, 12 SIO-D, 13 XCLK, 14 HREF, 15 VREF1, 16 VREF2,
+17-24 D0-D7.
 
-**この基板には電源回路が無い。** センサーの定格は AVDD 2.45〜3.0V、DVDD 1.62〜1.98V、DOVDD 1.7〜3.0V で、
-Pico の 3V3 を直接つなぐと AVDD の最大 3.0V を超える。秋月の資料どおりに組むなら追加部品が要る:
+**This board has no power supply on it.** The sensor wants AVDD 2.45 to 3.0V, DVDD 1.62 to 1.98V and
+DOVDD 1.7 to 3.0V, so the Pico's 3V3 straight in exceeds AVDD's 3.0V maximum. Building it the way
+Akizuki's document says needs extra parts:
 
-| 用途 | 部品（秋月） | 価格 |
+| for | part (Akizuki) | price |
 |---|---|---|
-| DVDD 1.8V | UT7500L-18-T92-B（TO-92、ピンは 1=VOUT / 2=GND / 3=VIN で 78L 系と逆）https://akizukidenshi.com/catalog/g/g110491/ | ¥30 |
-| 上の入出力コンデンサ | 10µF 積層セラミック ×2 https://akizukidenshi.com/catalog/g/g108155/ | ¥120 |
-| AVDD / DOVDD 3.0V | NJM2884U1-03（SOT-89-5、表面実装）https://akizukidenshi.com/catalog/g/g110896/ | ¥40 |
-| 上の変換基板 | AE-SOT89（10 枚）https://akizukidenshi.com/catalog/g/g110835/ | ¥70 |
-| 上の出力 / 入力コンデンサ | 2.2µF https://akizukidenshi.com/catalog/g/g108152/ 、1µF https://akizukidenshi.com/catalog/g/g131472/ | ¥60 |
-| VREF1 / VREF2 | 0.1µF（10 個）https://akizukidenshi.com/catalog/g/g113582/ | ¥100 |
-| SIO-C / SIO-D プルアップ | 4.7kΩ（100 本）https://akizukidenshi.com/catalog/g/g116472/ | ¥100 |
+| DVDD 1.8V | UT7500L-18-T92-B (TO-92; its pins are 1=VOUT / 2=GND / 3=VIN, the reverse of the 78L series) https://akizukidenshi.com/catalog/g/g110491/ | ¥30 |
+| its input and output capacitors | 10µF ceramic, two https://akizukidenshi.com/catalog/g/g108155/ | ¥120 |
+| AVDD / DOVDD 3.0V | NJM2884U1-03 (SOT-89-5, surface mount) https://akizukidenshi.com/catalog/g/g110896/ | ¥40 |
+| a carrier for it | AE-SOT89 (ten) https://akizukidenshi.com/catalog/g/g110835/ | ¥70 |
+| its output and input capacitors | 2.2µF https://akizukidenshi.com/catalog/g/g108152/ and 1µF https://akizukidenshi.com/catalog/g/g131472/ | ¥60 |
+| VREF1 / VREF2 | 0.1µF (ten) https://akizukidenshi.com/catalog/g/g113582/ | ¥100 |
+| SIO-C / SIO-D pull-ups | 4.7k (a hundred) https://akizukidenshi.com/catalog/g/g116472/ | ¥100 |
 
-3.0V の LDO は秋月に TO-92 品が無く、表面実装品のはんだ付けが要る。レンズは固定焦点で、仕様書の被写界深度は約 20cm。
+Akizuki has no TO-92 part for the 3.0V LDO, so that one means soldering a surface-mount package. The
+lens is fixed focus, and the datasheet's depth of field is about 20cm.
 
-#### 代替: OV7675 基板 Arducam B0070（秋月、3.3V 単一電源）
+#### An alternative: the OV7675 board, Arducam B0070 (Akizuki, single 3.3V supply)
 
-https://akizukidenshi.com/catalog/g/g113201/ （¥1,080）。信号は OV7670 と同じ 8bit パラレル（VSYNC / HREF / PCLK / XCLK / SCL / SDA）で、
-上の GPIO 割り当てのまま使える。電源回路の追加が要らないので、OV7670 より先に試すならこちら。
+https://akizukidenshi.com/catalog/g/g113201/ (¥1,080). The signals are the same 8-bit parallel as the
+OV7670 (VSYNC / HREF / PCLK / XCLK / SCL / SDA) and work with the GPIO assignment above. It needs no
+added power supply, so it is the one to try first.
 
-#### 本命: OV2640 基板（日昇テクノロジー、18 ピン、3.3V）
+#### The one actually wanted: an OV2640 board (Nissho Technology, 18 pins, 3.3V)
 
-https://www.csun.co.jp/SHOP/2022031501.html （¥1,045、在庫わずか）。12MHz 水晶を載せているので XCLK（GP21）は不要。
-M12 マウントのレンズで、回してピントを合わせられる見込み（ページに明記は無い）。
-ピン: 1 VCC(3.3V)、2 GND、3 VS、4 SCL、5 HS、6 SDA、7 RESET、8〜15 D0〜D7、16 PCLK、18 PWDN。
+https://www.csun.co.jp/SHOP/2022031501.html (¥1,045, low stock). It carries a 12MHz crystal, so XCLK
+(GP21) is not needed. The M12 mount lens should focus by turning, though the page does not say so
+outright. Pins: 1 VCC (3.3V), 2 GND, 3 VS, 4 SCL, 5 HS, 6 SDA, 7 RESET, 8-15 D0-D7, 16 PCLK, 18 PWDN.
 
-### Debug Probe
+### The Debug Probe
 
-- 「D」ポート（SWD）→ Pico 2 H のデバッグ端子（JST SH 3 ピン）。付属の SH-SH ケーブルでそのまま挿さる
-- 「U」ポート（UART）の RX → GP0、GND → GND。TX は使わない
-- Pico 2 H 本体は、別の USB ケーブルで PC から給電する
+- The "D" port (SWD) to the Pico 2 H's debug connector (JST SH, 3 pins). The supplied SH-SH cable fits
+  as is
+- The "U" port (UART): RX to GP0, GND to GND. TX is unused
+- The Pico 2 H itself is powered from the PC over a separate USB cable
 
-## 書き込みと UART
+## Flashing and the UART
 
-Debug Probe の SWD で書くのが速い。BOOTSEL も USB の抜き差しも要らず、書き込み後にリセットまでできる。
+Writing over the Debug Probe's SWD is the quick way. No BOOTSEL, no unplugging USB, and it can reset
+the board afterwards.
 
 ```
-make deps-openocd                            # 一度だけ（Raspberry Pi のフォークをビルド）
-make flash-swd ELF=build/rp2350/app.elf      # 書き込み
-make run ELF=build/rp2350/app.elf SECONDS=90 # 書き込み → 受信開始 → リセット
-make monitor SECONDS=60                      # 受信だけ
+make deps-openocd                            # once (builds Raspberry Pi's fork)
+make flash-swd ELF=build/rp2350/app.elf      # flash
+make run ELF=build/rp2350/app.elf SECONDS=90 # flash, start listening, reset
+make monitor SECONDS=60                      # listen only
 ```
 
-上流の OpenOCD（Homebrew の 0.12.0、HEAD とも）は Hazard3 を DAP 経由で扱えず、`target/rp2350.cfg` の
-`target create ... riscv -dap` で落ちる。Raspberry Pi のフォークには `target/rp2350-riscv.cfg` がある。
+Upstream OpenOCD (Homebrew's 0.12.0, and HEAD) cannot reach Hazard3 through the DAP and dies on
+`target/rp2350.cfg`'s `target create ... riscv -dap`. Raspberry Pi's fork has `target/rp2350-riscv.cfg`.
 
-BOOTSEL からの `.uf2` 書き込み（`make flash`）も残してあるが、macOS のリムーバブルボリューム権限で
-`cp` が弾かれることがあり、その場合は Finder でドラッグする。
+Flashing a `.uf2` from BOOTSEL (`make flash`) is still there, but macOS's removable-volume permissions
+sometimes refuse the `cp`, in which case drag it in Finder.
 
-## 初期確認の手順（部品が届いたら）
+## Bring-up, in order, as parts arrived
 
-1. Pico 2 H と Debug Probe だけで `build/rp2350/signer.uf2` を書き、UART（115200bps）に署名の実測時間が出ることを確かめる。`psbt_bench.uf2` で PSBT 一巡の時間も測れる（済、`docs/architecture-b.md` 11 節）
-2. **はんだ付け前**: タクトスイッチ 3 個をブレッドボードに挿し（GP17 = 進む、GP26 = 承認、GP27 = 却下、それぞれ GND へ）、`build/rp2350/app_nolcd.uf2` を書く。液晶の代わりに確認画面の文字が UART に出るので、ボタン操作・画面遷移・承認して署名・UR の出力までを配線なしで確かめられる
-3. **済（2026-10-01）**: 液晶とタクトスイッチ 2 個を配線して `build/rp2350/app.elf` を書いた。確認画面 5 枚が表示され、
-   全画面を送ってから承認すると署名し（2 入力 129ms）、署名済み PSBT がアニメーション QR で出ることを確認した。
-   ジョイスティックは使わず、進む（GP17）と承認（GP26）の 2 個で足りた。ウォレットでの読み取りは未確認
-4. **済（2026-10-02）**: カメラ（OV7675 / Arducam B0070）を配線した。PID 0x76 / VER 0x73 を読み、
-   QVGA の取り込みに成功（1 フレーム 191ms ≒ 5.2fps、quirc のデコード 61ms）。`camera_test.uf2` を書く。取り込んだ QVGA を LCD に縮小表示し、自前フォークの quirc で QR を読んで、取り込みとデコードの時間、読めた文字列を UART に出す。SCCB で読んだ PID（OV7670 なら 0x76）も出るので、配線の確認に使える
+1. With nothing but the Pico 2 H and the Debug Probe, flash `build/rp2350/signer.uf2` and confirm the
+   measured signing times appear on the UART at 115200. `psbt_bench.uf2` times a full PSBT round
+   (done; `docs/architecture-b.md` §11)
+2. **Before soldering anything**: put three tactile switches in the breadboard (GP17 next, GP26
+   approve, GP27 reject, each to GND) and flash `build/rp2350/app_nolcd.uf2`. The review screens' text
+   comes out on the UART instead of the panel, so the buttons, the screen flow, approving and signing,
+   and the UR output can all be checked with nothing else wired
+3. **Done (2026-10-01)**: wired the panel and two tactile switches and flashed `build/rp2350/app.elf`.
+   Five review screens appeared; stepping through all of them and approving produced a signature
+   (129ms for two inputs) and the signed PSBT came back as an animated QR. The joystick was not
+   needed — next (GP17) and approve (GP26) were enough. Reading it with a wallet was still unverified
+4. **Done (2026-10-02)**: wired the camera (OV7675 / Arducam B0070). Read PID 0x76 and VER 0x73, and
+   captured QVGA successfully: 191ms per frame, about 5.2fps, with quirc decoding in 61ms.
+   `camera_test.uf2` shows the captured QVGA scaled down on the LCD, reads QRs with our quirc fork, and
+   puts the capture and decode times and whatever was read on the UART. It also prints the PID read
+   over SCCB (0x76 for an OV7670), which makes it useful for checking the wiring
 
-## カメラの取り込み（`apps/device/rp2350/camera.*`）
+## Camera capture (`apps/device/rp2350/camera.*`)
 
-- PIO（`camera.pio`）が YUV422（Y U Y V）の Y だけを拾い、DMA が QVGA のグレースケール（76.8KB）を直接バッファに書く。quirc の画像バッファへそのまま取り込むので、フレームバッファを二重に持たない
-- 毎回 VSYNC 待ちからやり直すので、フレームの途中から始めても次のフレームの先頭から取れる。行の終わりは HREF が下がるのを待つ
-- **カメラ無しで実機検証できる**（`make run ELF=build/rp2350/pio_loopback_test.elf`）。同じ PIO の別ステートマシンに
-  DVP の波形（D0〜D7・PCLK・HREF・VSYNC）を出させ、取り込み側に同じピンを読ませる。PIO の入力はパッドを見るので配線は要らない。
-  2026-09-25 に実機で PCLK 1.5 / 6.25 / 25MHz、フレーム途中からの起動を確認し、取り込んだ画素が生成した Y と全て一致した
-  （25MHz は OV7670 に与える XCLK と同じ速さ。1 フレーム 64x8 の理論値 61µs に対し実測 65µs）
-- XCLK は GP21 のクロック出力（150MHz / 6 = 25MHz）。SCCB は I2C1 の 100kHz
-- センサーの設定は `camera_ov7670.c`（QVGA YUV の定番設定）だけ。OV7675 / OV2640 の設定は部品が決まってから足す。どちらも実機で要調整
-- 実機なしの検証: `make check-camera-sim` が、pioasm の出力を最小の PIO シミュレータで実行する。合成した DVP 波形（VSYNC、HREF、ブランキング、HREF の遅れ、途中からの起動）で、取り込んだ画素が Y と一致する。行末の HREF 待ちを消した版は、HREF が PCLK より遅れる波形で失敗する。電気的なタイミング（データのセットアップ / ホールド）は実機でしか確かめられない
+- PIO (`camera.pio`) picks out only the Y of YUV422 (Y U Y V) and DMA writes QVGA greyscale (76.8KB)
+  straight into the buffer. It captures directly into quirc's image buffer, so there is no second
+  framebuffer
+- Every capture restarts from waiting on VSYNC, so starting partway through a frame still gets the next
+  one from its first row. The end of a row is found by waiting for HREF to fall
+- **This can be verified on the hardware with no camera attached**
+  (`make run ELF=build/rp2350/pio_loopback_test.elf`): another state machine in the same PIO generates
+  the DVP waveform (D0-D7, PCLK, HREF, VSYNC) and the capture side reads those same pins, which needs
+  no wiring because PIO inputs read the pads. On 2026-09-25 this ran on the hardware at PCLK 1.5, 6.25
+  and 25MHz, including starting mid-frame, and every captured pixel matched the Y that was generated.
+  25MHz is the same rate as the XCLK given to an OV7670; a 64x8 frame's theoretical 61µs measured 65µs
+- XCLK is the clock output on GP21 (150MHz / 6 = 25MHz). SCCB is I2C1 at 100kHz
+- The only sensor configuration is `camera_ov7670.c`, the usual QVGA YUV set. Settings for the OV7675
+  and OV2640 get added once the part is settled; both will need tuning on the hardware
+- Verification without hardware: `make check-camera-sim` runs pioasm's output through a minimal PIO
+  simulator. Against a synthesised DVP waveform (VSYNC, HREF, blanking, HREF arriving late, starting
+  mid-frame) the captured pixels match the Y. A version with the end-of-row HREF wait removed fails on
+  the waveform where HREF lags PCLK. Electrical timing (data setup and hold) can only be checked on the
+  hardware
 
-`app.uf2` は BIP39 テストベクタの seed（`abandon ... about`）で署名する。資金を扱ってはならない。
+`app.uf2` signs with the seed from BIP39's test vector (`abandon ... about`). It must never hold funds.
