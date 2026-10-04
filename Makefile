@@ -317,14 +317,23 @@ check-layout: build/layout
 
 # Two independent hosts driving the same module have to agree byte for byte. If they do not, one of
 # them is reading the layout wrong, which no single-host test would catch. Needs kotlinc and a JDK
+# Two independent hosts driving the same module have to agree byte for byte. If they do not, one of
+# them is reading the layout wrong, which no single-host test would catch.
+# One shell for the whole recipe, so the guard can actually skip the rest; REQUIRE_KOTLIN=1 turns a
+# missing kotlinc into a failure, because a check that silently succeeds without its tool is worse
+# than no check. CI passes it
 check-hosts-agree: build/signer.wasm build/parser.wasm build/psbt/own_mixed_nwu.psbt
-	@command -v kotlinc >/dev/null || { echo "kotlinc not found; skipping"; exit 0; }
-	$(MAKE) -C components/signer/hosts/kotlin dump.jar
+	@set -e; \
+	if ! command -v kotlinc >/dev/null; then \
+	  if [ "$(REQUIRE_KOTLIN)" = "1" ]; then echo "kotlinc not found and REQUIRE_KOTLIN=1"; exit 1; fi; \
+	  echo "kotlinc not found; skipping (pass REQUIRE_KOTLIN=1 to make this a failure)"; exit 0; \
+	fi; \
+	$(MAKE) -C components/signer/hosts/kotlin dump.jar; \
 	node components/signer/hosts/js/dump.mjs \
-	  build/signer.wasm build/parser.wasm build/psbt/own_mixed_nwu.psbt > build/host-js.out
+	  build/signer.wasm build/parser.wasm build/psbt/own_mixed_nwu.psbt > build/host-js.out; \
 	$(MAKE) -s -C components/signer/hosts/kotlin dump \
 	  SIGNER=$(PWD)/build/signer.wasm PARSER=$(PWD)/build/parser.wasm \
-	  PSBT=$(PWD)/build/psbt/own_mixed_nwu.psbt > build/host-kotlin.out
+	  PSBT=$(PWD)/build/psbt/own_mixed_nwu.psbt > build/host-kotlin.out; \
 	diff build/host-js.out build/host-kotlin.out && echo "the JavaScript and Kotlin hosts agree"
 .PHONY: check-hosts-agree
 
