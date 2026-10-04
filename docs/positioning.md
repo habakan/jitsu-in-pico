@@ -158,8 +158,8 @@ CPU の RTL が公開されている点は補助的な性質として添える�
 2. ~~**ホスト実装の例をもう 1 つ。**~~ 済。Kotlin（Chicory）と Swift（WasmKit）を
    `components/parser/examples/` に置いた。**C・JS・Kotlin・Swift・実機の 5 つが同じ PSBT に同じ答えを返す**。
    どちらも JNI もネイティブのビルドも要らない
-3. **ABI の版管理。** 構造体を変えたら壊れるので、版番号と互換の約束を決める
-4. **継続ファジング。** 解析器への libFuzzer を常設し、コーパスを公開する。OSS-Fuzz も視野
+3. **ABI の版管理。** 仕様には書いた（`plan_t.version`、知らない版は拒否）。tag を切る運用は未定
+4. ~~**継続ファジング。**~~ 済。CI（`.github/workflows/ci.yml`）で毎コミット回る。コーパスの公開と OSS-Fuzz は未
 5. **英語化。** 解析器は既に英語。本体は公開時に英語で書き直す
 6. ~~再現可能ビルド~~ 済（[reproducible-build.md](reproducible-build.md)）。`address.wasm` と
    `qr.wasm` と `bitcoin-signer.wasm` も対象に広げる

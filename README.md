@@ -1,5 +1,7 @@
 # baremetal-wasm-signer
 
+[![CI](https://github.com/habakan/baremetal-wasm-signer/actions/workflows/ci.yml/badge.svg)](https://github.com/habakan/baremetal-wasm-signer/actions/workflows/ci.yml)
+
 **A Bitcoin signer split into parts you can put behind any UI.**
 The code that reads an attacker-controlled transaction (PSBT, UR) and the code that touches keys are
 separate WebAssembly modules, each with **zero imports**. Nothing to polyfill, no WASI, no host functions —

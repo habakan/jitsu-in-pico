@@ -1,5 +1,7 @@
 # baremetal-wasm-signer
 
+[![CI](https://github.com/habakan/baremetal-wasm-signer/actions/workflows/ci.yml/badge.svg)](https://github.com/habakan/baremetal-wasm-signer/actions/workflows/ci.yml)
+
 英語版は [README.md](README.md)。
 
 **署名器の中身を、UI から切り離した部品にした。**
