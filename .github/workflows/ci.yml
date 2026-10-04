@@ -13,12 +13,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { submodules: recursive }
+      - name: 依存（wasm のビルドに要るものだけ）
+        run: make deps-host
       - name: 固定した commit か
-        run: make check-deps || true   # third_party は未取得なので CI では情報表示のみ
+        run: make check-deps
       - name: ツールチェーンを取得（版とハッシュを固定）
         run: ./tools/toolchain.sh
-      - name: 4 つの wasm を作り直して記録と突き合わせる
+      - name: 5 つの wasm を作り直して記録と突き合わせる
         run: make check-repro
+      - name: 配る形が正しいか（import 0 / メモリ固定 / 可変 global を輸出しない）
+        run: |
+          curl -sL https://github.com/bytecodealliance/wasm-tools/releases/download/v1.261.0/wasm-tools-1.261.0-x86_64-linux.tar.gz \
+            | tar xz -C /tmp --strip-components=1
+          PATH=/tmp:$PATH make check-wasm
 
   # ホストで動く検査一式
   tests:
@@ -32,12 +39,17 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq cmake ninja-build clang lld
           make deps-host
+          ./tools/toolchain.sh          # parser.wasm のビルドに要る
       - run: make check-core
       - run: make check-xpub
       - run: make check-seedqr
       - run: make check-ui
       - name: PSBT 一巡（WAMR + ネイティブ中核、署名を embit で独立検証）
-        run: make check-psbt
+        run: |
+          SDK=$(./tools/toolchain.sh)
+          make check-psbt LLVM=$PWD/$SDK/bin WASI=$PWD/$SDK/share/wasi-sysroot \
+            RTLIB=$PWD/$SDK/lib/clang/23/lib/wasm32-unknown-wasi \
+            WASM_OPT=$PWD/build/toolchain/binaryen-version_132/bin/wasm-opt
 
   # 解析器。別リポジトリの部品なので独立した仕事として回す
   parser:
@@ -51,7 +63,7 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq clang lld
           ./tools/toolchain.sh
-      - name: ベクタ（529 項目）
+      - name: ベクタ（529 項目）とホスト（79 項目）
         run: |
           SDK=$(./tools/toolchain.sh)
           make -C components/parser test \
