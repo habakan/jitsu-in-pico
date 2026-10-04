@@ -251,6 +251,37 @@ Verification (`make check-psbt`, `make check-qemu-psbt`):
 - A full round on a mixed PSBT under RV32 (QEMU): parse 2.72M, review 17.1M, sign 14.5M, finalize 0.04M
   instructions. The signed PSBT is byte-identical between the Mac and RV32
 
+### Bitcoin Core as the oracle (2026-10-04)
+
+Core has no WASM target, and its PSBT code cannot come along: `psbt.cpp` pulls in the serialization
+templates, `CMutableTransaction`, `std::map` and libc++, which would end the 15,570-byte zero-import
+module this exists to be. What we do take from Core verbatim is the part where being identical matters
+most — **libsecp256k1, pinned to a commit**. Everything else is ours: PSBT parsing, sighash, BIP32,
+base58 and bech32, the hashes.
+
+So rather than sharing Core's code, we require Core's answers (`make check-core-diff`).
+
+| what is compared | how |
+|---|---|
+| the parse | `decodepsbt` against the `plan_t` parser.wasm built: version, locktime, and every txid, vout, sequence, amount, scriptPubKey, derivation path and master fingerprint |
+| the fee | `decodepsbt`'s fee against `core_review`'s |
+| **the signatures** | `walletprocesspsbt`'s against ours, **byte for byte** |
+
+The third is only possible because both sides are deterministic: Core and this signer both grind for a
+low R in ECDSA, and both pass a zero `aux_rand` for Schnorr. The same key over the same PSBT therefore
+has exactly one right answer, and Core's is the authoritative one.
+
+Measured: **39 PSBTs agree on the parse** — Core's own `rpc_psbt.json` valid cases plus our vectors —
+and **8 signatures across 5 PSBTs are byte-identical**, ECDSA and Schnorr alike. Deliberately breaking
+the low-R grinding makes two of them differ and the target fail. Notably one case still matched by
+chance, because its first attempt already had a low R, so a single test case would have missed it.
+
+Two things this does **not** claim. It does not show we share code with Core; it shows we give the same
+answers, which is the part a user actually depends on. And `decodepsbt` describes what is in the file
+while `plan_t` is an instruction to the signer, so the two are not the same kind of object: an input we
+will not sign carries `sighash_type = 0` whatever the file says, and `core_review` rejects a plan that
+breaks that (`core.c:93`). The comparison only requires agreement where both describe the same thing.
+
 ### Reassembling a UR, the animated QR
 
 UR (BCR-2020-005) reassembly went into parser.wasm (wasm-psbt-parser). Reassembling a fountain code is

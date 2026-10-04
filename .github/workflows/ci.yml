@@ -7,22 +7,23 @@ on:
   workflow_dispatch:
 
 jobs:
-  # 成果物が公開ソースから再現できることの確認。このプロジェクトの主張の土台なので最初に置く
+  # That the artifacts can be rebuilt from public source. It is the basis of everything this project
+  # claims, so it goes first
   reproducible-build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with: { submodules: recursive }
       - uses: astral-sh/setup-uv@v5
-      - name: 依存（wasm のビルドに要るものだけ）
+      - name: Dependencies (only what building the wasm needs)
         run: make deps-host
-      - name: 固定した commit か
+      - name: Are the dependencies at their pinned commits
         run: make check-deps
-      - name: ツールチェーンを取得（版とハッシュを固定）
+      - name: Fetch the toolchain (pinned by version and by hash)
         run: ./tools/toolchain.sh
-      - name: 5 つの wasm を作り直して記録と突き合わせる
+      - name: Rebuild all five wasm and compare against the recorded hashes
         run: make check-repro
-      - name: 配る形が正しいか（import 0 / メモリ固定 / 可変 global を輸出しない）
+      - name: Is what we ship the right shape (no imports, fixed memory, no mutable global exported)
         run: |
           V=1.261.0
           curl -sL -o /tmp/wt.tar.gz \
@@ -32,62 +33,62 @@ jobs:
           wasm-tools --version
           make check-wasm
 
-  # ホストで動く検査一式
+  # The checks that run on a host
   tests:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with: { submodules: recursive }
       - uses: astral-sh/setup-uv@v5
-      - name: 依存
+      - name: Dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq cmake ninja-build clang lld
           make deps-host
-          ./tools/toolchain.sh          # parser.wasm のビルドに要る
+          ./tools/toolchain.sh          # needed to build parser.wasm
       - run: make check-core
       - run: make check-xpub
       - run: make check-seedqr
       - run: make check-ui
-      - name: PSBT 一巡（WAMR + ネイティブ中核、署名を embit で独立検証）
+      - name: A full PSBT round (WAMR plus the native core, signatures verified independently with embit)
         run: |
           SDK=$(./tools/toolchain.sh)
           make check-psbt LLVM=$PWD/$SDK/bin WASI=$PWD/$SDK/share/wasi-sysroot \
             RTLIB=$PWD/$SDK/lib/clang/23/lib/wasm32-unknown-wasi \
             WASM_OPT=$PWD/build/toolchain/binaryen-version_132/bin/wasm-opt
 
-  # 解析器。別リポジトリの部品なので独立した仕事として回す
+  # The parser. It is a part in a repository of its own, so it runs as a job of its own
   parser:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with: { submodules: recursive }
       - uses: astral-sh/setup-uv@v5
-      - name: 依存
+      - name: Dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq clang lld
           ./tools/toolchain.sh
-      - name: wasm-tools（輸出集合の検査に要る）
+      - name: wasm-tools (needed to check the set of exports)
         run: |
           V=1.261.0
           curl -sL -o /tmp/wt.tar.gz \
             https://github.com/bytecodealliance/wasm-tools/releases/download/v$V/wasm-tools-$V-x86_64-linux.tar.gz
           tar xzf /tmp/wt.tar.gz -C /tmp
           sudo install /tmp/wasm-tools-$V-x86_64-linux/wasm-tools /usr/local/bin/
-      - name: ベクタ（529 項目）とホスト（79 項目）
+      - name: Vectors (529 checks) and the host libraries (79)
         run: |
           SDK=$(./tools/toolchain.sh)
           make -C components/parser test \
             LLVM=$PWD/$SDK/bin WASI=$PWD/$SDK/share/wasi-sysroot \
             RTLIB=$PWD/$SDK/lib/clang/23/lib/wasm32-unknown-wasi \
             WASM_OPT=$PWD/build/toolchain/binaryen-version_132/bin/wasm-opt
-      - name: ファジング（短い決まった回数）
+      - name: Fuzzing, a fixed short run
         run: make -C components/parser check-fuzz LLVM=/usr/bin
 
       # Bitcoin Core as the oracle: it decides what a PSBT means, and our signatures have to equal
       # its signatures byte for byte. Pinned and hash-checked like every other tool here
-      - name: Bitcoin Core（版とハッシュを固定）
+      - name: Bitcoin Core (pinned by version and by hash)
         run: |
           V=28.1
           curl -sL -o /tmp/btc.tar.gz \
@@ -97,5 +98,5 @@ jobs:
           tar xzf /tmp/btc.tar.gz -C /tmp
           sudo install /tmp/bitcoin-$V/bin/bitcoind /tmp/bitcoin-$V/bin/bitcoin-cli /usr/local/bin/
           bitcoind --version | head -1
-      - name: Core と突き合わせる（解析結果と、署名のバイト一致）
+      - name: Compare against Core (the parse, and the signatures byte for byte)
         run: make check-core-diff
