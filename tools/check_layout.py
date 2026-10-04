@@ -57,6 +57,33 @@ def main():
         elif int(m.group(1)) != want:
             bad.append(f"signer.mjs: {name} is {m.group(1)}, C says {want}")
 
+    # The Kotlin host library's constants
+    kt = Path("components/signer/hosts/kotlin/Signer.kt").read_text()
+    want_kt = {
+        "PLAN_SIZE": truth["plan_t"]["size"],
+        "PLAN_N_INPUTS": truth["plan_t"]["n_inputs"],
+        "PLAN_N_OUTPUTS": truth["plan_t"]["n_outputs"],
+        "RV_SIZE": truth["core_review_t"]["size"],
+        "RV_FEE": truth["core_review_t"]["fee"],
+        "RV_OWNER": truth["core_review_t"]["owner"],
+        "RV_WILL_SIGN": truth["core_review_t"]["will_sign"],
+        "RV_N_SIGN": truth["core_review_t"]["n_sign"],
+        "DP_SIZE": truth["core_display_t"]["size"],
+        "DP_OUTPUTS": truth["core_display_t"]["outputs"],
+        "DP_OUT_SIZE": truth["core_display_t"]["output_size"],
+        "DP_OUT_TEXT": truth["core_display_t"]["output_text"],
+        "DP_OUT_TEXT_CAP": truth["core_display_t"]["output_text_cap"],
+        "SIG_SIZE": truth["plan_sig_t"]["size"],
+        "SIG_LEN": truth["plan_sig_t"]["sig_len"],
+        "SIG_SIG": truth["plan_sig_t"]["sig"],
+    }
+    for name, want in want_kt.items():
+        m = re.search(r"\bconst val " + name + r" = (\d+)", kt)
+        if not m:
+            bad.append(f"Signer.kt: {name} not found")
+        elif int(m.group(1)) != want:
+            bad.append(f"Signer.kt: {name} is {m.group(1)}, C says {want}")
+
     # The error codes, in the library and in the spec
     for code, name in [(v, k) for k, v in truth["errors"].items()]:
         if f'{code}: "{name}"' not in js.replace("'", '"'):
@@ -76,7 +103,7 @@ def main():
 
     for b in bad:
         print(f"  {b}")
-    print(f"check-layout: {'FAILED' if bad else 'the spec, the host library and the structs agree'}")
+    print(f"check-layout: {'FAILED' if bad else 'the spec, both host libraries and the structs agree'}")
     return 1 if bad else 0
 
 

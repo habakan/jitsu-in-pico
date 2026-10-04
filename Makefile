@@ -315,6 +315,19 @@ check-layout: build/layout
 	uv run -q tools/check_layout.py $<
 .PHONY: check-layout
 
+# Two independent hosts driving the same module have to agree byte for byte. If they do not, one of
+# them is reading the layout wrong, which no single-host test would catch. Needs kotlinc and a JDK
+check-hosts-agree: build/signer.wasm build/parser.wasm build/psbt/own_mixed_nwu.psbt
+	@command -v kotlinc >/dev/null || { echo "kotlinc not found; skipping"; exit 0; }
+	$(MAKE) -C components/signer/hosts/kotlin dump.jar
+	node components/signer/hosts/js/dump.mjs \
+	  build/signer.wasm build/parser.wasm build/psbt/own_mixed_nwu.psbt > build/host-js.out
+	$(MAKE) -s -C components/signer/hosts/kotlin dump \
+	  SIGNER=$(PWD)/build/signer.wasm PARSER=$(PWD)/build/parser.wasm \
+	  PSBT=$(PWD)/build/psbt/own_mixed_nwu.psbt > build/host-kotlin.out
+	diff build/host-js.out build/host-kotlin.out && echo "the JavaScript and Kotlin hosts agree"
+.PHONY: check-hosts-agree
+
 # signer.wasm driven from JavaScript, with the signatures compared against the native side's.
 # The .signed file is produced here rather than depended on: check-psbt deletes and rewrites it
 check-signer-host: build/signer.wasm build/parser.wasm build/host-classic/psbt_host build/psbt/own_p2wpkh_1in.psbt
