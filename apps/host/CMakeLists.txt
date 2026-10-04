@@ -27,6 +27,10 @@ include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
 add_executable(signer_wamr wamr_main.c ../../components/signer/sha512.c ${WAMR_RUNTIME_LIB_SOURCE})
 target_include_directories(signer_wamr PRIVATE ${SIGNER_WASM_H_DIR} ../../components/signer)
 target_compile_definitions(signer_wamr PRIVATE POOL_KB=256)
+# WAMR のインタプリタが ceilf/sqrt などを使う。macOS は libc に入っているが Linux では別
+if(NOT APPLE)
+  target_link_libraries(signer_wamr m)
+endif()
 
 # parser.wasm + ネイティブ中核の一巡（make check-psbt）
 set(ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
@@ -38,3 +42,6 @@ target_include_directories(psbt_host PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/compon
 target_compile_definitions(psbt_host PRIVATE ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1 ECMULT_WINDOW_SIZE=2
   USE_EXTERNAL_DEFAULT_CALLBACKS=1 COMB_BLOCKS=2 COMB_TEETH=5)
 target_compile_options(psbt_host PRIVATE -Wno-unused-function)
+if(NOT APPLE)
+  target_link_libraries(psbt_host m)
+endif()
