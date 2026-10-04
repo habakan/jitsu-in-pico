@@ -22,6 +22,26 @@ build/bitcoin-signer.wasm: components/signer/signer.c components/signer/sha512.c
 	  -o $@ components/signer/signer.c components/signer/sha512.c components/signer/bip32.c components/signer/secp_callbacks.c components/signer/secp256k1_unity.c -lc $(RTLIB)/libclang_rt.builtins.a
 	$(WASM_OPT) $@ -Oz -o $@
 
+# plan_t を受けて検証・表示・署名まで行う部品。parser.wasm と対になる。
+# 実機はこれと同じ core.c をネイティブで動かす（鍵をネイティブに置く設計のため）
+SIGNER_WASM_SRC := components/signer/wasm_main.c components/signer/core.c components/signer/address.c \
+  components/signer/bip32.c components/signer/sighash.c components/signer/ripemd160.c \
+  components/signer/sha512.c components/signer/secp_callbacks.c components/signer/secp256k1_unity.c \
+  components/parser/src/tx.c components/parser/src/sha256.c
+
+build/signer.wasm: $(SIGNER_WASM_SRC) components/signer/*.h components/parser/include/*.h
+	mkdir -p build
+	$(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs \
+	  -Oz -Wall -Wno-unused-function -DNDEBUG -Icomponents/signer -Icomponents/parser/include \
+	  -I$(SECP)/include $(SECP_DEFS) \
+	  -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all -Wl,-z,stack-size=16384 \
+	  -Wl,--export=__heap_base -Wl,--export=__data_end \
+	  -Wl,--initial-memory=196608 -Wl,--max-memory=196608 \
+	  --no-wasm-opt -Wl,--keep-section=target_features \
+	  -o $@ $(SIGNER_WASM_SRC) -lc $(RTLIB)/libclang_rt.builtins.a
+	$(WASM_OPT) $@ -Oz -o $@
+	@shasum -a 256 $@
+
 clean:
 	rm -rf build
 .PHONY: clean
@@ -226,7 +246,7 @@ build/parser.wasm: components/parser/src/*.c components/parser/include/*.h
 # 版とハッシュを固定したツールチェーンで 4 つの wasm を作り直し、記録と突き合わせる。
 # 第三者が同じものを出せることの確認（docs/reproducible-build.md）
 SDK = $(shell ./tools/toolchain.sh)
-REPRO_WASM := build/parser.wasm build/bitcoin-signer.wasm build/address.wasm build/qr.wasm
+REPRO_WASM := build/address.wasm build/bitcoin-signer.wasm build/parser.wasm build/qr.wasm build/signer.wasm
 
 check-repro: tools/toolchain.sh checksums.txt
 	rm -f $(REPRO_WASM) components/parser/build/parser.wasm
@@ -235,7 +255,7 @@ check-repro: tools/toolchain.sh checksums.txt
 	  RTLIB=$(CURDIR)/$(SDK)/lib/clang/23/lib/wasm32-unknown-wasi \
 	  WASM_OPT=$(CURDIR)/build/toolchain/binaryen-version_132/bin/wasm-opt
 	@(shasum -a 256 $(REPRO_WASM) 2>/dev/null || sha256sum $(REPRO_WASM)) > /tmp/repro.txt
-	@diff /tmp/repro.txt checksums.txt && echo "4 つとも一致した（再現可能）" \
+	@diff /tmp/repro.txt checksums.txt && echo "すべて一致した（再現可能）" \
 	  || { echo "一致しない。docs/reproducible-build.md を見る"; exit 1; }
 .PHONY: check-repro
 
