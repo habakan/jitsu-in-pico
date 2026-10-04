@@ -1,6 +1,6 @@
 <!DOCTYPE html>
-<!-- PSBT ビューア。実機に積んでいるのと同じ parser.wasm で解析し、同じ内容を表示する。
-     鍵は扱わない。tools/build_viewer.py が wasm を埋め込んだ単一ファイルを作る -->
+<!-- A PSBT viewer. Parses with the same parser.wasm the device runs and shows the same thing.
+     It holds no keys. tools/build_viewer.py bakes the wasm in to make a single file -->
 <html lang="ja">
 <head>
 <meta charset="utf-8">
@@ -36,24 +36,24 @@
 <body>
 <main>
   <h1>PSBT viewer</h1>
-  <div class="sub">署名器に積んでいるのと同じ parser.wasm で解析します。鍵は扱いません。オフラインで動きます。</div>
+  <div class="sub">Parsed by the same parser.wasm the signer runs. No keys. Works offline.</div>
 
   <div class="drop" id="drop">
-    .psbt ファイルをドロップするか、<button id="pick">選ぶ</button>
+    Drop a .psbt file, or <button id="pick">choose one</button>
     <input type="file" id="file" hidden accept=".psbt,.bin">
-    <textarea id="text" placeholder="base64 か 16 進の PSBT を貼ってもよい"></textarea>
+    <textarea id="text" placeholder="or paste a PSBT, base64 or hex"></textarea>
     <div class="row" style="margin-top:8px">
-      <label class="k"><input type="checkbox" id="testnet"> testnet / signet として表示</label>
-      <button id="parse">解析する</button>
+      <label class="k"><input type="checkbox" id="testnet"> show as testnet / signet</label>
+      <button id="parse">Parse</button>
     </div>
   </div>
 
   <div class="card" id="cam">
     <div class="row">
-      <span class="k">カメラでアニメーション QR（UR）を読む</span>
+      <span class="k">Read an animated QR (UR) with the camera</span>
       <span><select id="camsel" style="display:none;background:#242833;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:6px"></select>
-      <button id="camstart">開始</button>
-      <button id="camsave" style="display:none">フレームを保存</button></span>
+      <button id="camstart">Start</button>
+      <button id="camsave" style="display:none">Save a frame</button></span>
     </div>
     <div style="position:relative;margin-top:8px">
       <video id="video" playsinline muted style="width:100%;display:none;border-radius:6px"></video>
@@ -76,9 +76,10 @@
 <script>
 const PARSER_WASM = "__PARSER_WASM__", ADDRESS_WASM = "__ADDRESS_WASM__", QR_WASM = "__QR_WASM__";
 const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
-/* instantiateStreaming は MIME 型を要求するので、file:// でも動くようバイト列から読む */
+/* instantiateStreaming insists on a MIME type, so this goes through the bytes and works on file:// */
 const load = async s => (await WebAssembly.instantiate(b64(s), {})).instance.exports;
-/* 解析器は components/parser/hosts/js のホストを通して使う。offset も範囲検査もそちらが持つ */
+/* The parser is driven through the host in components/parser/hosts/js, which owns the offsets and
+ * the bounds checks */
 const loadParser = async () => Parser.load(b64(PARSER_WASM));
 
 let parser, address, qr;
@@ -98,7 +99,7 @@ function render(plan, testnet) {
   const parts = plan.outputs.map((o, i) => {
     const addr = toAddress(o.spk, testnet);
     return `<div class="card ${o.key ? "mine" : ""}">
-      <div class="row"><span class="k">出力 ${i + 1}/${plan.outputs.length}${o.key ? "（自分の鍵）" : ""}</span>
+      <div class="row"><span class="k">output ${i + 1}/${plan.outputs.length}${o.key ? " (our key)" : ""}</span>
         <span class="amount">${btc(o.amount)} BTC</span></div>
       <div class="addr">${addr || hex(o.spk)}</div>
       ${o.key ? `<div class="k">m/${o.key.path.map(v => (v & 0x80000000 ? `${v & 0x7fffffff}'` : v)).join("/")}  fp ${o.key.fingerprint.toString(16).padStart(8, "0")}</div>` : ""}
@@ -106,8 +107,8 @@ function render(plan, testnet) {
   });
 
   return `<div class="card">
-      <div class="row"><span class="k">入力 ${plan.inputs.length} 件の合計</span><span>${btc(plan.totalIn)} BTC</span></div>
-      <div class="row"><span class="k">手数料</span><span class="amount">${btc(plan.fee)} BTC</span></div>
+      <div class="row"><span class="k">${plan.inputs.length} input(s), total</span><span>${btc(plan.totalIn)} BTC</span></div>
+      <div class="row"><span class="k">fee</span><span class="amount">${btc(plan.fee)} BTC</span></div>
       <div class="k">version ${plan.txVersion}  locktime ${plan.locktime}</div>
     </div>` + parts.join("");
 }
@@ -117,7 +118,7 @@ async function parse(bytes) {
   try {
     parser ||= await loadParser();
     address ||= await load(ADDRESS_WASM);
-    // fingerprint 0: 鍵を持たないので所有の判定はしない
+    // fingerprint 0: this page holds no keys, so it never decides what is ours
     const plan = parser.parse(bytes, 0);
     out.innerHTML = render(plan, document.getElementById("testnet").checked);
   } catch (e) {
@@ -125,14 +126,14 @@ async function parse(bytes) {
   }
 }
 
-/* カメラ: 実機と同じ quirc（qr.wasm）で読み、parser.wasm の UR 復元に渡す */
+/* The camera: read with the same quirc the device runs (qr.wasm), then hand the parts to parser.wasm */
 async function camera() {
   const video = document.getElementById("video"), stat = document.getElementById("camstat");
   const canvas = document.createElement("canvas");
   const ctx = canvas.getContext("2d", { willReadFrequently: true });
   const seen = new Set();
   let W = 0, H = 0, mode = 0;
-  /* Chrome / Android などは OS のデコーダを持っている。あれば使う（追加の容量は要らない） */
+  /* Chrome and Android expose the OS decoder. Use it where it exists; it costs no extra bytes */
   const bd = ("BarcodeDetector" in window) ? new BarcodeDetector({ formats: ["qr_code"] }) : null;
 
   parser ||= await loadParser();
@@ -142,26 +143,27 @@ async function camera() {
 
   const sel = document.getElementById("camsel");
   let stream;
-  /* 安全なコンテキストでないと navigator.mediaDevices ごと無くなり、TypeError になって分かりにくい */
+  /* Outside a secure context navigator.mediaDevices is missing entirely, which surfaces as an
+   * unhelpful TypeError */
   if (!navigator.mediaDevices?.getUserMedia) {
-    stat.textContent = `このページではカメラを使えません（${location.protocol}//${location.hostname}）。`
-      + " HTTPS か localhost、または file:// で開いてください。"
-      + "Android の Chrome は file:// でもカメラを拒むので、USB 経由の localhost を使います";
+    stat.textContent = `No camera on this page (${location.protocol}//${location.hostname}).`
+      + " Open it over HTTPS, on localhost, or from file://."
+      + " Chrome on Android refuses the camera even on file://, so use localhost over USB";
     return;
   }
   try {
-    /* 解析は中央を等倍で切り出すので、センサーは高いほどモジュールが大きく写る */
+    /* Decoding crops the centre at native scale, so a higher sensor resolution means bigger modules */
     const want = Object.assign({ width: { ideal: 1920 }, height: { ideal: 1080 } },
                                sel.value ? { deviceId: { exact: sel.value } } : { facingMode: "environment" });
     stream = await navigator.mediaDevices.getUserMedia({ video: want });
   } catch (e) {
-    stat.textContent = `カメラを開けません: ${e.name}。file:// では使えないブラウザがあります`;
+    stat.textContent = `Cannot open the camera: ${e.name}. Some browsers refuse on file://`;
     return;
   }
-  /* 許可が下りてから名前が取れる。複数あれば選べるようにする */
+  /* Names only become readable once permission is given; offer a choice when there is more than one */
   const cams = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === "videoinput");
   if (cams.length > 1 && !sel.options.length) {
-    cams.forEach((c, i) => sel.add(new Option(c.label || `カメラ ${i + 1}`, c.deviceId)));
+    cams.forEach((c, i) => sel.add(new Option(c.label || `camera ${i + 1}`, c.deviceId)));
     sel.value = stream.getVideoTracks()[0].getSettings().deviceId || cams[0].deviceId;
     sel.style.display = "inline-block";
     sel.onchange = () => { stream.getTracks().forEach(t => t.stop()); camera(); };
@@ -170,10 +172,10 @@ async function camera() {
   video.style.display = "block";
   await video.play();
 
-  /* 画面全体を縮めると 1 モジュールが 2px 程度になって復号できない。
-   * 中央の半分を等倍で切り出し、解像度を保ったままデコーダのメモリに収める */
+  /* Shrinking the whole frame puts a module at about 2px, which will not decode. Cropping the middle
+   * half at native scale keeps the resolution and still fits the decoder's memory */
   const box = document.getElementById("cambox");
-  /* 読めないときに実物を見られるよう、そのまま解析に渡している画像を落とせるようにする */
+  /* Lets the exact image handed to the decoder be saved, for when something will not read */
   const save = document.getElementById("camsave");
   save.style.display = "inline-block";
   save.onclick = () => canvas.toBlob(b => {
@@ -188,25 +190,26 @@ async function camera() {
       W = canvas.width = video.videoWidth >> 1;
       H = canvas.height = video.videoHeight >> 1;
       box.style.display = "block";
-      if (!qr.qr_init(W, H)) { stat.textContent = "QR デコーダの初期化に失敗"; return; }
-      stat.textContent = `${video.videoWidth}x${video.videoHeight} の中央 ${W}x${H} を見ている`
-        + `（quirc${bd ? " + 内蔵" : ""}${self.jsQR ? " + jsQR" : ""}）`;
+      if (!qr.qr_init(W, H)) { stat.textContent = "the QR decoder would not start"; return; }
+      stat.textContent = `looking at the middle ${W}x${H} of ${video.videoWidth}x${video.videoHeight}`
+        + ` (quirc${bd ? " + built-in" : ""}${self.jsQR ? " + jsQR" : ""})`;
     }
-    /* 中央の等倍（QR が小さく写るとき）と全体の縮小（枠からはみ出すとき）を交互に試す */
+    /* Alternate between the centre at native scale, for a QR that lands small, and the whole frame
+     * scaled down, for one that overflows the box */
     if (mode & 1) ctx.drawImage(video, W >> 1, H >> 1, W, H, 0, 0, W, H);
     else ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight, 0, 0, W, H);
     box.style.display = (mode & 1) ? "block" : "none";
     mode++;
 
-    /* 実機と同じ quirc を先に試し、駄目ならブラウザ内蔵、それも無ければ jsQR。
-     * 鍵に関わるのは parser.wasm なので、運搬側は読める実装を使ってよい。
-     * どれで読めたかを出すので、quirc が苦手な条件もそのまま分かる */
+    /* quirc first, the same one the device runs, then the browser's own, then jsQR. Only parser.wasm
+     * is anywhere near a key, so the transport is free to use whatever reads. Which one succeeded is
+     * reported, which also shows up the conditions quirc struggles with */
     const rgba = ctx.getImageData(0, 0, W, H);
-    let text = null, how = (mode & 1) ? "中央" : "全体", detail = "";
+    let text = null, how = (mode & 1) ? "centre" : "whole frame", detail = "";
     {
       const gray = new Uint8Array(qr.memory.buffer, qr.qr_image(), W * H);
       const d = rgba.data;
-      for (let i = 0, j = 0; i < gray.length; i++, j += 4)  // ITU-R BT.601 の輝度
+      for (let i = 0, j = 0; i < gray.length; i++, j += 4)  // ITU-R BT.601 luma
         gray[i] = (d[j] * 77 + d[j + 1] * 150 + d[j + 2] * 29) >> 8;
       const n = qr.qr_decode();
       if (n > 0) {
@@ -214,21 +217,22 @@ async function camera() {
         how += "・quirc";
       } else if (n < 0) {
         const px = qr.qr_last_px(), cells = qr.qr_last_cells();
-        detail = `quirc: ${px}px / ${cells}モジュール = ${(px / (cells || 1)).toFixed(1)}px/モジュール`;
+        detail = `quirc: ${px}px / ${cells} modules = ${(px / (cells || 1)).toFixed(1)}px per module`;
       }
     }
     if (text === null && bd) {
       const codes = await bd.detect(canvas).catch(() => []);
-      if (codes.length) { text = codes[0].rawValue; how += "・内蔵"; }
+      if (codes.length) { text = codes[0].rawValue; how += ", built-in"; }
     }
     if (text === null && self.jsQR) {
       const r = jsQR(rgba.data, W, H);
       if (r) { text = r.data; how += "・jsQR"; }
     }
-    if (text === null && detail) stat.textContent = `読めない（${how}） ${detail}`;
+    if (text === null && detail) stat.textContent = `nothing read (${how}) ${detail}`;
     if (text !== null) {
       const n = text.length;
-      /* デバイスの Show xpub は UR ではなく素のディスクリプタを出す。手で打たずに済むよう拾う */
+      /* The device's Show xpub gives a bare descriptor rather than a UR; pick it up so it need not
+       * be typed out */
       if (!text.startsWith("UR:")) {
         stream.getTracks().forEach(t => t.stop());
         video.style.display = "none";
@@ -236,20 +240,20 @@ async function camera() {
         const box = document.createElement("textarea");
         box.readOnly = true; box.rows = 3; box.value = text;
         box.style.cssText = "width:100%;background:#242833;color:var(--fg);border:1px solid var(--line);border-radius:6px;padding:8px;font:12px ui-monospace,monospace";
-        stat.append(`${n} 文字を読んだ（${how}）`, box);
+        stat.append(`read ${n} characters (${how})`, box);
         return;
       }
       let psbt = null;
       try { psbt = parser.urReceive(text); } catch (e) { stat.textContent = e.message; }
-      if (psbt) {                                     // PSBT が揃った
+      if (psbt) {                                     // the PSBT is complete
         stream.getTracks().forEach(t => t.stop());
         video.style.display = "none";
-        stat.textContent = `${seen.size + 1} パートで復元（${psbt.length} byte、${how}）`;
+        stat.textContent = `reassembled from ${seen.size + 1} parts (${psbt.length} bytes, ${how})`;
         return parse(psbt);
       }
       seen.add(text.split("/")[1]);
       const m = text.match(/\/(\d+)-(\d+)\//);
-      stat.textContent = m ? `${seen.size}/${m[2]} パート` : `${seen.size} パート`;
+      stat.textContent = m ? `${seen.size}/${m[2]} parts` : `${seen.size} parts`;
     }
     requestAnimationFrame(tick);
   };
