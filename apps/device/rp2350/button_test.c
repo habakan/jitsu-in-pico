@@ -1,5 +1,6 @@
-/* 配線の確認用。GP2〜GP28 を内蔵プルアップ付きの入力にして、GND に落ちたピンを UART に出す。
- * どのピンが実際につながっているかが分かるので、ブレッドボードの向きの取り違えを切り分けられる */
+/* For checking the wiring: GP2 to GP28 as inputs with the internal pull-ups, reporting on the UART
+ * whichever pin goes to ground. Shows which pin is actually connected, which is how a breadboard put
+ * in the wrong way round gets found */
 #include <stdio.h>
 #include "pico/stdlib.h"
 #include "hardware/gpio.h"

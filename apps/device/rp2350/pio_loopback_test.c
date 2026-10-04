@@ -1,9 +1,9 @@
-/* カメラ無しで camera.pio の取り込みを実機で確かめる。同じ PIO の別ステートマシンに DVP の波形を
- * 出させ、取り込み側に同じピンを読ませる（PIO の入力はパッドを見るので配線は要らない）。
- * tools/sim_dvp_pio.py と同じ観点を実シリコンで確かめるためのもの。
+/* Checks camera.pio's capture on real silicon with no camera attached: another state machine in the
+ * same PIO generates the DVP waveform and the capture side reads those same pins, which needs no
+ * wiring because PIO inputs read the pads. The same thing tools/sim_dvp_pio.py checks in simulation.
  *
- * **カメラを繋いだまま動かしてはいけない。** 同じピンをカメラも駆動するので出力同士がぶつかり、
- * どちらの波形でもない値が読める（D0〜D7 の 11 本を抜いてから実行する）*/
+ * **Do not run this with the camera connected.** It drives the same pins, so the two outputs fight
+ * and what gets read is neither waveform. Unplug all eleven of D0-D7, PCLK, HREF and VSYNC first */
 #include <stdio.h>
 #include <string.h>
 #include "pico/stdlib.h"
@@ -13,14 +13,14 @@
 #include "hardware/dma.h"
 #include "hardware/pio.h"
 
-#define W 64          /* 取り込む画素数。波形を RAM に置くので小さくする */
+#define W 64          /* pixels captured; kept small because the waveform lives in RAM */
 #define H 8
-#define SW (2 * W)    /* センサーが出す画素数。PIO が縦横 1/2 に間引く */
+#define SW (2 * W)    /* pixels the sensor emits; PIO halves both directions */
 #define SH (2 * H)
-#define HBLANK 16     /* 行間の画素数 */
-#define VSYNC_PX 128  /* VSYNC パルスの長さ（画素換算） */
+#define HBLANK 16     /* pixels between rows */
+#define VSYNC_PX 128  /* the VSYNC pulse, in pixels */
 #define FRAMES 3
-/* 1 画素は Y と U で 2 byte、1 byte は PCLK の Low と High で 2 サンプル */
+/* A pixel is two bytes, Y and U; a byte is two samples, PCLK low then high */
 #define LINE_S (4 * (SW + HBLANK))
 #define FRAME_S (4 * VSYNC_PX + SH * LINE_S)
 
@@ -28,7 +28,7 @@ static uint32_t wave[FRAMES * FRAME_S / 2];
 static uint8_t expect[FRAMES][W * H];
 static uint8_t captured[W * H] __attribute__((aligned(4)));
 static unsigned n_samples;
-static uint8_t sensor_line0[8]; /* 1 フレーム目 1 行目の最初の 8 byte（Y U Y U ...）*/
+static uint8_t sensor_line0[8]; /* the first 8 bytes of the first row of the first frame (Y U Y U ...) */
 
 static uint32_t rnd(void) {
     static uint32_t s = 12345;
@@ -36,7 +36,7 @@ static uint32_t rnd(void) {
     return s >> 16;
 }
 
-/* 1 サンプル: bit0-7 が D0〜D7、bit8 が PCLK、bit9 が HREF、bit10 が VSYNC（OUT のベースは D0） */
+/* One sample: bits 0-7 are D0-D7, bit 8 PCLK, bit 9 HREF, bit 10 VSYNC; OUT is based at D0 */
 static void put(unsigned i, uint8_t d, int pclk, int href, int vsync) {
     uint32_t s = (uint32_t)d | (uint32_t)pclk << 8 | (uint32_t)href << 9 | (uint32_t)vsync << 10;
     wave[i / 2] = i % 2 ? (wave[i / 2] & 0xffff) | s << 16 : s;
@@ -48,12 +48,12 @@ static void build_wave(void) {
         for (int k = 0; k < 4 * VSYNC_PX; k++) put(i++, 0, k % 2, 0, 1);
         for (int y = 0; y < SH; y++) {
             for (int x = 0; x < SW; x++) {
-                /* 値を見れば位相が分かるようにする。Y は画素番号の 2 倍、U/V は 0xaa 固定 */
+                /* The values say where in the phase we are: Y is twice the pixel number, U and V are 0xaa */
                 uint8_t lum = (uint8_t)(2 * x + f), chroma = 0xaa;
-                /* 偶数行の偶数画素だけが取り込まれる */
+                /* Only even pixels of even rows get captured */
                 if (y % 2 == 0 && x % 2 == 0) expect[f][(y / 2) * W + x / 2] = lum;
                 if (f == 0 && y == 0 && x < 4) sensor_line0[2 * x] = lum, sensor_line0[2 * x + 1] = chroma;
-                /* データは PCLK が Low の間に変えて、High で確定させる */
+                /* Data changes while PCLK is low and is settled when it goes high */
                 put(i++, lum, 0, 1, 0);
                 put(i++, lum, 1, 1, 0);
                 put(i++, chroma, 0, 1, 0);
@@ -81,7 +81,7 @@ static void gen_start(float clkdiv) {
     pio_sm_set_enabled(pio, sm_gen, true);
 }
 
-/* 取り込みを仕掛けるところと待つところを分ける。生成より先に仕掛けないと、先頭のフレームを取り逃がす */
+/* Arming and waiting are separate: arm after the generator starts and the first frame is already gone */
 static void cap_arm(void) {
     dma_channel_config c = dma_channel_get_default_config(dma_cap);
 
@@ -111,7 +111,8 @@ static bool cap_wait(uint32_t timeout_ms) {
     return true;
 }
 
-/* 取り込み側の初期化。ピンは生成側が駆動しているので、pindirs と gpio の割り当てには触らない */
+/* Sets up the capture side. The generator drives the pins, so pindirs and the gpio assignment are
+ * left alone */
 static void cap_init(void) {
     pio_sm_config c = dvp_y_program_get_default_config(off_cap);
     sm_config_set_in_pins(&c, PIN_CAM_D0);
@@ -122,12 +123,12 @@ static void cap_init(void) {
 static int run(const char *name, float clkdiv, int mid_frame) {
     uint64_t t;
     int ok, frame = mid_frame ? 1 : 0;
-    /* 1 サンプル 3 サイクル。150MHz での 1 フレームの長さ */
+    /* Three cycles per sample, so this is how long a frame takes at 150MHz */
     unsigned frame_us = (unsigned)(FRAME_S * 3 * clkdiv / 150);
 
     if (mid_frame) {
         gen_start(clkdiv);
-        sleep_us(frame_us / 2); /* フレームの途中から仕掛けると、次のフレームが取れるはず */
+        sleep_us(frame_us / 2); /* arming mid-frame should still capture the next one whole */
         t = time_us_64();
         cap_arm();
     } else {
@@ -137,8 +138,8 @@ static int run(const char *name, float clkdiv, int mid_frame) {
     }
     ok = cap_wait(500);
     t = time_us_64() - t;
-    /* 途中から仕掛けた場合、次にどのフレームが来るかは起動の遅れで変わる。
-     * 確かめたいのは「途中で切れた絵にならず、どれか 1 フレームがそろって取れる」こと */
+    /* Armed mid-frame, which frame arrives next depends on the start-up delay. What is being checked is
+     * that some whole frame comes out, never a picture torn across two */
     if (ok && mid_frame)
         for (frame = 0; frame < FRAMES && memcmp(captured, expect[frame], sizeof(captured)); frame++)
             ;
@@ -152,12 +153,12 @@ static int run(const char *name, float clkdiv, int mid_frame) {
         for (int i = 0; i < 8; i++) printf(" %02x", captured[i]);
         printf("\n  want:");
         for (int i = 0; i < 8; i++) printf(" %02x", expect[frame][i]);
-        printf("\n  センサー 1 行目:");
+        printf("\n  sensor row 1:");
         for (int i = 0; i < 8; i++) printf(" %02x", sensor_line0[i]);
         printf("\n  wave[0..3]: %08x %08x %08x %08x  samples %u\n", wave[0], wave[1], wave[2], wave[3], n_samples);
         printf("  gen dma remaining %u / %u\n", (unsigned)dma_channel_hw_addr(dma_gen)->transfer_count,
                n_samples / 2);
-        /* 生成側だけ動かして、ピンに実際に出ている値を覗く */
+        /* Runs only the generator, to look at what is actually on the pins */
         gen_start(16.0f);
         printf("  pins:");
         for (int k = 0; k < 10; k++) {
@@ -176,11 +177,11 @@ int main(void) {
     int failures = 0;
 
     stdio_init_all();
-    printf("\npio_loopback_test: センサー %dx%d を %dx%d に間引く, PCLK %u kHz at clkdiv 1\n", SW, SH, W, H,
+    printf("\npio_loopback_test: sensor %dx%d decimated to %dx%d, PCLK %u kHz at clkdiv 1\n", SW, SH, W, H,
            (unsigned)(clock_get_hz(clk_sys) / 6000));
-    printf("カメラの D0〜D7・PCLK・HREF・VSYNC を抜いてから実行すること（出力がぶつかる）\n");
+    printf("unplug the camera's D0-D7, PCLK, HREF and VSYNC first, or the outputs fight\n");
     build_wave();
-    sleep_ms(1); /* 最初の time_us_64() が 0 を返すので、計時の前に一度動かす */
+    sleep_ms(1); /* the first time_us_64() returns 0, so burn one before timing anything */
 
     off_gen = pio_add_program(pio, &dvp_gen_program);
     off_cap = pio_add_program(pio, &dvp_y_program);

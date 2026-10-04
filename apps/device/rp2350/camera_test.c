@@ -1,5 +1,5 @@
-/* カメラの初期確認: 取り込んだ QVGA を LCD に縮小表示し、quirc（自前フォーク、固定小数点）で QR を読む。
- * 取り込み・デコードの時間と読めた文字列を UART に出す */
+/* Camera bring-up: shows the captured QVGA scaled down on the LCD and reads QRs with our quirc fork,
+ * the fixed-point one. Capture and decode times, and whatever was read, go to the UART */
 #include <stdio.h>
 #include <string.h>
 #include "pico/stdlib.h"
@@ -9,14 +9,14 @@
 #include "quirc.h"
 #include "st7789.h"
 
-/* どの線が来ていないかを見る。D0〜D7・PCLK・HREF・VSYNC は GP2〜GP12 に連番で並んでいる */
+/* Finds which line is missing. D0-D7, PCLK, HREF and VSYNC run consecutively from GP2 to GP12 */
 static void probe_signals(void) {
     uint32_t prev, changed = 0, high = 0;
     unsigned edges[3] = {0};
     uint64_t t0;
 
-    /* VSYNC とその隣を内蔵プルアップで引き上げる。線が来ていなければ high、
-     * センサーが駆動していれば toggling、GND に落ちていれば low になる */
+    /* VSYNC and its neighbours pulled up internally: high means nothing is connected, toggling means
+     * the sensor is driving it, and low means it is shorted to ground */
     for (unsigned gp = PIN_CAM_VSYNC; gp <= 17; gp++) gpio_pull_up(gp);
     sleep_ms(1);
     prev = gpio_get_all();
@@ -30,7 +30,7 @@ static void probe_signals(void) {
             if ((v ^ prev) >> (PIN_CAM_PCLK + i) & 1) edges[i]++;
         prev = v;
     }
-    /* 挿し間違いを見つけられるよう、隣の GP13〜GP17 も出す */
+    /* GP13 to GP17 are reported too, so a lead in the wrong hole shows up */
     for (unsigned gp = PIN_CAM_D0; gp <= 17; gp++) {
         static const char *const name[] = {"D0",   "D1",   "D2",  "D3",      "D4",      "D5",     "D6",  "D7",
                                            "PCLK", "HREF", "VSYNC", "(joy UP)", "(cam SDA)", "(cam SCL)", "(lcd DC)",
@@ -38,30 +38,30 @@ static void probe_signals(void) {
         printf("%-10s GP%-2u %s\n", name[gp - PIN_CAM_D0], gp,
                changed >> gp & 1 ? "toggling" : (high >> gp & 1 ? "stuck high" : "stuck low"));
     }
-    /* エッジの数で、どの線が実際に来ているかを当てる。PCLK は MHz 単位、HREF は行の数、VSYNC はフレームの数 */
+    /* The edge count says which line this really is: PCLK runs at MHz, HREF at rows and VSYNC at frames */
     for (unsigned i = 0; i < 3; i++) {
         static const char *const want[] = {"PCLK", "HREF", "VSYNC"};
         unsigned n = edges[i];
-        const char *got = n == 0 ? "未接続" : n > 50000 ? "PCLK" : n > 100 ? "HREF" : "VSYNC";
-        printf("GP%u（%s を繋ぐ所）: %u edges/100ms -> %s\n", PIN_CAM_PCLK + i, want[i], n, got);
+        const char *got = n == 0 ? "nothing" : n > 50000 ? "PCLK" : n > 100 ? "HREF" : "VSYNC";
+        printf("GP%u (where %s goes): %u edges/100ms -> %s\n", PIN_CAM_PCLK + i, want[i], n, got);
     }
-    printf("カメラ側: 左列の上から 3 番目が VS、4 番目が PCLK。右列の 3 番目が HS\n");
+    printf("on the camera: left column, third down is VS and fourth is PCLK; right column, third is HS\n");
 
-    /* 1 フレームの行数を数える。QVGA なら 240、VGA のままなら 480 */
+    /* Counts the rows in a frame: 240 for QVGA, or 480 if it is still sending VGA */
     {
         unsigned lines = 0;
         int prev_vs = gpio_get(PIN_CAM_VSYNC), prev_href = gpio_get(PIN_CAM_HREF), started = 0;
         uint64_t end = time_us_64() + 500000;
         while (time_us_64() < end) {
             int vs = gpio_get(PIN_CAM_VSYNC), href = gpio_get(PIN_CAM_HREF);
-            if (!prev_vs && vs) {           /* VSYNC の立ち上がりでフレームの区切り */
+            if (!prev_vs && vs) {           /* VSYNC's rising edge separates frames */
                 if (started) break;
                 started = 1, lines = 0;
             }
             if (started && !prev_href && href) lines++;
             prev_vs = vs, prev_href = href;
         }
-        printf("1 フレームの行数: %u（QVGA なら 240、VGA のままなら 480）\n", lines);
+        printf("rows per frame: %u (240 for QVGA, 480 if still VGA)\n", lines);
     }
 }
 
@@ -73,7 +73,7 @@ int main(void) {
     stdio_init_all();
     st7789_init();
     printf("\ncamera test (%s)\n", camera_ov7670.name);
-    /* まず電源・XCLK・SCCB だけで ID を読む。ここが通れば電源と I2C とクロックは正しい */
+    /* The ID is read first with nothing but power, XCLK and SCCB; getting it means those three are right */
     camera_bus_init(&camera_ov7670);
     if (!camera_read_reg(0x0a, &val)) return printf("SCCB read failed: check 3V3/GND/SIOD/SIOC/XCLK\n"), 1;
     printf("PID 0x%02x\n", val);
@@ -83,7 +83,7 @@ int main(void) {
     if (!(q = quirc_new()) || quirc_resize(q, CAMERA_W, CAMERA_H) < 0) return printf("quirc alloc failed\n"), 1;
 
     for (;;) {
-        /* quirc の画像バッファへ直接取り込む（malloc なので 4 byte 境界） */
+        /* Captured straight into quirc's image buffer, which malloc leaves 4-byte aligned */
         uint8_t *img = quirc_begin(q, NULL, NULL);
         uint64_t t0 = time_us_64(), t1, t2;
         if (!camera_capture(img, 1000)) {
@@ -92,7 +92,7 @@ int main(void) {
         }
         t1 = time_us_64();
 
-        /* 320x240 を 3/4 に間引いて 240x180 で表示する（上下 30 行は黒） */
+        /* 320x240 decimated to three quarters and shown as 240x180, with 30 black rows above and below */
         st7789_begin_frame();
         for (int y = 0; y < 240; y++) {
             int sy = (y - 30) * 4 / 3;

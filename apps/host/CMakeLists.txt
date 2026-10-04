@@ -5,7 +5,7 @@ set(WAMR_ROOT_DIR ${CMAKE_CURRENT_LIST_DIR}/../../third_party/wasm-micro-runtime
 if(NOT WAMR_BUILD_PLATFORM)
   string(TOLOWER ${CMAKE_HOST_SYSTEM_NAME} WAMR_BUILD_PLATFORM)
 endif()
-# 動かす機械に合わせる。固定していると CI（x86_64）で aarch64 のアセンブリを掴んで落ちる
+# Follows the machine it builds on. Hardcoded, it picked aarch64 assembly on CI's x86_64 and failed
 if(NOT DEFINED WAMR_BUILD_TARGET)
   if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
     set(WAMR_BUILD_TARGET AARCH64)
@@ -27,12 +27,12 @@ include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
 add_executable(signer_wamr wamr_main.c ../../components/signer/sha512.c ${WAMR_RUNTIME_LIB_SOURCE})
 target_include_directories(signer_wamr PRIVATE ${SIGNER_WASM_H_DIR} ../../components/signer)
 target_compile_definitions(signer_wamr PRIVATE POOL_KB=256)
-# WAMR のインタプリタが ceilf/sqrt などを使う。macOS は libc に入っているが Linux では別
+# WAMR's interpreter uses ceilf, sqrt and friends. They are in libc on macOS but separate on Linux
 if(NOT APPLE)
   target_link_libraries(signer_wamr m)
 endif()
 
-# parser.wasm + ネイティブ中核の一巡（make check-psbt）
+# A full round of parser.wasm plus the native core (make check-psbt)
 set(ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
 set(SECP ${ROOT}/third_party/secp256k1)
 add_executable(psbt_host psbt_main.c ${ROOT}/apps/device/runtime/host-abi/parser_host.c ${ROOT}/apps/device/ui/ui.c ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c ${ROOT}/components/signer/core.c ${ROOT}/components/signer/address.c ${ROOT}/components/signer/bip32.c

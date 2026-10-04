@@ -1,34 +1,36 @@
-; DVP（8bit パラレル）カメラから、YUV422（Y U Y V ...）の Y だけを拾ってグレースケールにする。
-; IN のベースを D0 に置き、D0〜D7、PCLK、HREF、VSYNC がこの順に連番で並ぶ前提（board_pins.h）。
-; 1 行の画素数 - 1 を CPU が TX FIFO に 1 回だけ入れてから起動する。4 画素ごとに autopush し、DMA が受け取る。
+; Takes only the Y of YUV422 (Y U Y V ...) from an 8-bit parallel DVP camera, giving greyscale.
+; IN is based at D0, and D0-D7, PCLK, HREF and VSYNC are assumed to run consecutively in that order
+; (board_pins.h). The CPU puts the pixels-per-row minus one into the TX FIFO once before starting.
+; Autopush fires every four pixels and DMA takes it from there.
 ;
-; センサーは VGA（640x480）で出させ、縦横とも 1/2 に間引いて QVGA にする。横は 4 byte（2 画素）ごとに
-; 先頭の Y だけ拾い、縦は 1 行取り込むごとに 1 行読み飛ばす。センサー側のスケーラ（OV7675 では縦が
-; 効かなかった）に依存しないので、素性の違うモジュールでも同じ絵が得られる。
+; The sensor is left emitting VGA (640x480) and halved in both directions here to give QVGA: across,
+; only the first Y of every four bytes (two pixels); down, one row skipped for each row captured.
+; Nothing depends on the sensor's own scaler, whose vertical half had no effect on the OV7675, so
+; modules of different provenance all yield the same picture.
 
 .program dvp_y
 .define PUBLIC PCLK 8
 .define PUBLIC HREF 9
 .define PUBLIC VSYNC 10
-    pull block              ; OSR = 1 行の画素数 - 1
-    wait 1 pin VSYNC        ; VSYNC のパルスが終わった所からフレームが始まる
+    pull block              ; OSR = pixels per row, minus one
+    wait 1 pin VSYNC        ; the frame starts where the VSYNC pulse ends
     wait 0 pin VSYNC
 .wrap_target
     mov x, osr
-    wait 1 pin HREF         ; 行の先頭
+    wait 1 pin HREF         ; start of a row
 pixel:
-    wait 1 pin PCLK         ; 1 byte 目（Y）は PCLK の立ち上がりで確定している
+    wait 1 pin PCLK         ; byte 1, the Y, is settled on PCLK's rising edge
     in pins, 8
     wait 0 pin PCLK
-    wait 1 pin PCLK         ; 2 byte 目（U）
+    wait 1 pin PCLK         ; byte 2, the U
     wait 0 pin PCLK
-    wait 1 pin PCLK         ; 3 byte 目（次の画素の Y）は間引く
+    wait 1 pin PCLK         ; byte 3, the next pixel's Y, is dropped
     wait 0 pin PCLK
-    wait 1 pin PCLK         ; 4 byte 目（V）
+    wait 1 pin PCLK         ; byte 4, the V
     wait 0 pin PCLK
     jmp x-- pixel
-    wait 0 pin HREF         ; 行の終わり
-    wait 1 pin HREF         ; 次の 1 行は読み飛ばす
+    wait 0 pin HREF         ; end of the row
+    wait 1 pin HREF         ; and skip the next row
     wait 0 pin HREF
 .wrap
 
@@ -40,9 +42,10 @@ static inline void dvp_y_program_init(PIO pio, uint sm, uint offset, uint pin_d0
     for (uint i = 0; i < 11; i++) pio_gpio_init(pio, pin_d0 + i);
     pio_sm_set_consecutive_pindirs(pio, sm, pin_d0, 11, false);
     sm_config_set_in_pins(&c, pin_d0);
-    /* 右シフトで 4 byte たまったら push するので、最初の画素がワードの下位バイトになる */
+    /* Shifting right and pushing at four bytes puts the first pixel in the word's low byte */
     sm_config_set_in_shift(&c, true, true, 32);
-    /* RX を連結すると TX FIFO が無くなり、先頭の pull が永久に止まる。RX 4 段と DMA で足りる */
+    /* Joining the RX FIFO would remove the TX one and stall that first pull forever; four RX entries
+     * and DMA are enough */
     pio_sm_init(pio, sm, offset, &c);
 }
 %}

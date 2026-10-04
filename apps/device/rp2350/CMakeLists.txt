@@ -3,7 +3,7 @@ set(PICO_PLATFORM rp2350-riscv)
 set(PICO_BOARD pico2)
 set(ROOT ${CMAKE_CURRENT_LIST_DIR}/../../..)
 
-# テスト用のシードを選べるのは、明示的に指定したビルドだけ
+# Only a build that asks for it can select the test seed
 set(TEST_SEED 0 CACHE STRING "allow selecting the BIP39 test vector seed")
 set(TESTNET 0 CACHE STRING "testnet / signet addresses and derivation")
 include(${ROOT}/third_party/pico-sdk/external/pico_sdk_import.cmake)
@@ -29,11 +29,12 @@ set(WAMR_BUILD_SIMD 0)
 set(WAMR_BUILD_REF_TYPES 0)
 set(WAMR_DISABLE_HW_BOUND_CHECK 1)
 include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
-# runtime_lib.cmake が -std=gnu99 を足すが、pico-sdk は static_assert に C11 が要る
+# runtime_lib.cmake adds -std=gnu99, but pico-sdk needs C11 for static_assert
 string(REPLACE "-std=gnu99" "-std=gnu11" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 
 add_executable(signer ${ROOT}/apps/host/wamr_main.c ${ROOT}/components/signer/sha512.c ${WAMR_RUNTIME_LIB_SOURCE})
-# プールは QEMU 実測の highmark に余裕を持たせた値。AOT を RAM 展開するときは -DPOOL_KB=320 を渡す
+# The pool is the highmark measured under QEMU with room to spare. Pass -DPOOL_KB=320 when expanding
+# AOT into RAM
 if(NOT DEFINED POOL_KB)
   set(POOL_KB 48)
 endif()
@@ -45,8 +46,8 @@ pico_enable_stdio_usb(signer 0)
 target_link_options(signer PRIVATE -Wl,--print-memory-usage)
 pico_add_extra_outputs(signer)
 
-# 実機の初期確認用アプリ（make build/rp2350/app.elf）。parser.wasm はインタプリタで動かす。
-# app_nolcd は液晶の代わりに UART へ画面の文字を出す（はんだ付け前の確認用）
+# The bring-up application (make build/rp2350/app.elf), running parser.wasm on the interpreter.
+# app_nolcd sends the screens' text to the UART instead of the panel, for checking before soldering
 set(SECP ${ROOT}/third_party/secp256k1)
 if(NOT DEFINED TESTNET)
   set(TESTNET 0)
@@ -77,7 +78,8 @@ foreach(t app app_nolcd)
   pico_add_extra_outputs(${t})
 endforeach()
 
-# quirc のデコード時間を実機で測る（make build/rp2350/qr_bench.elf）。カメラの代わりに埋め込んだ画像を使う
+# Times quirc's decoding on the hardware (make build/rp2350/qr_bench.elf), from a built-in image
+# rather than the camera
 add_executable(qr_bench ${ROOT}/apps/host/qr_bench.c ${QUIRC_SRC} ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c)
 target_compile_definitions(qr_bench PRIVATE PICO_BUILD=1 PICO_STACK_SIZE=0x8000
   QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH)
@@ -89,7 +91,7 @@ pico_enable_stdio_usb(qr_bench 0)
 target_link_options(qr_bench PRIVATE -Wl,--print-memory-usage)
 pico_add_extra_outputs(qr_bench)
 
-# camera.pio の取り込みをカメラ無しで確かめる（make build/rp2350/pio_loopback_test.elf）
+# Checks camera.pio's capture with no camera attached (make build/rp2350/pio_loopback_test.elf)
 add_executable(pio_loopback_test ${CMAKE_CURRENT_LIST_DIR}/pio_loopback_test.c)
 pico_generate_pio_header(pio_loopback_test ${CMAKE_CURRENT_LIST_DIR}/camera.pio)
 pico_generate_pio_header(pio_loopback_test ${CMAKE_CURRENT_LIST_DIR}/dvp_gen.pio)
@@ -99,14 +101,14 @@ pico_enable_stdio_uart(pio_loopback_test 1)
 pico_enable_stdio_usb(pio_loopback_test 0)
 pico_add_extra_outputs(pio_loopback_test)
 
-# 配線の確認（make build/rp2350/button_test.elf）
+# Checks the wiring (make build/rp2350/button_test.elf)
 add_executable(button_test ${CMAKE_CURRENT_LIST_DIR}/button_test.c)
 target_link_libraries(button_test pico_stdlib)
 pico_enable_stdio_uart(button_test 1)
 pico_enable_stdio_usb(button_test 0)
 pico_add_extra_outputs(button_test)
 
-# PSBT 一巡の実機計測（make build/rp2350/psbt_bench.elf）。表示とボタンは使わない
+# Times a full PSBT round on the hardware (make build/rp2350/psbt_bench.elf), with no screen or buttons
 add_executable(psbt_bench ${CMAKE_CURRENT_LIST_DIR}/psbt_bench.c ${ROOT}/apps/device/runtime/host-abi/parser_host.c ${ROOT}/apps/device/ui/ui.c
   ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c ${ROOT}/components/signer/core.c ${ROOT}/components/signer/address.c ${ROOT}/components/signer/bip32.c
   ${ROOT}/components/signer/sighash.c ${ROOT}/components/parser/src/tx.c ${ROOT}/components/parser/src/sha256.c ${ROOT}/components/signer/ripemd160.c
@@ -128,7 +130,7 @@ pico_enable_stdio_usb(psbt_bench 0)
 target_link_options(psbt_bench PRIVATE -Wl,--print-memory-usage)
 pico_add_extra_outputs(psbt_bench)
 
-# カメラの初期確認（make build/rp2350/camera_test.elf）。PIO で Y を拾い、自前フォークの quirc で読む
+# Camera bring-up (make build/rp2350/camera_test.elf): PIO picks out the Y and our quirc fork reads it
 add_executable(camera_test ${CMAKE_CURRENT_LIST_DIR}/camera_test.c ${CMAKE_CURRENT_LIST_DIR}/camera.c
   ${CMAKE_CURRENT_LIST_DIR}/camera_ov7670.c ${CMAKE_CURRENT_LIST_DIR}/st7789.c
   ${QUIRC_SRC})
