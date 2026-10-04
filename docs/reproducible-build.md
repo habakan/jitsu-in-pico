@@ -31,7 +31,7 @@ f4841a11…  build/bitcoin-signer.wasm   鍵・導出・署名
 ## 確かめたこと（2026-10-03）
 
 **macOS arm64 と Linux x86_64 で同じハッシュが出る。** 別の OS、別の CPU、別のマシンで
-同じバイト列になることを実際に確認した（`parser.wasm` は 2026-10-03、残り 3 つも同日）。
+同じバイト列になることを実際に確認した（2026-10-03、Lime1 採用後に 2026-10-04 再確認）。
 
 ## 引っかかったこと: `wasm-opt` が PATH にあるだけで結果が変わる
 
@@ -58,6 +58,38 @@ WASM_OPT ?= wasm-opt
 
 この罠は、**環境に何が入っているかで成果物が変わる**という最も厄介な種類で、
 ハッシュを突き合わせて初めて見つかった。再現可能ビルドを用意する理由そのものでもある。
+
+## 要求する wasm の機能を Lime1 に固定する
+
+[Lime1](https://github.com/WebAssembly/tool-conventions/blob/main/Lime.md) は
+**WebAssembly 1.0 + phase-5（標準化済み）の 7 機能**という、名前の付いた水準。
+定義した以上は「変えない」と明言されているので、引用しても将来ずれない。
+
+```
+-mcpu=lime1 -Xlinker --features=mutable-globals,multivalue,sign-ext,nontrapping-fptoint,bulk-memory-opt,extended-const,call-indirect-overlong
+```
+
+**リンカに渡すのが肝で、関門になる。** 依存が将来 SIMD や threads を引き込もうとした時点で
+リンクが失敗する。黙って要求ランタイムが広がることがなくなる。
+
+副作用として全部小さくなった。
+
+| | 変更前 | 変更後 |
+|---|---:|---:|
+| `parser.wasm` | 15,603 | **15,570** |
+| `signer.wasm` | 56,508 | **56,475** |
+| `address.wasm` | 3,087 | **3,055** |
+| `qr.wasm` | 16,754 | **16,722** |
+| `bitcoin-signer.wasm` | 34,410 | **34,377** |
+
+検証に要求する機能も狭くなった（完全な `bulk-memory` → `bulk-memory-opt`）。
+
+**`-mcpu=mvp` は逆効果**なので採らない。実測で 2.5KB 増える上、依然 `bulk-memory` を要求する。
+`-mcpu` は自分の翻訳単位にしか効かず、wasi-libc は既にその機能でビルド済みで、
+`target_features` はその和集合になるため。
+
+`--max-memory=N` ではなく **`--no-growable-memory`** を使う。出力はバイト単位で同じだが、
+`--initial-memory` と数値がずれる事故が起きない（`address.wasm` と `qr.wasm` で実際に起きた）。
 
 ## 配る形が正しいかを検査する
 

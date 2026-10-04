@@ -24,7 +24,9 @@ ALLOWED_CUSTOM = {"target_features", "producers"}
 # 要求する機能をモジュールごとに固定して、知らないうちに広がらないようにする。
 # -mutable-global を入れているのは、可変 global の import/export だけを対象にする提案だから。
 # これで「可変 global を輸出していない」が spec レベルの検査になる
-BASE_FEATURES = "-all,floats,bulk-memory,saturating-float-to-int,-mutable-global"
+# Lime1 でビルドしているので、要求するのは WebAssembly 1.0 + phase-5 の狭い集合で足りる。
+# floats と saturating-float-to-int は ur.c の fountain code のサンプラが f64 を使うため
+BASE_FEATURES = "-all,floats,saturating-float-to-int,bulk-memory-opt,-mutable-global"
 EXTRA_FEATURES = {
     # 署名側は secp256k1 由来で sign-extension を使う
     "signer.wasm": ",sign-extension",

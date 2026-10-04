@@ -8,6 +8,11 @@ SECP_DEFS := -DENABLE_MODULE_EXTRAKEYS=1 -DENABLE_MODULE_SCHNORRSIG=1 -DECMULT_W
 RTLIB   ?= /opt/homebrew/opt/wasi-runtimes/share/wasi-runtimes/lib/wasm32-unknown-wasip1
 # clang のドライバは PATH にある wasm-opt を黙って走らせる。版を固定して明示的に呼ぶ
 WASM_OPT ?= wasm-opt
+# Lime1: WebAssembly 1.0 + phase-5 の 7 機能。WebAssembly/tool-conventions/Lime.md が定義し、
+# 以後変わらないと約束している集合。リンカに渡すと関門になり、依存が SIMD や threads を
+# 引き込もうとした時点でリンクが失敗する（黙って要求ランタイムが広がらない）
+LIME1 := mutable-globals,multivalue,sign-ext,nontrapping-fptoint,bulk-memory-opt,extended-const,call-indirect-overlong
+LIME_FLAGS := -mcpu=lime1 -Xlinker --features=$(LIME1)
 # SHA512_HOST=1 で SHA-512 圧縮関数をホストの import にする
 SHA512_HOST ?= 0
 CFLAGS  := -Oz -Wall -Wno-unused-function -Icomponents/signer -I$(SECP)/include $(SECP_DEFS) $(if $(filter 1,$(SHA512_HOST)),-DSHA512_HOST_COMPRESS)
@@ -15,9 +20,9 @@ STACK   ?= 16384
 
 build/bitcoin-signer.wasm: components/signer/signer.c components/signer/sha512.c components/signer/bip32.c components/signer/secp_callbacks.c components/signer/secp256k1_unity.c
 	mkdir -p build
-	$(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs $(CFLAGS) \
+	$(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs $(CFLAGS) $(LIME_FLAGS) \
 	  -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all -Wl,-z,stack-size=$(STACK) \
-	  -Wl,--export=__heap_base -Wl,--export=__data_end -Wl,--initial-memory=65536 -Wl,--max-memory=65536 \
+	  -Wl,--export=__heap_base -Wl,--export=__data_end -Wl,--initial-memory=65536 -Wl,--no-growable-memory \
 	  --no-wasm-opt -Wl,--keep-section=target_features \
 	  -o $@ components/signer/signer.c components/signer/sha512.c components/signer/bip32.c components/signer/secp_callbacks.c components/signer/secp256k1_unity.c -lc $(RTLIB)/libclang_rt.builtins.a
 	$(WASM_OPT) $@ -Oz -o $@
@@ -32,11 +37,11 @@ SIGNER_WASM_SRC := components/signer/wasm_main.c components/signer/core.c compon
 build/signer.wasm: $(SIGNER_WASM_SRC) components/signer/*.h components/parser/include/*.h
 	mkdir -p build
 	$(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs \
-	  -Oz -Wall -Wno-unused-function -DNDEBUG -Icomponents/signer -Icomponents/parser/include \
+	  -Oz -Wall -Wno-unused-function -DNDEBUG $(LIME_FLAGS) -Icomponents/signer -Icomponents/parser/include \
 	  -I$(SECP)/include $(SECP_DEFS) \
 	  -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all -Wl,-z,stack-size=16384 \
 	  -Wl,--export=__heap_base -Wl,--export=__data_end \
-	  -Wl,--initial-memory=196608 -Wl,--max-memory=196608 \
+	  -Wl,--initial-memory=196608 -Wl,--no-growable-memory \
 	  --no-wasm-opt -Wl,--keep-section=target_features \
 	  -o $@ $(SIGNER_WASM_SRC) -lc $(RTLIB)/libclang_rt.builtins.a
 	$(WASM_OPT) $@ -Oz -o $@
@@ -393,18 +398,20 @@ flash: $(UF2)
 # ブラウザで PSBT を表示する単一 HTML。実機と同じ parser.wasm を埋め込むので file:// でも動く
 build/address.wasm: components/signer/address.c components/signer/ripemd160.c components/parser/src/sha256.c apps/viewer/addr_wasm.c
 	mkdir -p build && $(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs \
-	  -Oz -Wall -Wextra -Icomponents/signer -Icomponents/parser/include -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all \
+	  -Oz -Wall -Wextra $(LIME_FLAGS) -Icomponents/signer -Icomponents/parser/include \
+	  -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all \
 	  --no-wasm-opt -Wl,--keep-section=target_features \
-	  -Wl,--initial-memory=131072 -Wl,--max-memory=131072 \
+	  -Wl,--initial-memory=131072 -Wl,--no-growable-memory \
 	  -o $@ apps/viewer/addr_wasm.c components/signer/address.c components/signer/ripemd160.c components/parser/src/sha256.c -lc $(RTLIB)/libclang_rt.builtins.a
 	$(WASM_OPT) $@ -Oz -o $@
 
 # 実機と同じ quirc。assert を外さないと wasi の stdio が入り、import が増える
 build/qr.wasm: apps/viewer/qr_wasm.c $(QUIRC)/decode.c $(QUIRC)/identify.c $(QUIRC)/quirc.c $(QUIRC)/version_db.c
 	mkdir -p build && $(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs \
-	  -Oz -Wall -DNDEBUG $(QUIRC_DEFS) -I$(QUIRC) -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all \
+	  -Oz -Wall -DNDEBUG $(LIME_FLAGS) $(QUIRC_DEFS) -I$(QUIRC) \
+	  -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all \
 	  --no-wasm-opt -Wl,--keep-section=target_features \
-	  -Wl,--initial-memory=4194304 -Wl,--max-memory=4194304 \
+	  -Wl,--initial-memory=4194304 -Wl,--no-growable-memory \
 	  -o $@ apps/viewer/qr_wasm.c $(QUIRC)/decode.c $(QUIRC)/identify.c \
 	  $(QUIRC)/quirc.c $(QUIRC)/version_db.c -lc $(RTLIB)/libclang_rt.builtins.a
 	$(WASM_OPT) $@ -Oz -o $@
