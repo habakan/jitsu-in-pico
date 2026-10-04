@@ -2,9 +2,9 @@
 #define BUTTONS_H
 
 void buttons_init(void);
-/* 押された瞬間のキー（UI_KEY_*）を返す。無ければ -1。10ms 程度の間隔で呼ぶ */
+/* The key (UI_KEY_*) at the moment it goes down, or -1. Meant to be called every 10ms or so */
 int buttons_poll(void);
-/* UI_KEY_* の順に、離していれば 1 のビット（配線の確認用） */
+/* One bit per key in UI_KEY_* order, set when it is released; for checking the wiring */
 unsigned buttons_raw(void);
 
 #endif

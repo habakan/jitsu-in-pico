@@ -9,7 +9,7 @@
 
 #define SCCB i2c1
 #define SCCB_BAUD (100 * 1000)
-/* 150MHz / 6 = 25MHz。OV7670 の XCLK は 10〜48MHz */
+/* 150MHz / 6 = 25MHz; the OV7670 takes an XCLK of 10 to 48MHz */
 #define XCLK_DIV 6
 
 static PIO pio = pio0;
@@ -22,13 +22,13 @@ static bool sccb_write(uint8_t reg, uint8_t val) {
     return i2c_write_blocking(SCCB, model->sccb_addr, b, 2, false) == 2;
 }
 
-/* SCCB は repeated start を想定していないので、書いて止めてから読む */
+/* SCCB does not expect a repeated start, so the write is stopped before the read */
 bool camera_read_reg(uint8_t reg, uint8_t *val) {
     return i2c_write_blocking(SCCB, model->sccb_addr, &reg, 1, false) == 1 &&
            i2c_read_blocking(SCCB, model->sccb_addr, val, 1, false) == 1;
 }
 
-/* 配線を段階的に確かめられるよう、クロックと SCCB だけ先に用意する（データバスはまだ要らない） */
+/* Clock and SCCB first, with no data bus yet, so the wiring can be checked a step at a time */
 void camera_bus_init(const camera_model_t *m) {
     model = m;
     if (m->needs_xclk) clock_gpio_init(PIN_CAM_XCLK, CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_VALUE_CLK_SYS, XCLK_DIV);
@@ -37,7 +37,8 @@ void camera_bus_init(const camera_model_t *m) {
     i2c_init(SCCB, SCCB_BAUD);
     gpio_set_function(PIN_CAM_SIOD, GPIO_FUNC_I2C);
     gpio_set_function(PIN_CAM_SIOC, GPIO_FUNC_I2C);
-    gpio_pull_up(PIN_CAM_SIOD); /* 基板に 4.7kΩ が無い場合の保険。内蔵は弱いので外付けを推奨 */
+    gpio_pull_up(PIN_CAM_SIOD); /* in case the board has no 4.7k; the internal pull-up is weak, so an
+                                 * external one is better */
     gpio_pull_up(PIN_CAM_SIOC);
 }
 
@@ -61,7 +62,8 @@ bool camera_capture(uint8_t *buf, uint32_t timeout_ms) {
     dma_channel_config c = dma_channel_get_default_config((uint)dma_ch);
     absolute_time_t deadline = make_timeout_time_ms(timeout_ms);
 
-    /* 前のフレームの途中から始めないよう、毎回 SM を先頭（VSYNC 待ち）からやり直す */
+    /* The state machine is restarted from the top, waiting on VSYNC, so capture never begins partway
+     * through a frame */
     pio_sm_set_enabled(pio, sm, false);
     pio_sm_clear_fifos(pio, sm);
     pio_sm_restart(pio, sm);

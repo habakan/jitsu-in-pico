@@ -9,7 +9,7 @@ static uint64 time_us_64(void) { return 0; }
 int bh_platform_init(void) { return 0; }
 void bh_platform_destroy(void) {}
 
-/* 確保はすべて WAMR のプールアロケータ経由にする */
+/* Every allocation goes through WAMR's pool allocator */
 void *os_malloc(unsigned size) { (void)size; return NULL; }
 void *os_realloc(void *ptr, unsigned size) { (void)ptr; (void)size; return NULL; }
 void os_free(void *ptr) { (void)ptr; }
@@ -42,6 +42,6 @@ void *os_mremap(void *old_addr, size_t old_size, size_t new_size)
     return os_mremap_slow(old_addr, old_size, new_size);
 }
 void os_dcache_flush(void) {}
-/* AOT でロードしたコードを実行する前に命令フェッチ側へ反映させる */
+/* Makes AOT-loaded code visible to the instruction fetch before it runs */
 void os_icache_flush(void *start, size_t len) { (void)start; (void)len; __asm__ volatile("fence.i" ::: "memory"); }
 os_raw_file_handle os_invalid_raw_handle(void) { return -1; }

@@ -1,8 +1,8 @@
 #ifndef RP2350_CAMERA_H
 #define RP2350_CAMERA_H
 
-/* DVP カメラ（OV7670 / OV7675 / OV2640）から QVGA のグレースケール（YUV422 の Y）を 1 フレーム取り込む。
- * PIO で Y を拾って DMA でバッファに書く。センサーの設定は SCCB（I2C1）で行う */
+/* One QVGA greyscale frame from a DVP camera (OV7670, OV7675 or OV2640), taking the Y of YUV422.
+ * PIO picks out the Y and DMA writes it to the buffer. The sensor is configured over SCCB (I2C1) */
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -17,19 +17,20 @@ typedef struct {
 typedef struct {
     const char *name;
     uint8_t sccb_addr;            /* 7bit */
-    bool needs_xclk;              /* 水晶の無い基板は GP21 から XCLK を与える */
-    const camera_reg_t *regs;     /* 0xff, 0xff で終わる。{0xfe, ms} は ms ミリ秒待つ */
+    bool needs_xclk;              /* a board without a crystal is fed XCLK from GP21 */
+    const camera_reg_t *regs;     /* terminated by 0xff, 0xff; {0xfe, ms} waits ms milliseconds */
 } camera_model_t;
 
 extern const camera_model_t camera_ov7670;
 
-/* XCLK と SCCB（I2C1）だけ用意する。配線の確認はここまでで足りる */
+/* Brings up only XCLK and SCCB (I2C1), which is as far as checking the wiring needs to go */
 void camera_bus_init(const camera_model_t *model);
-/* レジスタを設定し、PIO と DMA を用意する。SCCB の書き込みに失敗したら false */
+/* Writes the registers and sets up PIO and DMA. False if an SCCB write failed */
 bool camera_init(const camera_model_t *model);
-/* 次のフレームを buf（CAMERA_W * CAMERA_H byte、4 byte 境界）に取り込む。timeout_ms で諦める */
+/* Captures the next frame into buf (CAMERA_W * CAMERA_H bytes, 4-byte aligned), giving up after
+ * timeout_ms */
 bool camera_capture(uint8_t *buf, uint32_t timeout_ms);
-/* SCCB で 1 レジスタ読む（配線の確認用） */
+/* Reads one register over SCCB, for checking the wiring */
 bool camera_read_reg(uint8_t reg, uint8_t *val);
 
 #endif

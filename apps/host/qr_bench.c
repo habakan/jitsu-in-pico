@@ -29,7 +29,7 @@ static uint64_t now(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t
 #define LCD_W 240
 static volatile uint16_t lcd_sink;
 
-/* 240x240 LCD へ 1 行ずつ RGB565 で流す想定。フルフレームバッファは持たない */
+/* Models streaming RGB565 to a 240x240 LCD one row at a time, with no full framebuffer */
 static void render_qr(const uint8_t *qr) {
     int size = qrcodegen_getSize(qr), scale = LCD_W / (size + 4), off = (LCD_W - size * scale) / 2;
     uint16_t line[LCD_W];
@@ -40,7 +40,7 @@ static void render_qr(const uint8_t *qr) {
             int dark = y >= off && x >= off && my < size && mx < size && qrcodegen_getModule(qr, mx, my);
             line[x] = dark ? 0x0000 : 0xffff;
         }
-        lcd_sink = line[y];  /* SPI 送信の代わり。行バッファ生成を最適化で消させない */
+        lcd_sink = line[y];  /* stands in for the SPI write, and keeps the row from being optimised away */
     }
 }
 
@@ -60,7 +60,7 @@ int main(void) {
     for (unsigned i = 0; i < sizeof(frames) / sizeof(frames[0]); i++) {
         const struct frame *f = &frames[i];
         uint8_t *buf = quirc_begin(q, NULL, NULL);
-        memcpy(buf, f->pix, FRAME_W * FRAME_H);  /* 実機ではカメラの DMA がここへ直接書く */
+        memcpy(buf, f->pix, FRAME_W * FRAME_H);  /* on the device the camera's DMA writes straight here */
 
         uint64_t t0 = now(), t_ext = 0, t_dec = 0;
         quirc_end(q);

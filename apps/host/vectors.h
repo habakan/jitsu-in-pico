@@ -1,4 +1,4 @@
-/* BIP340 test vector #1 の seckey/msg/aux を ECDSA/Schnorr 両方の入力に使う */
+/* The seckey, msg and aux of BIP340 test vector #1, used as input for both ECDSA and Schnorr */
 static const unsigned char TV_IN[96] = {
     0xB7,0xE1,0x51,0x62,0x8A,0xED,0x2A,0x6A,0xBF,0x71,0x58,0x80,0x9C,0xF4,0xF3,0xC7,
     0x62,0xE7,0x16,0x0F,0x38,0xB4,0xDA,0x56,0xA7,0x84,0xD9,0x04,0x51,0x90,0xCF,0xEF,
@@ -7,9 +7,10 @@ static const unsigned char TV_IN[96] = {
     0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0x01,
 };
 
-/* BIP39 公式ベクタの 12 / 24 単語。24 単語は 128 byte を超え、HMAC の長鍵経路を通る */
+/* BIP39's own 12- and 24-word vectors. The 24-word one runs past 128 bytes and so takes HMAC's
+ * long-key path */
 #define TV_MN12 "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
 #define TV_MN24 "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon " \
                 "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art"
-/* BIP84 の最初の受取アドレス m/84'/0'/0'/0/0 */
+/* BIP84's first receive address, m/84'/0'/0'/0/0 */
 static const uint32_t TV_PATH[5] = {0x80000054, 0x80000000, 0x80000000, 0, 0};

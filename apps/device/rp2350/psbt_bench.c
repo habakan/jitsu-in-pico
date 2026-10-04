@@ -1,6 +1,7 @@
-/* 実機で PSBT 一巡の時間を測る。表示もボタンも使わず、組み込んだテスト用 PSBT を
- * parser.wasm → core → parser.wasm と通して UART に時間を出す。インタプリタと AOT の比較用。
- * seed は BIP39 のテストベクタ（abandon ... about）で、資金を扱ってはならない */
+/* Times a full PSBT round on the hardware. No screen and no buttons: a built-in test PSBT goes
+ * through parser.wasm, core and parser.wasm again, and the timings go to the UART. Used to compare
+ * the interpreter against AOT. The seed is BIP39's test vector (abandon ... about), so this build
+ * must never hold funds */
 #include <malloc.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,18 +23,19 @@
 static char pool[POOL_KB * 1024];
 #if WASM_ENABLE_INTERP != 0
 #define MODE "classic interp"
-/* classic interp はロード時にバイトコードを書き換えるので Flash のままでは渡せない */
+/* The classic interpreter rewrites the bytecode on load, so it cannot be handed the copy in flash */
 static uint8_t parser_wasm_rw[sizeof(parser_wasm)];
 #else
 #define MODE "AOT"
 #endif
-/* 読み取り中の quirc と同じヒープを順に使う（同時には要らない）。ここで確かめたいのは、
- * quirc を解放したあとに取り直すと、ヒープの山が両者の合計ではなく大きい方で収まること */
+/* Uses the same heap as quirc, one after the other, since the two are never needed at once. What this
+ * is checking is that taking the memory back after releasing quirc keeps the peak at the larger of
+ * the two rather than their sum */
 #define SIGNED_PSBT_MAX (PARSER_PSBT_MAX + 2048)
 static uint8_t *prevtx_arena, *signed_psbt;
 static plan_t plan;
 
-/* 署名を実機とホストで比べられるよう、Schnorr の aux は 0 固定にする */
+/* Schnorr aux is fixed at zero so the signatures can be compared between device and host */
 static int zero_rng(uint8_t *buf, size_t len) { return memset(buf, 0, len), 1; }
 
 int main(void) {
@@ -55,13 +57,13 @@ int main(void) {
     memcpy(parser_wasm_rw, parser_wasm, sizeof(parser_wasm_rw));
     image = parser_wasm_rw;
 #endif
-    /* 読み取りの段: quirc がカメラの画像とワークを確保する */
+    /* The reading step, where quirc takes the camera image and its working memory */
     struct quirc *q = quirc_new();
     if (!q || quirc_resize(q, 320, 240) < 0) return printf("quirc failed\n"), 1;
     printf("scan phase: quirc heap %d B (arena %d B)\n", mallinfo().uordblks, mallinfo().arena);
     quirc_destroy(q);
 
-    /* 解析〜署名の段: 同じヒープから PSBT のバッファを取る */
+    /* The parse-and-sign step, taking the PSBT buffers from that same heap */
     prevtx_arena = malloc(PARSER_PSBT_MAX);
     signed_psbt = malloc(SIGNED_PSBT_MAX);
     if (!prevtx_arena || !signed_psbt) return printf("psbt buffers failed\n"), 1;
@@ -100,7 +102,7 @@ int main(void) {
     core_unload();
     printf("finalize %llu us (wasm)\n", (unsigned long long)(time_us_64() - t));
 
-    /* 符号化と QR の組み立てを純粋なパートの分だけ回す。1 パートの最悪値が表示の間隔を決める */
+    /* Encoding and QR building, once per pure part. The worst single part sets the display interval */
     ur_total = time_us_64();
     long parts = parser_host_ur_encode_start(out_len, UI_UR_FRAGMENT);
     if (parts <= 0) return printf("ur encode failed\n"), 1;
@@ -118,7 +120,7 @@ int main(void) {
 
     printf("signed %u bytes, first 32: ", (unsigned)out_len);
     for (int i = 0; i < 32; i++) printf("%02x", signed_psbt[i]);
-    printf("\npool_highmark %u\nheap arena %d B (共有しなければ %d B)\ndone\n",
+    printf("\npool_highmark %u\nheap arena %d B (%d B if not shared)\ndone\n",
            (unsigned)parser_host_pool_highmark(), mallinfo().arena, 91648 + PARSER_PSBT_MAX + SIGNED_PSBT_MAX);
     while (1) tight_loop_contents();
 }

@@ -12,7 +12,7 @@
 #include <string.h>
 #include <math.h>
 
-/* シングルスレッド前提。スレッド系の型はコンパイルを通すためだけに置く */
+/* Single-threaded. The thread types are here only to let this compile */
 #define BH_APPLET_PRESERVED_STACK_SIZE (2 * BH_KB)
 #define BH_THREAD_DEFAULT_PRIORITY 0
 
