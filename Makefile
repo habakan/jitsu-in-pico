@@ -390,6 +390,7 @@ build/address.wasm: components/signer/address.c components/signer/ripemd160.c co
 	mkdir -p build && $(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs \
 	  -Oz -Wall -Wextra -Icomponents/signer -Icomponents/parser/include -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all \
 	  --no-wasm-opt -Wl,--keep-section=target_features \
+	  -Wl,--initial-memory=131072 -Wl,--max-memory=131072 \
 	  -o $@ apps/viewer/addr_wasm.c components/signer/address.c components/signer/ripemd160.c components/parser/src/sha256.c -lc $(RTLIB)/libclang_rt.builtins.a
 	$(WASM_OPT) $@ -Oz -o $@
 
@@ -397,7 +398,8 @@ build/address.wasm: components/signer/address.c components/signer/ripemd160.c co
 build/qr.wasm: apps/viewer/qr_wasm.c $(QUIRC)/decode.c $(QUIRC)/identify.c $(QUIRC)/quirc.c $(QUIRC)/version_db.c
 	mkdir -p build && $(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs \
 	  -Oz -Wall -DNDEBUG $(QUIRC_DEFS) -I$(QUIRC) -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all \
-	  --no-wasm-opt -Wl,--keep-section=target_features -Wl,--initial-memory=4194304 \
+	  --no-wasm-opt -Wl,--keep-section=target_features \
+	  -Wl,--initial-memory=4194304 -Wl,--max-memory=4194304 \
 	  -o $@ apps/viewer/qr_wasm.c $(QUIRC)/decode.c $(QUIRC)/identify.c \
 	  $(QUIRC)/quirc.c $(QUIRC)/version_db.c -lc $(RTLIB)/libclang_rt.builtins.a
 	$(WASM_OPT) $@ -Oz -o $@
