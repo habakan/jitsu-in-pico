@@ -297,7 +297,7 @@ build/host-classic/psbt_host: build/parser_wasm.h build/signer_wasm.h build/font
   apps/device/runtime/host-abi/parser_host.c apps/device/ui/ui.c $(CORE_SRC) components/parser/include/*.h
 	cmake -S apps/host -B build/host-classic -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DWAMR_BUILD_FAST_INTERP=0 \
 	  -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
-	ninja -C build/host-classic psbt_host >/dev/null
+	ninja -C build/host-classic psbt_host
 
 # 解析器リポジトリの UR ベクタ（参照エンコーダの出力）から、混在 PSBT の 60 byte 断片版を 1 行 1 パートで書き出す。
 # 純粋なパートを 3 つに 1 つ落として、混ぜたパートでの復元も通す
