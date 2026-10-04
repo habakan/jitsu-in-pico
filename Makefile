@@ -248,6 +248,11 @@ build/parser.wasm: components/parser/src/*.c components/parser/include/*.h
 SDK = $(shell ./tools/toolchain.sh)
 REPRO_WASM := build/address.wasm build/bitcoin-signer.wasm build/parser.wasm build/qr.wasm build/signer.wasm
 
+# 配る .wasm が、公開して差し支えない形か。wasm-tools が要る（brew install wasm-tools）
+check-wasm: $(REPRO_WASM)
+	uv run -q tools/check_wasm.py $(REPRO_WASM)
+.PHONY: check-wasm
+
 check-repro: tools/toolchain.sh checksums.txt
 	rm -f $(REPRO_WASM) components/parser/build/parser.wasm
 	$(MAKE) $(REPRO_WASM) \
