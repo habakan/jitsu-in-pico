@@ -53,7 +53,11 @@ jobs:
       - name: The spec, the host library and the structs agree on every offset
         run: make check-layout
       - name: signer.wasm driven from JavaScript (24 checks)
-        run: make check-signer-host
+        run: |
+          SDK=$(./tools/toolchain.sh)
+          make check-signer-host LLVM=$PWD/$SDK/bin WASI=$PWD/$SDK/share/wasi-sysroot \
+            RTLIB=$PWD/$SDK/lib/clang/23/lib/wasm32-unknown-wasi \
+            WASM_OPT=$PWD/build/toolchain/binaryen-version_132/bin/wasm-opt
       - name: A full PSBT round (WAMR plus the native core, signatures verified independently with embit)
         run: |
           SDK=$(./tools/toolchain.sh)
