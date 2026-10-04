@@ -141,6 +141,53 @@ static int write_ur(const char *out_path, uint32_t len, const char *preview) {
     return 0;
 }
 
+/* The plan as JSON, so tools/check_against_core.py can diff it against Bitcoin Core's decodepsbt.
+ * Only what Core also reports is printed; comparing anything else would prove nothing */
+static void put_hex(const uint8_t *b, size_t n) {
+    for (size_t i = 0; i < n; i++) printf("%02x", b[i]);
+}
+
+static int emit_plan(const char *in_path) {
+    static plan_t plan;
+    core_prevtx_t prev[PLAN_MAX_INPUTS];
+    core_review_t r;
+    uint32_t rc = 0;
+    long len = read_file(in_path);
+
+    if (len < 0 || !parser_host_parse(file_buf, (uint32_t)len, core_fingerprint(), &rc, &plan, prev, prevtx_arena,
+                                      sizeof(prevtx_arena)))
+        return printf("{\"error\":\"host\"}\n"), 1;
+    if (rc) return printf("{\"error\":\"parse\",\"rc\":%u}\n", (unsigned)rc), 0;
+
+    printf("{\"tx_version\":%d,\"locktime\":%u,\"inputs\":[", plan.tx_version, plan.locktime);
+    for (unsigned i = 0; i < plan.n_inputs; i++) {
+        const plan_input_t *in = &plan.inputs[i];
+        printf("%s{\"txid\":\"", i ? "," : "");
+        /* Core reports a txid in reversed byte order; the plan holds it as it appears in the transaction */
+        for (int j = 31; j >= 0; j--) printf("%02x", in->prev_txid[j]);
+        printf("\",\"vout\":%u,\"sequence\":%u,\"amount\":%llu,\"spk\":\"", in->prev_vout, in->sequence,
+               (unsigned long long)in->amount);
+        put_hex(in->spk.bytes, in->spk.len);
+        printf("\",\"sighash\":%u,\"path\":[", in->sighash_type);
+        for (unsigned j = 0; j < in->key.depth; j++) printf("%s%u", j ? "," : "", in->key.path[j]);
+        printf("],\"fingerprint\":\"%08x\"}", in->key.depth ? in->key.fingerprint : 0);
+    }
+    printf("],\"outputs\":[");
+    for (unsigned i = 0; i < plan.n_outputs; i++) {
+        const plan_output_t *out = &plan.outputs[i];
+        printf("%s{\"amount\":%llu,\"spk\":\"", i ? "," : "", (unsigned long long)out->amount);
+        put_hex(out->spk.bytes, out->spk.len);
+        printf("\",\"path\":[");
+        for (unsigned j = 0; j < out->key.depth; j++) printf("%s%u", j ? "," : "", out->key.path[j]);
+        printf("]}");
+    }
+    printf("]");
+    if (core_review(&plan, prev, &r) == CORE_OK)
+        printf(",\"fee\":%llu,\"will_sign\":%u", (unsigned long long)r.fee, r.n_sign);
+    printf("}\n");
+    return 0;
+}
+
 static int sign(const char *in_path, const char *out_path, const char *preview) {
     static plan_t plan;
     core_prevtx_t prev[PLAN_MAX_INPUTS];
@@ -193,13 +240,14 @@ int main(int argc, char **argv) {
     static char *qemu_argv[] = {"psbt_host", "sign", "build/psbt/own_mixed_nwu.ur", "build/psbt/own_mixed_nwu.qemu"};
     argc = 4, argv = qemu_argv;
 #endif
-    if (argc < 3) return fprintf(stderr, "usage: %s parse FILE... | sign IN(.psbt|.ur) OUT [PREVIEW_PREFIX] | bin2ur IN.psbt OUT | ur2bin IN.ur OUT\n", argv[0]), 2;
+    if (argc < 3) return fprintf(stderr, "usage: %s parse FILE... | plan FILE | sign IN(.psbt|.ur) OUT [PREVIEW_PREFIX] | bin2ur IN.psbt OUT | ur2bin IN.ur OUT\n", argv[0]), 2;
     memcpy(parser_wasm_rw, parser_wasm, sizeof(parser_wasm_rw));
     if (!core_init(CORE_MAINNET) || !parser_host_init(parser_wasm_rw, sizeof(parser_wasm_rw), pool, sizeof(pool)))
         return 1;
     pbkdf2_hmac_sha512((const uint8_t *)MNEMONIC, sizeof(MNEMONIC) - 1, (const uint8_t *)"mnemonic", 8, 2048, seed);
     if (!core_load_seed(seed)) return 1;
 
+    if (!strcmp(argv[1], "plan") && argc == 3) return emit_plan(argv[2]);
     if (!strcmp(argv[1], "sign")) return argc >= 4 ? sign(argv[2], argv[3], argc > 4 ? argv[4] : NULL) : 2;
     if (!strcmp(argv[1], "bin2ur") && argc == 4) { /* a PSBT as a UR, one part per line, to test reading on the device */
         long len = read_file(argv[2]);

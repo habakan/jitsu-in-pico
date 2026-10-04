@@ -305,6 +305,28 @@ build/psbt/own_mixed_nwu.ur: components/parser/tests/ur_vectors.json build/psbt/
 	python3 -c "import json,re; v=[x for x in json.load(open('$<'))['vectors'] if x['name']=='own_mixed_nwu' and x['fragment_len']==60][0]; \
 	  print('\n'.join(p for p in v['parts'] if not (int(re.match(r'UR:[A-Z-]+/(\d+)', p).group(1)) <= v['seq_len'] and int(re.match(r'UR:[A-Z-]+/(\d+)', p).group(1)) % 3 == 0)))" > $@
 
+# Bitcoin Core as the oracle. Core decides what a PSBT means, so agreeing with it is worth more than
+# agreeing with our own expectations. Needs bitcoind and bitcoin-cli on PATH.
+# Its own port, so a regtest node already running on the default one does not get in the way
+BTCDIR ?= build/btcregtest
+BTCPORT ?= 18999
+BTCCLI = bitcoin-cli -datadir=$(PWD)/$(BTCDIR) -regtest -rpcport=$(BTCPORT)
+check-core-diff: build/host-classic/psbt_host build/psbt/own_p2wpkh_1in.psbt
+	@command -v bitcoind >/dev/null || { echo "bitcoind not found (brew install bitcoin)"; exit 1; }
+	@rm -rf $(BTCDIR) && mkdir -p $(BTCDIR)
+	@bitcoind -regtest -datadir=$(PWD)/$(BTCDIR) -rpcport=$(BTCPORT) -daemon -fallbackfee=0.0001
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+	  $(BTCCLI) getblockchaininfo >/dev/null 2>&1 && break; sleep 1; done
+	@$(BTCCLI) getblockchaininfo >/dev/null || { echo "regtest node did not come up"; exit 1; }
+	@rc=0; \
+	uv run -q --with embit tools/check_against_core.py "$(BTCCLI)" ./build/host-classic/psbt_host \
+	  components/parser/tests/rpc_psbt.json build/psbt/*.psbt || rc=1; \
+	uv run -q --with embit tools/check_sigs_against_core.py "$(BTCCLI)" ./build/host-classic/psbt_host \
+	  build/psbt/own_*.psbt || rc=1; \
+	$(BTCCLI) stop >/dev/null 2>&1 || true; \
+	exit $$rc
+.PHONY: check-core-diff
+
 check-psbt: build/host-classic/psbt_host build/psbt/own_p2wpkh_1in.psbt build/psbt/own_mixed_nwu.ur
 	rm -f build/psbt/*.signed
 	for f in build/psbt/own_*.psbt; do echo "== $$f"; build/host-classic/psbt_host sign $$f $${f%.psbt}.signed || true; done
