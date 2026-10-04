@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- No permissions at all. The app reads a PSBT the person hands it and signs it; it has no reason
+     to reach the network, and asking for nothing is the clearest way to say so. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="dev.habakan.wasmsigner.sample">
+
+    <application
+        android:label="@string/app_name"
+        android:allowBackup="false"
+        android:theme="@android:style/Theme.Material">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

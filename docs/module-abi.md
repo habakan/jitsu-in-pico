@@ -72,6 +72,11 @@ fuzzing, its own CI and a signed release. **`signer.wasm` now has a specificatio
 JavaScript and Kotlin, and 49 checks of its own** — which is the first of the conditions in
 [design.md](design.md) §16 for giving it a repository of its own. Swift is not written yet.
 
+An Android app built on the Kotlin host is in [../apps/android](../apps/android). Its signatures are
+byte-identical to the native implementation's, which is the first evidence that these modules are
+usable by someone other than this repository's own applications. What building it found is in its
+README: the ABI itself needed no Android-specific anything, and the two problems were both packaging.
+
 Two hosts matter more than twice one host: `make check-hosts-agree` runs both over the same PSBT and
 requires their output to match byte for byte. A single host's tests pass just as happily when the
 library and its expectations are wrong together, which is what caught `signer_xpub` returning the

@@ -234,6 +234,7 @@ apps/                  the things that use them
     rp2350/            the board: panel, camera, buttons, the application itself
     ui/                building the screens
     runtime/           the boundary with WAMR (host-abi) and the platform layer
+  android/             a sample Android app on the Kotlin host, signing with the same modules
   viewer/              the single-file HTML viewer
   host/                development programs that run on a PC or under QEMU
 tools/                 scripts for generating, measuring and drawing
