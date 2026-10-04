@@ -18,10 +18,19 @@ parser inside the device is the one in this repository.
 | What this is for, and who it helps | [docs/positioning.md](docs/positioning.md) (Japanese) |
 | **How to drive the module from your language** | [components/parser/docs/abi.md](components/parser/docs/abi.md) |
 
-> **Do not put real funds through this yet.** It completes a signing round on signet and has had no
-> third-party review. What mainnet would require is listed in [docs/architecture-b.md](docs/architecture-b.md) §15.
-
 日本語版は [README.ja.md](README.ja.md)。設計と実測の記録はいまのところ日本語のみ。
+
+## Disclaimer
+
+**This software has not been reviewed by a third party. Do not put real funds through it.**
+
+It completes a signing round on signet, and every claim on this page is backed by a measurement in
+this repository — but that is not the same as having been attacked by someone other than its author.
+What mainnet would require is listed in [docs/architecture-b.md](docs/architecture-b.md) §15; what
+the signer accepts, refuses and deliberately does not do is in
+[docs/limitations.md](docs/limitations.md).
+
+Found a security problem? [SECURITY.md](SECURITY.md) — **not** a public issue.
 
 ## What it does
 
@@ -145,6 +154,11 @@ merely by being on `PATH`, quirc failing to read a display from a distance.
   ([PR #5123](https://github.com/wasm-micro-runtime/wasm-micro-runtime/pull/5123), merged 2026-09-30).
   It bites on CPUs that disallow unaligned access, and does not reproduce under QEMU
 - **quirc**: the `mcu` fork carries the fixed-point work, unmerged security fixes, UBSan and fuzzing
+
+## Contributing
+
+Patches welcome: [CONTRIBUTING.md](CONTRIBUTING.md). Security problems go to
+[SECURITY.md](SECURITY.md), never to a public issue.
 
 ## License
 

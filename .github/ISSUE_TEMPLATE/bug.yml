@@ -1,0 +1,52 @@
+name: Bug report
+description: Something behaves differently from what the documentation says
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Not for security problems — see [SECURITY.md](https://github.com/habakan/baremetal-wasm-signer/blob/main/SECURITY.md).
+        Check [docs/limitations.md](https://github.com/habakan/baremetal-wasm-signer/blob/main/docs/limitations.md)
+        first; a documented boundary is not a bug, though an exploit of one is.
+  - type: dropdown
+    id: surface
+    attributes:
+      label: Where
+      options:
+        - Device firmware (RP2350)
+        - Browser viewer (single-file HTML)
+        - parser.wasm / the ABI
+        - Host or QEMU tools
+        - Build, reproducibility, or docs
+    validations: { required: true }
+  - type: input
+    id: parser_hash
+    attributes:
+      label: parser.wasm SHA-256
+      description: For a device, the `Parser hash` screen. For the viewer, the page footer.
+      placeholder: a6766d13...
+  - type: input
+    id: revision
+    attributes:
+      label: Commit
+      description: Output of `git rev-parse --short HEAD`, plus the board if hardware is involved.
+    validations: { required: true }
+  - type: dropdown
+    id: network
+    attributes:
+      label: Network
+      options: [signet, testnet, "mainnet (please do not)"]
+    validations: { required: true }
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what you expected instead
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: |
+        A PSBT, a QR payload, or a `make check-*` target that fails is worth more than prose.
+        Scrub anything private — never paste a key or a recovery phrase.
+    validations: { required: true }

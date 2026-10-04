@@ -18,8 +18,16 @@ OS の無いマイコン（RP2350）と iPhone の Safari で、**同じ 15,598 
 | 何を作っていて誰のどんな問題を解くのか | [docs/positioning.md](docs/positioning.md) |
 | 他の言語から呼ぶための仕様 | [components/parser/docs/abi.md](components/parser/docs/abi.md)（英語） |
 
-> **まだ本番の資金に使わないこと。** signet で一巡したところで、第三者のレビューを受けていない。
-> mainnet の前提は [docs/architecture-b.md](docs/architecture-b.md) §15 にある。
+## 注意
+
+**第三者のレビューを受けていない。本番の資金に使わないこと。**
+
+signet で一巡していて、このページの主張はすべてこのリポジトリ内の実測に基づく。
+ただしそれは、作者以外から攻撃されたことがある、ということではない。
+mainnet の前提は [docs/architecture-b.md](docs/architecture-b.md) §15、
+受理する範囲と「やらないこと」は [docs/limitations.md](docs/limitations.md)（英語）。
+
+セキュリティ上の問題は [SECURITY.md](SECURITY.md) へ。**公開の issue には書かないこと。**
 
 ## 何ができるか
 
