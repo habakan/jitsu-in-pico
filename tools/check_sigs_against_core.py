@@ -34,7 +34,10 @@ def cli(*args, wallet=None):
 
 def descriptors():
     """The same account this signer derives, as descriptors Core can sign with. tprv because regtest
-    uses the testnet version bytes; the keys themselves are identical."""
+    uses the testnet version bytes; the keys themselves are identical.
+
+    Receive and change are separate descriptors rather than one multipath `<0;1>`, which Core only
+    accepts in getdescriptorinfo from some versions on (28.1 refuses it)."""
     from embit import bip32, bip39
 
     root = bip32.HDKey.from_seed(bip39.mnemonic_to_seed(MNEMONIC))
@@ -43,7 +46,8 @@ def descriptors():
     for kind, purpose in (("wpkh", 84), ("tr", 86)):
         acct = root.derive(f"m/{purpose}h/0h/0h")
         xprv = acct.to_base58(version=bytes.fromhex("04358394"))
-        out.append(f"{kind}([{fp}/{purpose}h/0h/0h]{xprv}/<0;1>/*)")
+        for chain, internal in ((0, False), (1, True)):
+            out.append((f"{kind}([{fp}/{purpose}h/0h/0h]{xprv}/{chain}/*)", internal))
     return out
 
 
@@ -60,9 +64,10 @@ def setup_wallet(datadir, name="diff"):
     cli("-named", "createwallet", f"wallet_name={name}",
         "disable_private_keys=false", "blank=true", "descriptors=true")
     imports = []
-    for d in descriptors():
+    for d, internal in descriptors():
         ck = json.loads(cli("getdescriptorinfo", d))["checksum"]
-        imports.append({"desc": f"{d}#{ck}", "timestamp": "now", "active": True, "range": [0, 20]})
+        imports.append({"desc": f"{d}#{ck}", "timestamp": "now", "active": True,
+                        "internal": internal, "range": [0, 20]})
     res = json.loads(cli("importdescriptors", json.dumps(imports), wallet=name))
     if not all(r["success"] for r in res):
         raise SystemExit(f"importdescriptors failed: {res}")
