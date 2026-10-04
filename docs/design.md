@@ -1,19 +1,24 @@
-# Bare-metal WASM Bitcoin Signer 設計書
+# Design notes
 
 Raspberry Pi Pico 2 (RP2350 / RISC-V) / Air-gapped / OS-less / Bitcoin Core-derived signing logic
 Version 0.2 | 2026-09-22
 
-## 1. 目的
+## 1. What this is for
 
-本システムは、Raspberry Pi Pico 2（RP2350）のRISC-Vコア（Hazard3）上でOSを使用せず、最小限のベアメタルホストとWebAssemblyランタイム上でBitcoin署名ロジックを実行する、エアギャップ型ハードウェア署名器を実現することを目的とする。
+An air-gapped hardware signer that runs its Bitcoin signing logic on the RISC-V core (Hazard3) of a
+Raspberry Pi Pico 2 (RP2350) with no operating system — just a minimal bare-metal host and a
+WebAssembly runtime.
 
-署名ロジックはハードウェア依存部分から分離した `bitcoin-signer.wasm` として実装し、PSBTの解析・検証・sighash計算・ECDSA/Schnorr署名等を同一WASMモジュールに閉じ込める。実機固有処理はカメラ、ディスプレイ、ボタン、乱数生成などに限定する。
+The signing logic is separated from anything hardware-specific as `bitcoin-signer.wasm`, which holds
+PSBT parsing and validation, sighash computation and ECDSA/Schnorr signing in one module. What stays
+device-specific is the camera, the display, the buttons and the entropy source.
 
-Pi Zero 1.3 はカメラ・ディスプレイを揃えやすい副ターゲットとして残す（§17）。
+The Pi Zero 1.3 stays as a secondary target, since a camera and a display are easy to source for it
+(§17).
 
-## 2. 設計原則
+## 2. Design principles
 
-## 3. 全体アーキテクチャ
+## 3. The shape of it
 
 ```
 ┌───────────────────────────────────────────┐
@@ -42,39 +47,45 @@ Pi Zero 1.3 はカメラ・ディスプレイを揃えやすい副ターゲッ�
       Untrusted wallet software (e.g. desktop wallet)
 ```
 
-## 4. Trust Boundary / TCB
+## 4. The trust boundary and the TCB
 
-WASM sandboxは、ホストOSから秘密鍵を守る仕組みではない。本設計ではOSそのものを除外し、TCBを明示的に小さくする。RP2350ではBoot ROMがTCBに残るが、Pi Zeroのような非公開GPUファームウェアは含まない。Hazard3はRTLが公開されており、CPUコアまで監査対象にできる。
+A WASM sandbox is not a mechanism for protecting a key from the host OS. This design removes the OS
+instead, to make the TCB small on purpose. On the RP2350 the Boot ROM stays in the TCB, but there is
+nothing like the Pi Zero's closed GPU firmware. Hazard3's RTL is published, so the CPU core itself is
+auditable.
 
-## 5. ハードウェア構成
+## 5. The hardware
 
-- MCU: Raspberry Pi Pico 2（RP2350、Hazard3 RISC-V ×2、150MHz、SRAM 520KB、Flash 4MB、PSRAM なし）
-- カメラ: DVP カメラモジュール（OV2640 等）を PIO で取り込む
-- ディスプレイ: SPI LCD
-- 入力: 物理ボタン（GPIO）
-- 乱数: RP2350 内蔵 TRNG ＋ ユーザー入力エントロピー
-- 起動: secure boot / OTP で署名済みファームウェアのみ起動
+- MCU: Raspberry Pi Pico 2 (RP2350, two Hazard3 RISC-V cores, 150MHz, 520KB SRAM, 4MB flash, no PSRAM)
+- Camera: a DVP module (an OV2640 or similar) captured through PIO
+- Display: an SPI LCD
+- Input: physical buttons on GPIO
+- Entropy: the RP2350's TRNG, plus entropy from user input
+- Boot: secure boot and OTP, so only signed firmware starts
 
-520KB に WAMR + `bitcoin-signer.wasm` + QR バッファが収まらない場合は、PSRAM 付きボード（Pimoroni Pico Plus 2 等）に切り替える。
+If WAMR plus `bitcoin-signer.wasm` plus the QR buffers will not fit in 520KB, the fallback is a board
+with PSRAM, such as a Pimoroni Pico Plus 2.
 
-## 6. Bare-metal Host
+## 6. The bare-metal host
 
-初期PoCでは pico-sdk（RISC-V ビルド）を startup/HAL/driver の実装基盤として使う。最終TCB削減のため、不要なUSB、ファイルシステム等はリンクしない。
+The initial proof of concept uses pico-sdk (built for RISC-V) as the basis for startup, HAL and
+drivers. To keep the eventual TCB small, nothing unnecessary — USB, a filesystem — is linked in.
 
-- Boot/startup、割り込み、タイマ
+- Boot and startup, interrupts, timers
 - GPIO / physical button driver
 - SPI display driver
 - PIO DVP camera driver
-- Frame buffer（必要最小限）
+- A framebuffer, the smallest one that works
 - QR / animated QR decoder
 - Entropy/RNG abstraction
 - WASM runtime
 - Minimal host ABI
 - Memory zeroization / panic handling
 
-## 7. WASM Runtime / ABI
+## 7. The WASM runtime and the ABI
 
-WASIへの依存は原則として持たない。`bitcoin-signer.wasm` はネットワーク、ファイルシステム、clock、process等をimportせず、署名に必要な最小限のABIだけを使用する。
+As a rule there is no dependency on WASI. `bitcoin-signer.wasm` imports no network, no filesystem, no
+clock and no process functions — only the smallest ABI signing actually needs.
 
 ```
 host_random(ptr, len) -> status
@@ -89,22 +100,25 @@ signer_sign_psbt(handle, seed_handle, out_ptr, out_len) -> status
 signer_destroy(handle) -> void
 ```
 
-画面描画やカメラ取得を `signer.wasm` から直接行わせるかはPoC後に判断する。セキュリティ上は、signerが構造化された「確認すべき内容」をホストへ返し、ホストが固定UIで表示する方式が実装を単純化できる。一方、表示改ざん耐性の観点ではsigner側に確認画面生成ロジックを寄せる案も比較対象とする。
+Whether `signer.wasm` should drive the display and the camera directly is a decision for after the
+proof of concept. For security, having the signer return a structured "here is what to confirm" and
+letting the host render it with a fixed UI keeps the implementation simpler. Against that, putting the
+review-screen logic inside the signer resists tampering with what is displayed, so both are compared.
 
 ## 8. bitcoin-signer.wasm
 
-署名モジュールの責務は以下とする。
+What the signing module is responsible for:
 
-- PSBT parsing / serialization
-- UTXO・script・amount等の整合性検証
-- BIP32鍵導出
-- legacy / SegWit / Taproot sighash計算
-- ECDSA / Schnorr署名（libsecp256k1由来実装を優先）
-- P2WPKHを初期対象とし、P2TR、multisig、descriptorへ段階拡張
-- 秘密鍵・seed・中間鍵素材のzeroization
-- 署名対象の構造化レビュー情報生成
+- PSBT parsing and serialization
+- Checking the UTXOs, scripts and amounts against each other
+- BIP32 derivation
+- Legacy, SegWit and Taproot sighash computation
+- ECDSA and Schnorr signing, preferring an implementation derived from libsecp256k1
+- P2WPKH first, then P2TR, multisig and descriptors in stages
+- Zeroizing the key, the seed and any intermediate key material
+- Producing the structured review information for what is about to be signed
 
-## 9. 署名フロー
+## 9. The signing flow
 
 ```
 [Desktop Wallet: untrusted]
@@ -143,92 +157,106 @@ signer_destroy(handle) -> void
 [Desktop Wallet: untrusted]
 ```
 
-## 10. Seed / Key Management
+## 10. Seed and key handling
 
-SeedSignerに近いstatelessモデルを初期方針とする。seedはSeedQR等から一時的に読み込み、RAM上だけに保持し、署名終了または明示的な破棄操作でzeroizeする。microSDへの秘密鍵保存は行わない。
+The starting position is a stateless model close to SeedSigner's: the seed is read in temporarily
+from a SeedQR or similar, held only in RAM, and zeroized when signing finishes or when explicitly
+discarded. No key is ever written to an SD card.
 
-ただし電源断だけでRAM消去を保証したとみなさず、正常終了時の明示zeroization、秘密値のコピー削減、コンパイラ最適化で消去が除去されない実装、クラッシュ時の挙動を検証する。
+Losing power is not treated as a guarantee that RAM is cleared. What gets verified instead is explicit
+zeroization on a normal exit, keeping the number of copies of a secret down, writing the clearing so
+that the optimiser cannot remove it, and what happens on a crash.
 
-## 11. Threat Model
+## 11. Threat model
 
-## 12. Non-goals（初期版）
+## 12. Non-goals, for the first version
 
-- 秘密鍵の永続保存
-- Wi-Fi / Bluetooth / Ethernet
-- OTA update
-- 複数WASMアプリの動的インストール
-- 汎用shell / filesystem
-- USB経由での署名データ交換
-- Secure Element依存
-- 高度な物理攻撃・電力解析への完全耐性
+- Storing a key persistently
+- Wi-Fi, Bluetooth or Ethernet
+- Over-the-air updates
+- Installing more than one WASM application dynamically
+- A general-purpose shell or filesystem
+- Exchanging signing data over USB
+- Depending on a secure element
+- Full resistance to sophisticated physical attacks or power analysis
 
-## 13. 実装フェーズ
+## 13. Implementation phases
 
-## 14. PoCのDefinition of Done
+## 14. What done means for the proof of concept
 
-- Pico 2がRISC-Vコアで、OSなしで起動する
-- SPI displayに署名確認画面を表示できる
-- 物理ボタンでConfirm / Rejectできる
-- PIO経由のDVPカメラからQRを読み込める
-- `bitcoin-signer.wasm` がP2WPKH PSBTを解析・署名できる
-- 同一PSBT/鍵に対し、PC上のWASMテストとPico 2実機で結果が一致する
-- WAMR + `bitcoin-signer.wasm` + QRバッファがSRAM 520KBに収まる
-- 秘密値が署名終了後に明示的にzeroizeされる
-- ネットワーク関連コードがfirmwareに含まれない
-- TCBの構成要素・依存ライブラリ・概算LOCを一覧化できる
+- The Pico 2 boots on its RISC-V core with no OS
+- A signing review screen appears on the SPI display
+- Physical buttons confirm and reject
+- A QR can be read from the DVP camera through PIO
+- `bitcoin-signer.wasm` parses and signs a P2WPKH PSBT
+- For the same PSBT and key, the WASM test on a PC and the Pico 2 agree
+- WAMR plus `bitcoin-signer.wasm` plus the QR buffers fit in 520KB of SRAM
+- Secrets are explicitly zeroized once signing finishes
+- No network code is present in the firmware
+- The TCB's parts, its dependencies and their approximate line counts can be listed
 
-## 15. 技術選定で未確定の事項
+## 15. Decisions still open
 
-### 解析器を Rust でもう 1 つ書くか（検討中）
+### A second parser, in Rust (undecided)
 
-攻撃者が中身を決めるデータを触るのは解析器だけなので、そこを Rust にする案がある。
-2026-10-03 に見つけた `prevtx_off` のバグ（ポインタの 32bit 切り詰め）は Rust なら型で防げた。
+The parser is the only thing that touches bytes an attacker chooses, which is an argument for writing
+it in Rust. The `prevtx_off` bug found on 2026-10-03, a pointer truncated to 32 bits, is one the type
+system would have caught.
 
-**置き換えではなく 2 つ目として書く方が強い**と考えている。
+**Writing a second one is stronger than replacing the first.**
 
-- 2 つの独立した実装が同じ `plan_t` を返すことを要求すれば、どちらのバグも見つかる
-  （quirc と zbar で読めるフレームが違ったのと同じ構図）
-- ファジングのコーパスをそのまま両方に食わせられる
-- [ABI の仕様](../components/parser/docs/abi.md) があるので仕様から独立に書ける。仕様の検証にもなる
-- Rust 製のウォレットは wasm ランタイム無しで crate として取り込める
+- Requiring two independent implementations to return the same `plan_t` finds bugs in either one. The
+  same shape as quirc and zbar reading different frames
+- The fuzzing corpus feeds both as is
+- There is [a specification](../components/parser/docs/abi.md), so the second one can be written from
+  it independently — which also tests the specification
+- A wallet written in Rust could take it as a crate, with no wasm runtime at all
 
-一方で Rust にしても消えないのは、手数料の計算違い・お釣りの判定ミス・BIP174 の解釈違いで、
-529 項目のベクタとファジングが守っているのは主にこちら。サンドボックスが被害を
-「表示が壊れる」までに区切っている点も、置き換えを急がない理由になる。
+What Rust would not remove is a fee computed wrongly, change identified wrongly, or BIP174 read
+wrongly — and that is mostly what the 529 vectors and the fuzzing are guarding. That the sandbox
+already caps the damage at "the display is wrong" is another reason not to rush a replacement.
 
-まず `no_std` + 固定バッファ + `panic=abort` で骨格を書き、**大きさと import 数を実測**してから決める。
+The way to decide is to write a skeleton with `no_std`, fixed buffers and `panic=abort`, then
+**measure its size and its import count**.
 
-## 16. リポジトリ構成
+## 16. How the repository is laid out
 
-**部品（components）と、それを使う用例（apps）に分ける。** 位置づけの整理は
-[positioning.md](positioning.md) を見る。
+**Split into the parts (`components`) and the things that use them (`apps`).** How these are
+positioned is in [positioning.md](positioning.md).
 
 ```
-components/            部品。どの UI の裏にも置ける
-  parser/              submodule: wasm-psbt-parser（PSBT・UR の解析、ABI 仕様、ホスト実装例）
-  qr/                  submodule: quirc のフォーク（固定小数点化）
-  signer/              鍵・BIP32 導出・署名・アドレス。実機にはネイティブ、ブラウザには wasm で載る
-apps/                  用例
-  device/              RP2350 の参照実装
-    rp2350/            基板まわり（液晶、カメラ、ボタン、アプリ本体）
-    ui/                画面の組み立て
-    runtime/           WAMR との境界（host-abi）とプラットフォーム層
-  viewer/              単一 HTML のビューア
-  host/                PC・QEMU で動かす開発用のプログラム
-tools/                 生成・計測・配線図などのスクリプト
-docs/                  設計と実測の記録
+components/            the parts; any of them can sit behind any UI
+  parser/              submodule: wasm-psbt-parser (PSBT and UR parsing, its ABI, host libraries)
+  qr/                  submodule: a fork of quirc, made fixed-point
+  signer/              keys, BIP32, signing, addresses. Native on the device, wasm in the browser
+apps/                  the things that use them
+  device/              the RP2350 reference implementation
+    rp2350/            the board: panel, camera, buttons, the application itself
+    ui/                building the screens
+    runtime/           the boundary with WAMR (host-abi) and the platform layer
+  viewer/              the single-file HTML viewer
+  host/                development programs that run on a PC or under QEMU
+tools/                 scripts for generating, measuring and drawing
+docs/                  the design notes and the measurements
 test-vectors/ third_party/ patches/
 ```
 
-`components/signer/` は実機の署名処理であると同時に `bitcoin-signer.wasm` の素でもある。
-切り出して独立したリポジトリにする予定（[positioning.md](positioning.md) の「部品」）。
+`components/signer/` is both the device's signing code and the source of `bitcoin-signer.wasm`.
+Giving it a repository of its own is on the table, but not yet: what makes the parser usable as a part
+is its specification, its host libraries and its tests, and the signer has none of those yet. Moving
+the files first would only produce an empty repository. The conditions for splitting it are that
+`plan_t`'s ABI is stable enough to tag, that the signer has a specification, host libraries and tests
+of its own, and that someone outside this project wants to sign. Against those sits a cost measured on
+2026-10-03: changing what `prevtx_off` meant touched three files at once, and the device uses this same
+`core.c` natively, so a split would mean a submodule bump for every device change.
 
-ホスト言語からの呼び出し例（Kotlin・Swift）は `components/parser/examples/` にある。
-部品の使い方を示すものなので、部品側のリポジトリに置く。
+The host libraries for calling the parser from another language live in `components/parser/hosts/`,
+in that part's own repository, because that is what they document.
 
-## 17. 将来像
+## 17. Where this is going
 
-`bitcoin-signer.wasm` を特定ハードの資産にせず、ブラウザ、WASI、他のbare-metal hostでも同一モジュールを実行できる状態を目指す。Pico 2版をreference hardwareとする。
+`bitcoin-signer.wasm` should not end up tied to one piece of hardware: the same module should run in a
+browser, on WASI, and on another bare-metal host. The Pico 2 build is the reference hardware.
 
 ```
                   bitcoin-signer.wasm
@@ -239,53 +267,64 @@ test-vectors/ third_party/ patches/
   reference target      test UI      secondary target
 ```
 
-Pi Zero は CSI カメラと既存の SeedSigner 筐体を使える反面、VideoCore の非公開ファームウェアが TCB に残る。K210 を追加すれば Krux と同一ハードでの比較実験ができる（§19）。
+The Pi Zero can use a CSI camera and an existing SeedSigner enclosure, at the cost of leaving
+VideoCore's closed firmware in the TCB. Adding a K210 would allow a comparison with Krux on identical
+hardware (§19).
 
-## 18. 参考実装・調査対象
+## 18. Prior art and references
 
-- **Bitcoin Core / libsecp256k1** — Bitcoin署名プリミティブおよびテストベクトル
-- **SeedSigner** — stateless / air-gapped / QR-based signerのUX・threat model
-- **pico-sdk / Hazard3** — RP2350 の startup・PIO・RISC-V コア
-- **Circle** — Pi Zero（副ターゲット）向けC++ bare-metal環境・driver reference
-- **Circle libcamera** — Raspberry Pi CSI cameraのbare-metal利用
-- **WAMR** — MCU/embedded向けWebAssembly runtime候補
-- **AkiraOS** — WASM + embedded capability modelの参考設計（本設計ではOS自体は採用しない）
+- **Bitcoin Core / libsecp256k1** — the signing primitives and the test vectors
+- **SeedSigner** — the UX and threat model of a stateless, air-gapped, QR-based signer
+- **pico-sdk / Hazard3** — the RP2350's startup, PIO and RISC-V core
+- **Circle** — a C++ bare-metal environment and driver reference for the Pi Zero, the secondary target
+- **Circle libcamera** — using a Raspberry Pi CSI camera bare-metal
+- **WAMR** — the candidate WebAssembly runtime for MCUs
+- **AkiraOS** — a reference design for WASM with an embedded capability model; the OS itself is not
+  adopted here
 
-## 19. 類似プロジェクトとの比較（Krux）
+## 19. Compared with Krux
 
-Krux は K210（RISC-V）上の MaixPy v1 フォーク（MicroPython）で動く stateless signer で、「Linux なし」は既に実現済み。上流の MaixPy は v4 で MaixCAM（SG2002, Linux）へ移行しており、Krux は v1 系を自前フォークで維持している（2026-09 時点、対応8機種はすべて K210）。
+Krux is a stateless signer running on a fork of MaixPy v1 (MicroPython) on the K210 (RISC-V), so
+"without Linux" is something it already achieves. Upstream MaixPy moved to MaixCAM (SG2002, Linux) at
+v4, and Krux maintains its own fork of the v1 line; as of 2026-09 all eight supported devices are
+K210.
 
-| 観点 | Krux | 本設計 |
+| | Krux | here |
 |---|---|---|
-| OS | なし（Kendryte SDK + MicroPython） | なし（pico-sdk ベースの最小ホスト） |
-| 実行モデル | UI・QR・署名が同一 VM・同一メモリ空間 | 署名ロジックのみ WASM に分離、最小 ABI 経由 |
-| 署名実装 | embit（Python）+ secp256k1 | libsecp256k1 / Bitcoin Core 由来 |
-| 移植性 | K210 + MaixPy フォークに依存 | 同一 `.wasm` をブラウザ・PC・他 MCU で実行 |
-| CPU コア | K210（RTL 非公開） | Hazard3（RTL 公開） |
-| 起動チェーン TCB | K210 Boot ROM | RP2350 Boot ROM + secure boot |
+| OS | none (Kendryte SDK + MicroPython) | none (a minimal host on pico-sdk) |
+| execution model | UI, QR and signing share one VM and one address space | only the signing logic is separated into WASM, across a minimal ABI |
+| signing | embit (Python) plus secp256k1 | libsecp256k1, derived from Bitcoin Core |
+| portability | tied to the K210 and a MaixPy fork | the same `.wasm` runs in a browser, on a PC and on other MCUs |
+| CPU core | K210 (RTL not published) | Hazard3 (RTL published) |
+| boot chain in the TCB | K210 Boot ROM | RP2350 Boot ROM plus secure boot |
 | RAM | 8MB | 520KB |
-| 成熟度 | 実運用中（multisig / Taproot / SeedQR） | signet で一巡（2026-10-02） |
+| maturity | in real use: multisig, Taproot, SeedQR | one round on signet (2026-10-02) |
 
-### SeedSigner との比較（UX の手本にしたもの）
+### Compared with SeedSigner, whose UX this follows
 
-| 観点 | SeedSigner | 本設計 |
+| | SeedSigner | here |
 |---|---|---|
-| ハード | Raspberry Pi Zero（v1.3 推奨）+ Waveshare 1.3 インチ LCD HAT + Pi カメラ + microSD | Pico 2 H + 1.54 インチ ST7789 + OV7675 + ブレッドボード |
-| 部品代（米国） | BOM 約 $35、完成品で $50 未満（[公式](https://seedsigner.com/seedsigner-independent-custody-guide/)）。組立済みは £65〜£90 / €73 | 約 $33 |
-| 部品代（日本で調達） | 約 ¥9,500（Pi Zero 2 W ¥3,190 + LCD HAT ¥3,854 + 互換カメラ ¥1,500〜 + microSD）。純正カメラなら ¥13,700 | **¥4,940**（送料別。Debug Probe を足すと ¥7,120） |
-| 入手性（日本） | Pi Zero は入荷待ちが常態。Waveshare の LCD HAT と互換カメラは秋月に無く、別店舗か輸入 | 全部秋月で揃い、1 回の注文で済む |
-| OS | Raspberry Pi OS（Linux） | なし（ベアメタル） |
-| 言語 | Python（embit） | C + WASM |
-| 鍵の置き場 | RAM のみ（microSD には書かない） | RAM のみ（Flash には書かない） |
-| CPU | BCM2835（ARM11。RTL 非公開、VideoCore が先に起動する） | RP2350 Hazard3（RISC-V、RTL 公開） |
-| RAM | 512MB | 520KB（実使用 341KB） |
-| 解析器の隔離 | なし（同一プロセス） | `parser.wasm` に隔離 |
-| 機能 | マルチシグ、パスフレーズ、xpub 出力、Nostr ほか多数 | 単署名の P2WPKH / P2TR に署名するだけ |
-| 成熟度 | 実運用多数 | signet で一巡 |
+| hardware | Raspberry Pi Zero (v1.3 recommended), Waveshare 1.3 inch LCD HAT, Pi camera, microSD | Pico 2 H, 1.54 inch ST7789, OV7675, a breadboard |
+| parts cost (US) | about $35 for the BOM, under $50 built ([their guide](https://seedsigner.com/seedsigner-independent-custody-guide/)); assembled units £65-£90 / €73 | about $33 |
+| parts cost (sourced in Japan) | about ¥9,500: Pi Zero 2 W ¥3,190, LCD HAT ¥3,854, a compatible camera from ¥1,500, microSD. ¥13,700 with the official camera | **¥4,940**, excluding shipping; ¥7,120 with a Debug Probe |
+| availability in Japan | the Pi Zero is usually back-ordered; Waveshare's LCD HAT and a compatible camera are not at Akizuki, so another shop or an import | everything from Akizuki, in one order |
+| OS | Raspberry Pi OS (Linux) | none, bare metal |
+| language | Python (embit) | C and WASM |
+| where the key lives | RAM only, never written to the SD card | RAM only, never written to flash |
+| CPU | BCM2835 (ARM11; RTL not published, and VideoCore boots first) | RP2350 Hazard3 (RISC-V, RTL published) |
+| RAM | 512MB | 520KB, of which 341KB is used |
+| parser isolated | no, same process | yes, in `parser.wasm` |
+| features | multisig, passphrases, xpub export, Nostr and much more | signs single-signature P2WPKH and P2TR, and nothing else |
+| maturity | widely used | one round on signet |
 
-**米国価格ならほぼ同額、日本で揃えるならこちらが約半額。機能は向こうが圧倒的に上。**
-違いは TCB の大きさと、CPU まで含めた検証可能性にある。
-なお SeedSigner が推奨する Pi Zero **v1.3**（無線なし）は日本ではほぼ入手できず、
-無線付きの Zero 2 W で代用することになる。エアギャップ機として無線が載るのは望ましくない。
+**At US prices they cost about the same; sourced in Japan this is roughly half. On features
+SeedSigner is far ahead.** What differs is the size of the TCB and how far verification reaches —
+here, down to the CPU. Note also that the Pi Zero **v1.3** SeedSigner recommends, the one without
+radios, is nearly unobtainable in Japan, leaving the Zero 2 W as the substitute. Radios on an
+air-gapped device are not what anyone wants.
 
-差別化の軸は「OS レス」ではなく、署名ロジックの WASM 分離、PC と実機で同一バイナリの結果一致を検証できる点、CPU コアまでオープンな点に置く。TCB 規模は WASM runtime も MicroPython 同様インタプリタのため、§14 の LOC 一覧で Krux（MaixPy + embit）と並べて比較する。Krux より 1/16 の RAM で同等機能を出せるかも比較点になる。
+What distinguishes this is not "no OS". It is that the signing logic is isolated in WASM, that the
+identical binary can be shown to agree between a PC and the hardware, and that the CPU core is open.
+On TCB size, a WASM runtime is an interpreter much as MicroPython is, so the line-count list in §14
+should sit next to Krux (MaixPy plus embit). Whether comparable features fit in a sixteenth of Krux's
+RAM is another thing worth measuring.
