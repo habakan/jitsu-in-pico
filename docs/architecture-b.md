@@ -1,109 +1,134 @@
-# Architecture B: 解析器を WASM に隔離し、鍵と署名はネイティブに置く
+# Architecture B: isolate the parser in WASM, keep keys and signing native
 
-Version 0.3 | 2026-09-22 | 状態: §8 決定済み、ネイティブ中核と parser.wasm を実装（§10）
+Version 0.3 | 2026-09-22 | Status: §8 decided; the native core and parser.wasm are implemented (§10)
 
-design.md §3・§7・§8 は、署名ロジック全体を `bitcoin-signer.wasm` に入れる案（案 A）で書かれている。
-本書はそれを置き換える案 B を定義する。判断事項が決まったら design.md に反映する。
+design.md §3, §7 and §8 are written for plan A, where the whole of the signing logic goes into
+`bitcoin-signer.wasm`. This document defines plan B, which replaces it. Once the open decisions are
+settled they get folded back into design.md.
 
-## 1. 目的
+## 1. The point
 
-WASM に「信頼できない入力の解析器が乗っ取られても、秘密鍵に届かない」という役割を持たせる。
-案 A では PSBT 解析器と鍵が同じモジュールにあり、解析器のバグを突かれると、ノンスや出力 QR 経由で鍵を漏らされる。
+Give WASM one job: when the parser of untrusted input is taken over, it still cannot reach the key.
+Under plan A the PSBT parser and the key sit in the same module, so a bug in the parser leaks the key
+through a nonce or through the output QR.
 
-## 2. 守るもの・守らないもの
+## 2. What this defends against, and what it does not
 
-| 攻撃 | 案 B での扱い |
+| attack | under plan B |
 |---|---|
-| 細工した PSBT / UR で解析器を乗っ取り、鍵を読む | 防ぐ。鍵は WASM 線形メモリに入らない |
-| 乗っ取った解析器が「画面は A、署名は B」をさせる | 防ぐ。表示と sighash を、ネイティブが同じ構造体から作る（§5） |
-| 乗っ取った解析器が不正な取引を正直に表示させる | 防がない。ユーザーの確認に委ねる |
-| 乗っ取った解析器が出力 PSBT を壊す | 防がない。署名は取引にコミットしているので、壊れた PSBT は無効になるだけ（DoS） |
-| QR デコーダ（quirc）の乗っ取り | 防がない。quirc はネイティブのまま TCB に残る（§7） |
-| SeedQR の解析器の乗っ取り | 解析器を WASM に置かない（§4）ことで対象外にする |
+| a crafted PSBT or UR takes over the parser and reads the key | defended. The key never enters the WASM linear memory |
+| a compromised parser shows A on screen and signs B | defended. What is displayed and what goes into the sighash are built natively from the same struct (§5) |
+| a compromised parser honestly displays a transaction the user should not accept | not defended. That is what the user's confirmation is for |
+| a compromised parser corrupts the output PSBT | not defended. A signature commits to the transaction, so a corrupted PSBT is merely invalid — denial of service |
+| the QR decoder (quirc) is taken over | not defended. quirc stays native and stays in the TCB (§7) |
+| the SeedQR parser is taken over | out of scope, because that parser is not in WASM (§4) |
 
-## 3. 全体像
+## 3. The shape of it
 
 ```
 Camera ─> quirc (native) ─> QR payload bytes
                                  │
                                  ▼
-             ┌──────── parser.wasm（鍵なし）────────┐
-             │ UR / BBQr 復元 → CBOR → PSBT 解析     │
-             │ → Transaction Plan（固定長レコード）  │
+             ┌──────── parser.wasm (no keys) ───────┐
+             │ UR / BBQr reassembly, CBOR, PSBT     │
+             │ parsing, then a fixed-length Plan    │
              └───────────────┬──────────────────────┘
-                             │ ホストが plan と non_witness_utxo を検証付きでコピー
+                             │ the host copies the plan and non_witness_utxo, with checks
                              ▼
              ┌──────── signing core (native) ───────┐
-             │ Plan 検証 → 鍵導出と所有確認          │
-             │ → 表示モデル生成 → sighash → 署名     │
+             │ check the Plan, derive keys, confirm  │
+             │ ownership, build the display, sighash,│
+             │ sign                                  │
              └───────────────┬──────────────────────┘
-                             │ ホストが署名一覧（plan_sig_t）を書き込む
+                             │ the host writes back the signatures (plan_sig_t)
                              ▼
-             parser.wasm: 元 PSBT に partial_sig を挿入して直列化
+             parser.wasm: insert partial_sig into the original PSBT and serialize
                              │
                              ▼
                      qrcodegen (native) ─> LCD
 ```
 
-parser.wasm は import を 1 個も持たない。受け渡しはすべて、parser.wasm がエクスポートするバッファをホストが読み書きして行う。
-ホストは parser.wasm が返したアドレスと長さを `wasm_runtime_validate_app_addr` で線形メモリ内か確かめてからコピーする。
+parser.wasm has no imports at all. Everything crosses through buffers it exports, which the host reads
+and writes. The host checks every address and length it returns against the bounds of the linear memory
+with `wasm_runtime_validate_app_addr` before copying anything.
 
-## 4. 責務の分担
+## 4. Who does what
 
-| 処理 | 置き場所 | 理由 |
+| what | where | why |
 |---|---|---|
-| QR 画像デコード（quirc） | native | WASM では 10 秒/フレーム以上（qr-feasibility.md） |
-| UR / BBQr の復元、CBOR、PSBT 解析 | parser.wasm | 最も複雑な untrusted 入力解析。暗号処理を含まず軽い |
-| xpub / descriptor の解析（multisig） | parser.wasm | untrusted 入力。結果は Plan と同様に固定長レコードで渡す |
-| SeedQR / 単語入力の解析 | native | 入力そのものが秘密。WASM に入れると隔離の意味が消える |
-| Plan の検証、鍵導出、所有確認、sighash、署名 | native | 鍵を扱う |
-| アドレス文字列の生成（bech32 / base58） | native | 解析器が文字列を偽れないように、Plan には scriptPubKey のバイト列だけを載せる |
-| 確認画面の文言と数値 | native | 表示と sighash を同じ構造体から作るため |
-| 署名済み PSBT の直列化 | parser.wasm | 署名は取引にコミットしているので、ここが乗っ取られても偽造はできない |
+| decoding the QR image (quirc) | native | over ten seconds per frame in WASM (qr-feasibility.md) |
+| UR / BBQr reassembly, CBOR, PSBT parsing | parser.wasm | the most complex parsing of untrusted input, and light because no crypto is involved |
+| parsing xpubs and descriptors (multisig) | parser.wasm | untrusted input; the result crosses as a fixed-length record, like the Plan |
+| parsing a SeedQR or typed words | native | the input is the secret itself, so putting it in WASM would defeat the isolation |
+| checking the Plan, deriving keys, confirming ownership, sighash, signing | native | it touches keys |
+| building address strings (bech32 / base58) | native | the Plan carries only the scriptPubKey's bytes, so the parser cannot fake a string |
+| the wording and numbers on the review screens | native | so that what is shown and what is signed come from the same struct |
+| serializing the signed PSBT | parser.wasm | a signature commits to the transaction, so a compromise here cannot forge anything |
 
-## 5. 中核の不変条件
+## 5. The core invariant
 
-**表示する値と sighash に入れる値は、ネイティブが同じ `plan_t` から作る。**
-parser.wasm が元 PSBT と違う Plan を出しても、ユーザーが見るのはその Plan で、署名されるのもその Plan になる。
-ネイティブは「Plan が元 PSBT に忠実か」を確かめる必要がない。確かめるのは次の 2 点だけ。
+**What is displayed and what goes into the sighash are built natively, from the same `plan_t`.**
+If parser.wasm emits a Plan that differs from the original PSBT, then that Plan is what the user sees
+and that Plan is what gets signed. The native side does not need to establish that the Plan is faithful
+to the PSBT. It only establishes two things:
 
-1. Plan が内部で整合しているか（§6）
-2. Plan のうち、ユーザーに見せない値（入力額など）が嘘だった場合に被害が出ないか（§6 の 4〜5）
+1. that the Plan is internally consistent (§6)
+2. that nothing bad happens if a value the user is not shown, such as an input amount, is a lie
+   (§6, items 4 and 5)
 
-## 6. ネイティブ側の検証
+## 6. What the native side checks
 
-1. **形式:** レコード数と長さが上限内、未使用フィールドがゼロ、予約値が無いこと。可変長の解析はしない
-2. **署名対象の入力:** Plan が示すパスで鍵を導出し、公開鍵と `witness_utxo.scriptPubKey` が一致すること（P2WPKH は `0014 || HASH160(pub)`、P2TR は BIP86 tweak 後の x-only key）。一致しない入力には署名しない
-3. **お釣り判定:** 出力の `key`（お釣り候補）は参考情報として扱う。ネイティブが同じアカウントの change チェーン（`.../1/i`、`i` は上限付き）でスクリプトを再導出し、一致したものだけをお釣りとして表示する
-4. **手数料:** 入力額の合計 − 出力額の合計をネイティブで計算する。オーバーフローと負値は拒否する
-5. **入力額の嘘への対策:**
-   - Taproot（BIP341）は sighash が全入力の額と scriptPubKey にコミットするので、嘘の額で作った署名は無効になる
-   - SegWit v0（BIP143）は署名する入力の額にしかコミットしない。そのため 2020 年の手数料攻撃（入力ごとに別の額で 2 回署名させる）が成り立つ。対策は §8-1 で決める
-6. **sighash type:** `SIGHASH_ALL` と Taproot の `SIGHASH_DEFAULT` だけを受け付ける（それ以外は将来の設定で許可）
-7. **ネットワーク:** mainnet / testnet は Plan ではなく、ネイティブの設定で決める
+1. **Form:** record counts and lengths within their limits, unused fields zero, no reserved values.
+   Nothing variable-length is parsed
+2. **Inputs to be signed:** derive the key at the path the Plan gives and confirm the public key
+   produces `witness_utxo.scriptPubKey` — `0014 || HASH160(pub)` for P2WPKH, the x-only key after the
+   BIP86 tweak for P2TR. An input that does not match is not signed
+3. **Deciding what is change:** an output's `key` is treated as a hint only. The native side re-derives
+   the script on the same account's change chain (`.../1/i`, with a limit on `i`) and only calls it
+   change when it matches
+4. **The fee:** total input minus total output, computed natively. Overflow and negative values are
+   refused
+5. **Guarding against a lie about an input's amount:**
+   - Taproot (BIP341) commits the sighash to every input's amount and scriptPubKey, so a signature made
+     with a false amount is simply invalid
+   - SegWit v0 (BIP143) commits only to the amount of the input being signed. That is what makes the
+     2020 fee attack work: get the same input signed twice with different amounts. The countermeasure
+     is decided in §8-1
+6. **sighash type:** only `SIGHASH_ALL` and Taproot's `SIGHASH_DEFAULT` are accepted; anything else
+   would need a future setting
+7. **Network:** mainnet or testnet is decided by the native configuration, not by the Plan
 
-## 7. 残るリスク
+## 7. What risk remains
 
-- **quirc は TCB 内の untrusted 入力解析器のまま残る。** ヘッダ込み約 3,000 行。ファジングで補う。WASM に入れると遅すぎる
-- **Plan の復号器もネイティブで untrusted 入力を読む。** 固定長レコードに限定し、100 行程度に収める
-- **parser.wasm の停止しない入力（無限ループ）。** WAMR の命令数制限の有無を確認する。無ければ UI 側のタイムアウトで中断する
-- **WAMR 自体の脆弱性。** 線形メモリの境界チェックが破られると、隔離の前提が崩れる。インタプリタと AOT のどちらを使うかで、TCB が変わる（§8-3）
+- **quirc remains a parser of untrusted input inside the TCB.** About 3,000 lines including headers.
+  Fuzzing makes up for it; in WASM it is far too slow
+- **The code that reads the Plan also reads untrusted input natively.** Restricted to fixed-length
+  records and kept to around a hundred lines
+- **An input that makes parser.wasm not terminate.** Whether WAMR has an instruction limit needs
+  checking; without one, a UI timeout has to interrupt it
+- **A vulnerability in WAMR itself.** If the linear memory's bounds checks can be broken, the isolation
+  no longer holds. Which of the interpreter and AOT is used changes the TCB (§8-3)
 
-## 8. 決定事項（2026-09-22）
+## 8. Decided (2026-09-22)
 
-1. **SegWit v0 入力の `non_witness_utxo`:** SegWit v0 の署名対象を含み、入力が 2 個以上なら全入力で必須。1 入力なら不要（嘘の額で作った署名は無効になるだけ）。ネイティブの最小 tx パーサ（`components/parser/src/tx.c`、wasm-psbt-parser と共有）で txid・vout・額・スクリプトを確かめる
-2. **初期対象:** P2WPKH（BIP84）と P2TR（BIP86、スクリプトツリー無し）
-3. **parser.wasm のランタイム:** インタプリタ。実装後に RV32 で測り、PSBT 解析 270 万命令、署名挿入 4 万命令（§10）で十分と確認した
-4. **multisig:** 初期版には入れない
+1. **`non_witness_utxo` for SegWit v0 inputs:** required for every input when a SegWit v0 input is to
+   be signed and there are two or more inputs. With a single input it is unnecessary, since a signature
+   made with a false amount is merely invalid. The minimal native tx parser
+   (`components/parser/src/tx.c`, shared with wasm-psbt-parser) checks the txid, vout, amount and script
+2. **First targets:** P2WPKH (BIP84) and P2TR (BIP86, no script tree)
+3. **parser.wasm's runtime:** the interpreter. Measured on RV32 after implementation: 2.7M instructions
+   to parse a PSBT and 40k to insert the signatures (§10), which is plenty
+4. **multisig:** not in the first version
 
-## 9. Plan の形式（案）
+## 9. The Plan's layout (proposed)
 
-C 構造体をそのまま共有し、`_Static_assert` でサイズとオフセットを固定する（wasm32 と rv32 はどちらも ILP32 のリトルエンディアンで、配置が一致する）。ネイティブは 1 回コピーしてから検証する。
+The C struct is shared as is, with its size and offsets nailed down by `_Static_assert`. wasm32 and
+rv32 are both little-endian ILP32, so the layout agrees. The native side copies it once, then checks it.
 
 ```c
 #define PLAN_MAX_INPUTS  16
 #define PLAN_MAX_OUTPUTS 16
-#define PLAN_MAX_SPK     83   /* OP_RETURN の標準上限。P2TR / P2WSH は 34 */
+#define PLAN_MAX_SPK     83   /* the standard OP_RETURN limit; P2TR and P2WSH need 34 */
 #define PLAN_MAX_DEPTH   8
 
 typedef struct {
@@ -123,14 +148,14 @@ typedef struct {
     uint32_t sequence;
     uint64_t amount;            /* witness_utxo */
     plan_script_t spk;          /* witness_utxo */
-    plan_keypath_t key;         /* 署名しない入力は depth = 0 */
+    plan_keypath_t key;         /* depth = 0 for an input we will not sign */
     uint8_t  sighash_type;
 } plan_input_t;
 
 typedef struct {
     uint64_t amount;
     plan_script_t spk;
-    plan_keypath_t key;         /* お釣り候補。ネイティブが再導出で確かめる */
+    plan_keypath_t key;         /* a change candidate; the native side re-derives to confirm */
 } plan_output_t;
 
 typedef struct {
@@ -143,300 +168,379 @@ typedef struct {
 } plan_t;
 ```
 
-- 確定版は `components/parser/include/plan.h`（wasm-psbt-parser 側。`_Static_assert` でサイズとオフセットを固定）
-- 上限 16 入力 / 16 出力で 5,016 byte（入力 176、出力 136 byte）。RAM への影響は小さい
-- 入出力数の上限は仮置き。SeedSigner / Krux の上限と実際の PSBT を見て決める
-- §8-1 で (a) か (b) を選んだ場合、`non_witness_utxo` は Plan とは別のバッファで渡す（上限は PSBT 全体の上限と揃える）
+- The settled version is `components/parser/include/plan.h`, on the wasm-psbt-parser side, with
+  `_Static_assert` fixing the size and the offsets
+- At 16 inputs and 16 outputs it is 5,016 bytes: 176 per input, 136 per output. Barely a dent in RAM
+- Those limits are provisional, to be settled against SeedSigner's and Krux's limits and against real
+  PSBTs
+- `non_witness_utxo` crosses in a buffer of its own rather than in the Plan, with the same limit as the
+  whole PSBT
 
-## 10. 実装状況
+## 10. Implementation status
 
-`components/signer/` にネイティブ中核を実装した（`make check-core`、`make check-qemu-core`）。
+The native core is implemented in `components/signer/` (`make check-core`, `make check-qemu-core`).
 
-| ファイル | 内容 |
+| file | what it holds |
 |---|---|
-| `components/signer/core.c` | §6 の検証（`core_review`）、確認画面モデル（`core_display`）、署名（`core_sign`）。review した plan の SHA-256 を記録し、display / sign 時に一致しなければ拒否する |
-| `components/signer/address.c` | scriptPubKey からのアドレス生成。P2PKH / P2SH は base58check、witness v0 は bech32、v1〜v16 は bech32m。標準形でなければ生成しない |
-| `components/signer/sighash.c` | BIP143（P2WPKH、SIGHASH_ALL）と BIP341 key path（7 種類の hash type） |
-| `components/parser/src/tx.c` | 最小 tx パーサ（wasm-psbt-parser と共有）。非最短 varint と末尾の余りを拒否。txid は witness を除いて計算 |
-| `components/signer/bip32.c` | BIP32 導出（案 A の `signer.c` と共有） |
-| `components/parser/src/sha256.c`、`components/signer/ripemd160.c` `sha512.c` | ハッシュ。秘密値の消去は `components/signer/wipe.h`（volatile 経由）で最適化に消されないようにした |
+| `components/signer/core.c` | the checks from §6 (`core_review`), the display model (`core_display`) and signing (`core_sign`). It records the SHA-256 of the reviewed plan and refuses to display or sign anything that does not match |
+| `components/signer/address.c` | addresses from a scriptPubKey: base58check for P2PKH and P2SH, bech32 for witness v0, bech32m for v1-v16. Nothing is produced for a non-standard script |
+| `components/signer/sighash.c` | BIP143 (P2WPKH, SIGHASH_ALL) and BIP341 key path, all seven hash types |
+| `components/parser/src/tx.c` | the minimal tx parser, shared with wasm-psbt-parser. Refuses non-minimal varints and trailing bytes; the txid is computed without the witness |
+| `components/signer/bip32.c` | BIP32 derivation, shared with plan A's `signer.c` |
+| `components/parser/src/sha256.c`, `components/signer/ripemd160.c`, `sha512.c` | the hashes. Secrets are cleared through `components/signer/wipe.h`, via a volatile pointer, so the optimiser cannot remove it |
 
-`core_review` が採る方針（§6 の具体化）:
+What `core_review` actually does, making §6 concrete:
 
-- 自分の fingerprint を名乗らない入力は署名しない（額は手数料計算にだけ使う）。名乗るのに鍵とスクリプトが一致しなければ plan 全体を拒否する
-- sighash type は P2WPKH が `ALL` のみ、P2TR が `DEFAULT` と `ALL` のみ
-- 自分の出力と認めるのは `m/84'|86' / coin' / account' / {0|1} / i`（coin はネットワーク設定、`i < 100000`）で、署名する入力と同じアカウントかつスクリプトが一致するもの。chain 1 はお釣り、chain 0 は自分宛て（SeedSigner の self-transfer 確認に相当）。それ以外は外部出力として扱う
-- 確認画面の文字列はすべて plan のバイト列からネイティブが作る。アドレスにできないスクリプトは、OP_RETURN ならデータ部、それ以外はスクリプト全体を 16 進で見せる。支出額（`spend`）は外部出力の合計
+- An input that does not claim our fingerprint is not signed; its amount is used only for the fee. One
+  that does claim it, but whose key does not produce its script, rejects the whole plan
+- sighash types: `ALL` only for P2WPKH, `DEFAULT` and `ALL` only for P2TR
+- An output counts as ours at `m/84'|86' / coin' / account' / {0|1} / i` — coin from the network
+  setting, `i < 100000` — on the same account as the inputs being signed, and only when the script
+  matches. Chain 1 is change, chain 0 is a self-transfer, which is what SeedSigner confirms as such.
+  Anything else is external
+- Every string on the review screens is built natively from the plan's bytes. A script that has no
+  address is shown as the data for an OP_RETURN, or as the whole script in hex otherwise. The amount
+  spent (`spend`) is the total of the external outputs
 
-テスト（71 項目、Mac と RV32 の両方で通過）:
+Tests: 71 checks, passing on both the Mac and RV32:
 
-- BIP143 の P2WPKH 例: sighash と RFC6979 署名（DER）が文書と一致
-- BIP341 wallet test vectors の key path 7 件: sighash と Schnorr 署名が一致（全 hash type）
-- BIP84 / BIP86: `abandon ... about` から導出した鍵で review と署名が通り、署名が検証できる。期待スクリプトは embit で独立に計算し、BIP86 文書の値とも照合（`tools/gen_core_vectors.py`）
-- アドレス: BIP350 の有効ベクタ 8 件、無効なプログラム長（1 / 41 byte、v0 の 16 / 21 byte）を生成しないこと、base58check（期待値は embit）、BIP84 / BIP86 の既知アドレス
-- 攻撃シナリオ: review 後の plan 差し替え（display と sign の両方）、偽のお釣り、自分宛て、index 上限、別アカウントのお釣り、鍵とスクリプトの不一致、許可しない sighash type、未使用領域の非ゼロ、出力超過、手数料攻撃（元の取引なし・嘘の額・誤った vout・誤った txid）
-- 実装を 5 箇所わざと壊し（BIP143 の hash type、BIP341 の spend_type、手数料攻撃の判定、bech32m の定数、base58 の先頭ゼロ）、それぞれテストが失敗することを確認した
+- BIP143's P2WPKH example: the sighash and the RFC6979 signature (DER) match the document
+- The seven key-path cases from BIP341's wallet test vectors: sighash and Schnorr signature match, for
+  every hash type
+- BIP84 and BIP86: with the key derived from `abandon ... about`, review and signing pass and the
+  signature verifies. The expected scripts are computed independently with embit and cross-checked
+  against the values in BIP86 (`tools/gen_core_vectors.py`)
+- Addresses: BIP350's eight valid vectors; that invalid program lengths (1 and 41 bytes, and 16 and 21
+  at v0) produce nothing; base58check, with embit for the expected values; the known addresses from
+  BIP84 and BIP86
+- Attack scenarios: swapping the plan after review, for both display and sign; fake change; a
+  self-transfer; the index limit; change on another account; a key that does not match its script; a
+  sighash type we do not allow; a non-zero unused field; outputs exceeding inputs; and the fee attack
+  with no previous transaction, with a false amount, with the wrong vout and with the wrong txid
+- Five deliberate breakages — BIP143's hash type, BIP341's spend_type, the fee-attack check, bech32m's
+  constant, base58's leading zeros — were each confirmed to make a test fail
 
-### parser.wasm（`components/parser/src/psbt.c`、submodule の [wasm-psbt-parser](https://github.com/habakan/wasm-psbt-parser)）
+### parser.wasm (`components/parser/src/psbt.c`, the [wasm-psbt-parser](https://github.com/habakan/wasm-psbt-parser) submodule)
 
-- PSBT v0（BIP174）を `plan_t` にし、ネイティブが作った署名を各入力マップの終端の直前に挿入する。他のバイト列は元のまま残す
-- `.wasm` は 7KB、import 0 個。入出力バッファ（`PSBT_MAX` 32KB）を持つので線形メモリは 2 ページ
-- 解釈するフィールドは厳密に検査する: 重複キー、型ごとのキー / 値の長さ、v2 専用フィールド、unsigned tx の scriptSig / witness、`non_witness_utxo` の txid と `witness_utxo` との一致、末尾の余り
-- 解釈しないフィールド（MuSig2 など）は素通しする。公開鍵が曲線上にあるかは見ない（ネイティブは PSBT の公開鍵を使わず、自分で導出する）
-- 自分の鍵の候補は、ホストから受け取った master fingerprint（秘密ではない）に一致する導出情報だけ。最終化済み・署名済みの入力と、スクリプトツリー付きの P2TR には署名しない
-- ECDSA は Bitcoin Core と同じ low-R grinding を入れた（`components/signer/core.c`）。embit の署名とバイト一致させるため
+- Turns a PSBT v0 (BIP174) into a `plan_t`, and inserts the natively produced signatures just before
+  the end of each input map, leaving every other byte as it was
+- At this stage the `.wasm` was 7KB with no imports. It holds the input and output buffers
+  (`PSBT_MAX` 32KB), so the linear memory is two pages
+- Fields it interprets are checked strictly: duplicate keys, key and value lengths per type,
+  v2-only fields, scriptSig and witness in the unsigned tx, the `non_witness_utxo`'s txid against
+  `witness_utxo`, and trailing bytes
+- Fields it does not interpret, MuSig2's among them, pass through untouched. It does not check whether
+  a public key is on the curve, because the native side never uses the PSBT's public keys — it derives
+  its own
+- The only candidates for our keys are derivations matching the master fingerprint the host supplied,
+  which is not a secret. Inputs already finalized or signed, and P2TR with a script tree, are not signed
+- ECDSA uses the same low-R grinding as Bitcoin Core (`components/signer/core.c`), so the signatures
+  match embit's byte for byte
 
-検証（`make check-psbt`、`make check-qemu-psbt`）:
+Verification (`make check-psbt`, `make check-qemu-psbt`):
 
-- embit で組んだ自分の seed 向け PSBT 6 件（P2WPKH 1 / 2 入力、P2TR 2 入力、混在、他人の入力入り、`non_witness_utxo` 無しの 2 入力）を一巡させ、署名済み PSBT を embit で独立に検証した（`tools/check_signed_psbt.py`）。ECDSA は embit 自身の署名とバイト一致、Schnorr は embit の BIP341 sighash で検証が通る。`non_witness_utxo` 無しの 2 入力は `CORE_ERR_PREVTX_MISSING` で拒否される
-- Bitcoin Core の `test/functional/data/rpc_psbt.json`（invalid 84 件、valid 48 件。base64 が壊れた 2 件は対象外）で trap は 0 件。invalid は MuSig2 フィールドの 15 件を除き全て拒否。valid は 31 件受理、PSBT v2 の 14 件と utxo 無し 2 件と入力 0 個 1 件を拒否（wasm-psbt-parser の `make test`。本体では `make check-parser`）
-- RV32（QEMU）で混在 PSBT を一巡: parse 2.72M、review 17.1M、sign 14.5M、finalize 0.04M 命令。署名済み PSBT は Mac と RV32 でバイト一致
+- Six PSBTs built with embit for our own seed — P2WPKH with one and two inputs, P2TR with two, a mix,
+  one including someone else's input, and two inputs with no `non_witness_utxo` — go through a full
+  round, and the signed PSBT is verified independently with embit (`tools/check_signed_psbt.py`). The
+  ECDSA signatures match embit's own byte for byte, and the Schnorr ones verify against embit's BIP341
+  sighash. The two-input case with no `non_witness_utxo` is refused with `CORE_ERR_PREVTX_MISSING`
+- Against Bitcoin Core's `test/functional/data/rpc_psbt.json` — 84 invalid and 48 valid, two of which
+  have corrupt base64 and are excluded — there are no traps. Every invalid one is refused except the 15
+  with MuSig2 fields. Of the valid ones 31 are accepted; the 14 PSBT v2 cases, two with no utxo and one
+  with no inputs are refused (`make test` in wasm-psbt-parser, `make check-parser` here)
+- A full round on a mixed PSBT under RV32 (QEMU): parse 2.72M, review 17.1M, sign 14.5M, finalize 0.04M
+  instructions. The signed PSBT is byte-identical between the Mac and RV32
 
-### UR（アニメーション QR）の復元
+### Reassembling a UR, the animated QR
 
-parser.wasm（wasm-psbt-parser）に UR（BCR-2020-005）の復元を入れた。ファウンテン符号の復元も untrusted な入力の処理なので、サンドボックス内に置く。
+UR (BCR-2020-005) reassembly went into parser.wasm (wasm-psbt-parser). Reassembling a fountain code is
+also processing of untrusted input, so it belongs inside the sandbox.
 
-- `parser_ur_reset` / `parser_ur_receive(len)` / `parser_ur_progress`。完成すると PSBT が入力バッファに置かれ、そのまま `parser_parse` できる。受け付ける型は `crypto-psbt` と `psbt`
-- どの断片を混ぜたかを決める Xoshiro256**・alias sampler・シャッフルは、bc-ur（Blockchain Commons）のテストの期待値と全て一致（ネイティブ、ASan / UBSan 付きで 1,148 項目）。1 パート落として逆順に流すと、参照デコーダ（@ngraveio/bc-ur 1.1.13）と同じ 16 パートで完成する
-- 参照エンコーダで作った自分用 PSBT の UR（`crypto-psbt` / `psbt`、断片 60 / 150 / 5000 byte）を、純粋なパートを 3 つに 1 つ落として流し、元の PSBT に戻ることを確かめた
-- RV32（QEMU）: 混在 PSBT を 60 byte 断片の 19 パートで流すと合計 2,216 万命令、1 パート最大 423 万命令（150MHz で 30〜40ms）。組み立てた PSBT での署名結果はバイナリ PSBT のときとバイト一致
-- `.wasm` は 14KB、import は 0 個のまま。線形メモリの使用量（`__heap_base`）は 88KB から 158KB に増えたが、抽選とシャッフルの作業配列を削って 132KB にした（計算順序は変えていないので参照との一致はそのまま）。QEMU での WAMR プール最大は 147KB、実機アプリのプールは 160KB
+- `parser_ur_reset`, `parser_ur_receive(len)`, `parser_ur_progress`. On completion the PSBT sits in the
+  input buffer, ready for `parser_parse`. The accepted types are `crypto-psbt` and `psbt`
+- The Xoshiro256**, the alias sampler and the shuffle that decide which fragments were mixed all match
+  the expected values in Blockchain Commons' bc-ur tests: 1,148 checks, run natively under ASan and
+  UBSan. Dropping one part and feeding the rest in reverse completes at the same 16 parts as the
+  reference decoder, @ngraveio/bc-ur 1.1.13
+- URs of our own PSBTs made with the reference encoder (`crypto-psbt` and `psbt`, fragments of 60, 150
+  and 5000 bytes), fed in with one pure part in three dropped, come back as the original PSBT
+- RV32 (QEMU): a mixed PSBT across 19 parts of 60-byte fragments costs 22.16M instructions in total and
+  at most 4.23M for one part, which is 30 to 40ms at 150MHz. Signing the reassembled PSBT gives bytes
+  identical to signing the binary one
+- The `.wasm` reached 14KB, still with no imports. The linear memory in use (`__heap_base`) grew from
+  88KB to 158KB, then came back to 132KB by removing the working arrays for the sampling and the
+  shuffle. The order of computation did not change, so agreement with the reference still holds. WAMR's
+  pool peaks at 147KB under QEMU, and the device application gives it 160KB
 
-### 署名済み PSBT のアニメーション QR 出力
+### Handing the signed PSBT back as an animated QR
 
-- URへの符号化も parser.wasm に置く（`parser_ur_encode_start` / `parser_ur_encode_next`）。ウォレット（untrusted）へ返す出力の整形なので、署名の安全性には関わらず、TCB の外に出せる。符号化の結果は参照エンコーダ（@ngraveio/bc-ur）とパートごとに一致し、bc-ur の例とも文字単位で一致する（wasm-psbt-parser のテスト）
-- 1 パート 120 byte（約 300 文字、QR は v8 前後）にし、240 px の LCD に 1 モジュール 4 px で出す（`ui_qr_render_line`、周囲に 4 モジュールの余白）。純粋なパートの後に混ぜたパートを出し続けるので、ウォレットが取りこぼしても復元できる
-- 検証: 署名済み PSBT の UR を読み戻すとバイト一致し、LCD の QR 画面を画像にして zxing-cpp で読むとパートの文字列と一致する（`make check-psbt`）
-- 実機（2026-10-01）: LCD のアニメーション QR をスマホの QR リーダーで読めることを確認した。
-  1 パート 100 byte で QR v8（49 モジュール）に収まり、240px の LCD で 1 モジュール 4px になる。
-  120 byte では v9 になり倍率が 3px に落ちて読めなかったので、**版が上がらない大きさに保つのが条件**。
-  表示は純粋なパートだけを 500ms 間隔で周回させる（混ぜたパートを使わない受信側でも完成でき、取りこぼしても次の周回で拾える）。
-  出力は `@ngraveio/bc-ur` 1.1.13（BlueWallet などが使う参照実装）のデコーダで、10 枚で完成し PSBT とバイト一致。
-  3 枚落としても混ぜたパートで復元できることも確認した
-- RV32（QEMU）: 1 フレームあたり UR 符号化 約 150 万命令 + QR 生成 最大 約 800 万命令。150MHz で 60〜95ms なので 250ms 間隔のアニメーションに間に合う
-- 実機アプリ: FLASH 164KB、RAM 297KB（WAMR プール 160KB、QEMU での最大 149KB）。実測は 11 節
+- Encoding to a UR also lives in parser.wasm (`parser_ur_encode_start`, `parser_ur_encode_next`). It is
+  formatting output for an untrusted wallet, so it has no bearing on the safety of the signature and can
+  sit outside the TCB. Part for part it matches the reference encoder, @ngraveio/bc-ur, and it matches
+  bc-ur's examples character for character (tested in wasm-psbt-parser)
+- One part is 120 bytes, about 300 characters, which lands around QR v8, shown on the 240 px LCD at
+  4 px per module (`ui_qr_render_line`, with a four-module quiet zone). Mixed parts keep coming after
+  the pure ones, so a wallet that misses one can still reassemble
+- Verification: reading the signed PSBT's UR back gives identical bytes, and rendering the LCD's QR
+  screen to an image and reading it with zxing-cpp gives the part's string (`make check-psbt`)
+- On the hardware (2026-10-01): a phone's QR reader reads the animated QR off the LCD. At 100 bytes per
+  part it fits QR v8, 49 modules, which is 4 px per module on a 240 px LCD. At 120 bytes it became v9,
+  the scale dropped to 3 px, and it would not read — so **the constraint is keeping the part small
+  enough that the version does not go up**. The display cycles only the pure parts at 500ms, which lets
+  a receiver that ignores mixed parts still complete, and brings a missed part round again. The output
+  decodes with `@ngraveio/bc-ur` 1.1.13, the reference implementation BlueWallet and others use:
+  complete in 10 frames, byte-identical to the PSBT. Dropping three frames still reassembles, from the
+  mixed parts
+- RV32 (QEMU): per frame, about 1.5M instructions to encode the UR and at most about 8M to build the QR.
+  At 150MHz that is 60 to 95ms, inside a 250ms animation interval
+- The device application: 164KB of flash, 297KB of RAM, with 160KB of that the WAMR pool, which peaks at
+  149KB under QEMU. Measurements are in §11
 
-## 11. 実機計測（Pico 2 H、150MHz、2026-09-25）
+## 11. Measured on the hardware (Pico 2 H, 150MHz, 2026-09-25)
 
-`apps/device/rp2350/psbt_bench.c`。表示とボタンを使わず、組み込んだテスト用 PSBT（2 入力 3 出力、
-P2WPKH と P2TR の混在）を一巡させる。core はどちらもネイティブで、parser.wasm の実行方式だけが違う。
+`apps/device/rp2350/psbt_bench.c`, with no screen and no buttons, runs a built-in test PSBT — two
+inputs, three outputs, P2WPKH and P2TR mixed — through a full round. The core is native in both
+columns; only how parser.wasm executes differs.
 
-| 段階 | 実行場所 | classic interp | AOT（RAM 展開） |
+| step | where | classic interp | AOT, expanded into RAM |
 |---|---|---|---|
-| ランタイム初期化 | - | 22.6 ms | 10.2 ms |
-| シード（PBKDF2 + master） | ネイティブ | 469 ms | 470 ms |
-| PSBT 解析 | **wasm** | 26.0 ms | **1.3 ms** |
-| 検査・表示の組み立て | ネイティブ | 155 ms | 142 ms |
-| 署名（2 入力） | ネイティブ | 133 ms | 123 ms |
-| finalize（署名の差し込み） | **wasm** | 0.93 ms | **0.16 ms** |
-| UR 符号化 + QR 生成（8 パート） | wasm + ネイティブ | 797 ms（最悪 95 ms/パート） | 689 ms（最悪 86 ms/パート） |
-| WAMR プール最大 | - | 152,792 B | 196,808 B |
-| FLASH / RAM | - | 158KB / 370KB | 179KB / 357KB |
+| runtime init | - | 22.6 ms | 10.2 ms |
+| seed (PBKDF2 and master) | native | 469 ms | 470 ms |
+| parsing the PSBT | **wasm** | 26.0 ms | **1.3 ms** |
+| checking and building the display | native | 155 ms | 142 ms |
+| signing, two inputs | native | 133 ms | 123 ms |
+| finalize, inserting the signatures | **wasm** | 0.93 ms | **0.16 ms** |
+| UR encoding and QR building, 8 parts | wasm + native | 797 ms, worst 95 ms per part | 689 ms, worst 86 ms per part |
+| WAMR pool peak | - | 152,792 B | 196,808 B |
+| flash / RAM | - | 158KB / 370KB | 179KB / 357KB |
 
-- 署名済み PSBT はどちらもホスト（`build/psbt/own_mixed_nwu.signed`）と一致。プール最大値は interp で QEMU と完全一致
-- **wasm の部分だけ見れば AOT は 20 倍速い**（解析 26.0 → 1.3 ms、finalize 0.93 → 0.16 ms）
-- **しかし一巡全体では 806 ms → 746 ms で 8% しか変わらない。** 案 B では解析器が軽く、時間はネイティブの検査・署名とシード計算が占めるため
-- したがって **案 B なら parser.wasm はインタプリタで十分**。AOT は RAM +44KB・Flash +21KB と、wamrc + LLVM を TCB に加える代償に見合わない
-- ネイティブ側（検査 142〜155 ms、署名 123〜133 ms）は QEMU 命令数からの見込み（148 ms / 125 ms）どおり。interp 版の方が 9% 遅いのは、リンク結果が変わって XIP キャッシュの当たり方が変わるため
-- QR は 1 パート 86〜95 ms なので、250 ms 間隔のアニメーションに間に合う（見込みどおり）
+- Both produce a signed PSBT matching the host's (`build/psbt/own_mixed_nwu.signed`). With the
+  interpreter the pool peak matches QEMU exactly
+- **Looking only at the wasm, AOT is twenty times faster**: parsing 26.0 to 1.3 ms, finalize 0.93 to
+  0.16 ms
+- **But across the whole round it is 806 ms against 746 ms, a difference of 8%.** Under plan B the
+  parser is light, and the time goes on the native checking and signing and on the seed
+- So **with plan B the interpreter is enough for parser.wasm**. AOT costs 44KB of RAM and 21KB of flash
+  and puts wamrc and LLVM in the TCB, which that 8% does not justify
+- The native side — 142 to 155 ms checking, 123 to 133 ms signing — came out as the QEMU instruction
+  counts predicted, 148 ms and 125 ms. The interpreter build is 9% slower because linking differently
+  changes how the XIP cache happens to hit
+- A QR part takes 86 to 95 ms, inside a 250 ms animation interval, as expected
 
-## 12. 実機の一巡（2026-10-02）
+## 12. A full round on the hardware (2026-10-02)
 
-カメラから読み取って署名し、アニメーション QR で返すところまで実機で動いた。
+Reading from the camera, signing, and handing it back as an animated QR all work on the hardware.
 
 ```
 camera: ready
 seed 469365 us, fingerprint 73c5da0a
-scan: 7 parts, psbt 744 bytes      ← 8 パート中 7 枚で復元（取りこぼしを混ぜたパートが埋めた）
+scan: 7 parts, psbt 744 bytes      <- reassembled from 7 of 8 parts; a mixed part filled the gap
 parse 24078 us, pool highmark 152792
 review 131043 us
-sign → 署名済み PSBT → UR 10 パートを出力
+sign -> signed PSBT -> 10 UR parts out
 ```
 
-- 読み取り中はカメラ映像を液晶に出し、1 行目に「何枚中何枚」と検出状況（`no QR in view` /
-  `QR found, cannot read`）を出す。狙いを定められないと実用にならない
-- `tools/show_ur.py` が UR のパートをアニメーション GIF にするので、PC の画面に出して読ませられる。
-  未署名 PSBT の UR は `psbt_host bin2ur` で作る
-- メニューは `Scan PSBT` / `Sign test PSBT`（TEST_SEED ビルドのみ）/ `Lock`
+- While reading, the camera image goes to the panel with how many of how many parts, and what is being
+  detected (`no QR in view` / `QR found, cannot read`), on the first line. Without being able to aim it
+  is not usable
+- `tools/show_ur.py` turns the UR's parts into an animated GIF, so a PC screen can present it to the
+  camera. The UR for an unsigned PSBT comes from `psbt_host bin2ur`
+- The menu is `Scan PSBT`, `Sign test PSBT` (only in a TEST_SEED build) and `Lock`
 
-## 13. SeedQR（2026-10-02）
+## 13. SeedQR (2026-10-02)
 
-鍵の入力もカメラから行えるようにした。実機で読み取り、fingerprint がテストシードと一致することを確認した。
+The key can be entered through the camera too. Read on the hardware, the fingerprint matched the test
+seed's.
 
-- **秘密そのものを運ぶので、解析器（WASM）には渡さずネイティブ（TCB 内）で処理する。** ここが PSBT と違う
-- **BIP39 のチェックサムを必ず検算する。** 1 文字でも読み違えれば弾かれる
-- 標準 SeedQR（単語番号を 4 桁ずつ並べた 48 / 96 桁）と CompactSeedQR（16 / 32 byte のエントロピー）の両方
-- 単語表は公式 `english.txt` の SHA-256 と照合してから生成する（`tools/gen_bip39_words.py`、Flash 20KB）
-- ニーモニックとシードは使い終わったら `wipe()` で消す
-- 検査は `make check-seedqr`（10 項目、embit で独立に確認）。**ASan 付きでビルドする**。
-  番号 2048 のように低位 11bit が正しい値と同じ入力は、チェックサムを通過して単語表の外を読むので、
-  戻り値だけ見ていると範囲検査の欠落に気づけない
+- **It carries the secret itself, so it is handled natively, inside the TCB, and never goes through the
+  parser.** This is where it differs from a PSBT
+- **The BIP39 checksum is always verified.** A single character misread is refused
+- Both a standard SeedQR, 48 or 96 digits of four-digit word indices, and a CompactSeedQR, 16 or 32
+  bytes of entropy
+- The word list is generated only after checking the official `english.txt` against its SHA-256
+  (`tools/gen_bip39_words.py`, 20KB of flash)
+- The mnemonic and the seed are cleared with `wipe()` once finished with
+- Tested by `make check-seedqr`, 10 checks confirmed independently with embit. **Build it with ASan**:
+  an input like index 2048, whose low 11 bits equal a valid value, passes the checksum and reads past
+  the end of the word list, so watching only the return value hides a missing range check
 
-## 14. 実際のウォレットとの相互運用（2026-10-02）
+## 14. Interoperating with a real wallet (2026-10-02)
 
-Sparrow（signet）と繋いで、実機で署名した取引をネットワークに流した。
+Connected to Sparrow on signet, a transaction signed on the hardware went out to the network.
 
-| 段 | 内容 |
+| step | what happened |
 |---|---|
-| 鍵 | Sparrow で作った 12 語から SeedQR を作り、実機のカメラで読んだ。fingerprint が一致 |
-| PSBT | Sparrow の **Show QR**（UR のアニメーション QR）を実機のカメラで読んだ |
-| 確認 | 液晶に送金先・金額・手数料。自分宛ての出力は `Self-transfer`、お釣りは `Change` と表示 |
-| 署名 | 実機のネイティブ側で署名 |
-| 戻し | 実機の液晶に出したアニメーション QR を Sparrow の **Scan QR** で取り込み、ブロードキャスト |
+| the key | a SeedQR made from 12 words generated in Sparrow, read with the device's camera. The fingerprints matched |
+| the PSBT | Sparrow's **Show QR**, a UR animated QR, read with the device's camera |
+| review | destination, amount and fee on the panel. Outputs to ourselves showed as `Self-transfer` and change as `Change` |
+| signing | on the device, natively |
+| back again | the animated QR on the device's panel taken in with Sparrow's **Scan QR**, then broadcast |
 
-結果: [`d22944da...`](https://mempool.space/signet/tx/d22944daeb353fc4e02012f080c632ddc8973b0395442f59d55e091a78610253)
-（1 入力 2 出力、140 vbyte、手数料 136 sats）。**ブロック 324603 で承認**。witness が 2 要素入り、
-ノードが署名を検証して取り込んだ。
+The result: [`d22944da...`](https://mempool.space/signet/tx/d22944daeb353fc4e02012f080c632ddc8973b0395442f59d55e091a78610253),
+one input and two outputs, 140 vbytes, a fee of 136 sats. **Confirmed in block 324603.** The witness
+carried its two elements and a node verified the signature and accepted it.
 
-- `TESTNET=1` でビルドすると signet / testnet 用になる（`m/84'/1'/0'`、アドレスは `tb1...`）。
-  `core_review` は元から導出パスのコインタイプをネットワークと突き合わせている
-- Sparrow の **Preferences → Appearance → QR Density** は `Low` にする。実機のカメラ（QVGA + quirc）が
-  安定して読めるのは v8（49 モジュール）あたりまで
-- **mainnet はまだ使わない。** Debug Probe（SWD）が繋がっていれば RAM を読めるし、ケースも PIN も無い。
-  本番として使うには、SWD の切り離しと第三者のレビューが要る（xpub 出力は 2026-10-03 に完了）
+- A `TESTNET=1` build targets signet and testnet: `m/84'/1'/0'`, with `tb1...` addresses.
+  `core_review` has always checked the derivation path's coin type against the network
+- Set Sparrow's **Preferences → Appearance → QR Density** to `Low`. The device's camera, QVGA plus
+  quirc, reads reliably up to about v8, 49 modules
+- **Not for mainnet yet.** With a Debug Probe attached the RAM can be read, and there is no case and no
+  PIN. Using this for real needs the SWD detached and a third-party review; the xpub export was
+  finished on 2026-10-03
 
-## 15. 次の作業
+## 15. What is next
 
-signet で一巡した時点（2026-10-02）で残っているもの。上から順に効く。
-位置づけと公開の前提は [positioning.md](positioning.md)。
+What remains as of the signet round on 2026-10-02, in the order that matters. How this is positioned,
+and what publishing it requires, is in [positioning.md](positioning.md).
 
-### A. mainnet を使うための前提（これが揃うまで本物の鍵を入れない）
+### A. Prerequisites for mainnet — no real key goes in until these are met
 
-2026-10-03 に、PC へ鍵を一切置かない一巡を signet で通した（[手順](signet.md)）。
-残りは SWD の切り離しと第三者のレビュー。
+On 2026-10-03 a full signet round ran with no key on the PC at all ([the procedure](signet.md)). What
+remains is detaching the SWD and a third-party review.
 
-1. ~~**xpub（ウォッチオンリー）の出力。**~~ 済（2026-10-03）。メニューの `Show xpub` で
-   `m/84'/coin'/0'` の xpub 全文と、出力ディスクリプタ
-   `wpkh([fp/84h/coin h/0h]xpub/<0;1>/*)` の QR を出す。145 文字 = 45 モジュールなので静止画 1 枚。
-   BIP84 の公式ベクタと一致（`make check-xpub`）。`UR:CRYPTO-ACCOUNT` は要れば後から足す
-2. ~~**Debug Probe（SWD）の切り離し。**~~ 一部済（2026-10-03）。下の「本番で使うときの手順」を見る。
-   残りは SWD を恒久的に無効化するかの判断
-3. **第三者のレビュー。** `core_review`（手数料攻撃・お釣り判定）と `apps/device/runtime/host-abi`（WASM との境界）、
-   UR の解析は自前のテストしか通っていない
-4. ~~**Schnorr の aux の乱数。**~~ 済（2026-10-03）。下の「署名まわりの防御」を見る
+1. ~~**Exporting an xpub for watch-only use.**~~ Done (2026-10-03). The menu's `Show xpub` shows the
+   full `m/84'/coin'/0'` xpub and a QR of the output descriptor
+   `wpkh([fp/84h/coin h/0h]xpub/<0;1>/*)`. At 145 characters that is 45 modules, so one still image.
+   Matches BIP84's own vectors (`make check-xpub`). `UR:CRYPTO-ACCOUNT` can be added later if wanted
+2. ~~**Detaching the Debug Probe (SWD).**~~ Partly done (2026-10-03); see "Using this for real" below.
+   What remains is deciding whether to disable SWD permanently
+3. **A third-party review.** `core_review` (the fee attack, deciding what is change),
+   `apps/device/runtime/host-abi` (the boundary with WASM) and the UR parsing have only ever been
+   checked by our own tests
+4. ~~**Randomness for Schnorr's aux.**~~ Done (2026-10-03); see "Defences around signing" below
 
-### 本番で使うときの手順（2026-10-03）
+### Using this for real (2026-10-03)
 
-**Debug Probe が繋がっていれば RAM を読めるので、シードが露出する。** これは設計で防げないので、
-運用と、残す痕跡を減らすことで対処する。
+**With a Debug Probe attached the RAM can be read, which exposes the seed.** No design choice prevents
+that, so it is handled by how the device is used, and by leaving fewer traces.
 
-1. **`TEST_SEED=0` でビルドする。** 既定が 0 になった（`make build/rp2350/app.elf`）。
-   以前は CMakeLists に `TEST_SEED=1` が固定で埋まっていて、どのビルドでもテストシードを選べた。
-   開発時は `make run TEST_SEED=1 TESTNET=1` と明示する
-2. **Debug Probe を物理的に外す。** 書き込み後にケーブルを抜く。UART のログも取れなくなる
-3. **`Lock (wipe seed)` で終える。** 使い終わったら必ず選ぶ。`core_unload` が鍵をゼロ埋めする
+1. **Build with `TEST_SEED=0`.** That is now the default (`make build/rp2350/app.elf`). It used to be
+   hardcoded to 1 in CMakeLists, which meant any build could select the test seed. For development,
+   say so explicitly: `make run TEST_SEED=1 TESTNET=1`
+2. **Physically remove the Debug Probe.** Unplug the cable after flashing. The UART log goes with it
+3. **Finish with `Lock (wipe seed)`.** Always, when done. `core_unload` zeroes the key
 
-シードの痕跡として残っていたものも消すようにした。
+Traces of the seed that were being left behind now get cleared too.
 
-| 残っていたもの | 対処 |
+| what was left | what now happens |
 |---|---|
-| `quirc_code` / `quirc_data`（static、SeedQR の 48 桁がそのまま） | 読み終えたら `wipe` |
-| カメラの取り込み画像（SeedQR が写っている） | 解放前に `wipe` |
-| ニーモニックと seed（既に消していた） | そのまま |
+| `quirc_code` / `quirc_data`, static, holding the SeedQR's 48 digits verbatim | `wipe` once read |
+| the captured camera frame, with the SeedQR in it | `wipe` before release |
+| the mnemonic and the seed, already cleared | unchanged |
 
-UART に出しているのは指紋と時間だけで、シードもニーモニックも出していない（確認済み）。
+What goes to the UART is the fingerprint and some timings — never the seed or the mnemonic. Confirmed.
 
-#### 実測（2026-10-04）
+#### Measured (2026-10-04)
 
-推定で書いていた部分を実機で確かめた。`tools/ram_scan.py` と OpenOCD で SRAM 520KB を吸い出し、
-テスト用シードから導出した値を探した。
+What had been written as an assumption was checked on the hardware. `tools/ram_scan.py` and OpenOCD
+dump all 520KB of SRAM, and the values derived from the test seed were searched for in it.
 
-| 経路 | 結果 |
+| route | result |
 |---|---|
-| **BOOTSEL + picotool** | **読めない。** SRAM が 100% ゼロだった。bootrom が消している |
-| **SWD（鍵を読み込んだ状態）** | **マスター秘密鍵と chain code が読める**（`0x2000c1ec` と `0x2000c20c`） |
-| **SWD（`Lock` の後）** | **同じ番地がゼロ埋めされている。** アプリは動いたまま |
+| **BOOTSEL and picotool** | **nothing readable.** The SRAM was 100% zero: the bootrom clears it |
+| **SWD, with the key loaded** | **the master private key and chain code are readable**, at `0x2000c1ec` and `0x2000c20c` |
+| **SWD, after `Lock`** | **those same addresses are zeroed**, with the application still running |
 
-鍵以外の痕跡は、`Lock` を押す前でも残っていなかった。
+Nothing but the key was left behind, even before pressing `Lock`.
 
-| 探したもの | 結果 |
+| searched for | found |
 |---|---|
-| ニーモニック（12 語） | 無し |
-| BIP39 の seed（64 byte） | 無し |
-| SeedQR のペイロードとカメラ画像 | 無し（この消去は同日に入れたもの） |
-| 口座の秘密鍵 | 無し（導出は一時的） |
-| **マスター鍵と chain code** | **ある**（署名に必要なので意図的に保持している） |
+| the mnemonic, 12 words | nothing |
+| the BIP39 seed, 64 bytes | nothing |
+| the SeedQR payload and the camera frame | nothing; that clearing went in the same day |
+| the account private key | nothing; the derivation is transient |
+| **the master key and chain code** | **present**, held deliberately because signing needs them |
 
-対照として、アプリ名の文字列と RAM に展開した `parser.wasm` のマジックが同じダンプに写っていることを
-確認している（ダンプが本物であることの確認）。
+As a control, the application's name string and the magic of the `parser.wasm` expanded into RAM were
+both confirmed present in the same dump — which is how we know the dump is real.
 
-#### 値を知らずに探す（構造的な走査）
+#### Searching without knowing the value: a structural scan
 
-上の検査は**既知の値**を探すので、想定していない残骸は見つけられない。そこで `tools/ram_keys.py` は
-32 byte の窓を総当たりで秘密鍵とみなし、導出した公開鍵が既知のものと一致するかを見る。
-**値を知らなくても「鍵としての性質」で見つかる。**
+The check above searches for **known values**, so it cannot find a remnant nobody thought of. So
+`tools/ram_keys.py` takes every 32-byte window as if it were a private key and asks whether the public
+key it derives is one we recognise. **That finds a key by its properties, without knowing its value.**
 
-特に見たいのは**署名の nonce (k)**。公開した署名の R に対して `k*G == R` となる 32 byte が
-RAM に残っていれば、その署名と組にして秘密鍵が復元できる。最も危ない残骸。
+The one that matters most is **a signature's nonce, k**. If 32 bytes satisfying `k*G == R` for a
+published signature's R are still in RAM, that nonce and that signature together recover the private
+key. It is the most dangerous remnant there is.
 
-| 走査 | 結果 |
+| scan | result |
 |---|---|
-| 鍵を読み込んだ状態（33 万窓 × 83 鍵） | **マスター鍵だけ。** 導出の途中の子鍵は残っていない |
-| `Lock` の後 | **何も無い** |
-| **署名直後の ECDSA の nonce** | **残っていない** |
-| **署名直後の Schnorr の nonce** | **残っていない** |
-| 署名に使った子鍵（受取・釣り各 20 本） | 残っていない |
+| with the key loaded, 330k windows against 83 keys | **only the master key.** No intermediate child key survives |
+| after `Lock` | **nothing** |
+| **the ECDSA nonce, immediately after signing** | **not present** |
+| **the Schnorr nonce, immediately after signing** | **not present** |
+| the child keys used to sign, 20 receive and 20 change | not present |
 
-署名を外に出した後も安全、ということが実測で取れた。`sign_input` が導出した子鍵を `wipe` しているのと、
-libsecp256k1 が内部で nonce を消しているのが効いている。
+So being safe after the signature has gone out is measured, not assumed. What makes it hold is
+`sign_input` wiping the child key it derived, and libsecp256k1 clearing the nonce internally.
 
-**結論。** RAM に残るのは署名に必要な最小限だけで、それを読める経路は SWD だけ。
-だから **Probe を物理的に抜くこと**と **`Lock` を押すこと**の 2 つで閉じる。どちらも実測で裏が取れた。
+**The conclusion.** What stays in RAM is the minimum signing needs, and the only route that reads it is
+SWD. So two things close it: **physically unplugging the Probe** and **pressing `Lock`**. Both are
+backed by measurement.
 
-**まだ決めていないこと。** RP2350 は OTP で SWD を恒久的に無効化できるが、
-一度焼くと戻せず、書き換えもできなくなる。配布する形（自分で組む前提か、完成品か）が決まってから判断する。
+**Still undecided.** The RP2350 can disable SWD permanently through OTP, but once burned it cannot be
+undone and the device can no longer be reflashed. That decision waits on how this gets distributed:
+as something you build yourself, or as a finished unit.
 
-### 署名まわりの防御（2026-10-03）
+### Defences around signing (2026-10-03)
 
-当初は「aux に良い乱数を入れるか」の問題だと思っていたが、他の実装を調べると**3 つの独立した軸**だった。
+This looked at first like one question — whether to put good randomness in aux — but reading what other
+implementations do showed **three independent ones**.
 
-| 軸 | 乱数の質 | 守るもの | 本実装 |
+| | does randomness quality matter | protects against | here |
 |---|---|---|---|
-| BIP340 の aux | 問われる（効果を出すには） | フォールト・サイドチャネルへの上乗せ | **0（決定論的）** |
-| 署名後の検証 | 不要 | フォールト注入 | **入れた** |
-| context のブラインド化 | **問われない** | 電力解析 | **入れた** |
+| BIP340's aux | yes, for it to do anything | an extra layer against faults and side channels | **zero, deterministic** |
+| verifying after signing | no | fault injection | **added** |
+| blinding the context | **no** | power analysis | **added** |
 
-**aux は 0 にした。** BIP340 は「通常の安全性（サイドチャネルを除く）は署名時の RNG の質に依存しない」と
-明記していて、実際 Bitcoin Core（`// Use uint256{} as aux_rnd for now.`）、Trezor（全呼び出しで NULL）、
-Blockstream Jade（anti-exfil は ECDSA 専用で taproot は対象外）、SeedSigner / embit（API に aux 引数が無い）、
-BDK（`sign_schnorr_no_aux_rand` を明示選択）がすべて決定論的。
-乱数を入れているのは Coldcard の edge ブランチだけだった。
+**aux is zero.** BIP340 states outright that ordinary security, side channels aside, does not depend on
+the quality of the RNG at signing time — and in practice Bitcoin Core
+(`// Use uint256{} as aux_rnd for now.`), Trezor (NULL at every call), Blockstream Jade (anti-exfil is
+ECDSA-only and does not cover taproot), SeedSigner and embit (no aux argument in the API) and BDK
+(explicitly choosing `sign_schnorr_no_aux_rand`) are all deterministic. The only one found passing
+randomness was Coldcard's edge branch.
 
-決定論的にすると**同じ PSBT から同じ署名**が出るので、ブラウザの `bitcoin-signer.wasm` で実機の出力を
-ビット単位で再現できる（[positioning.md](positioning.md) の「検証モード」）。ECDSA 側は low-R grinding で
-既に決定論的なので、デバイス全体で揃う。
+Being deterministic means **the same PSBT always gives the same signature**, so the browser's
+`bitcoin-signer.wasm` can reproduce the device's output bit for bit (the "verification mode" in
+[positioning.md](positioning.md)). The ECDSA side is already deterministic through low-R grinding, so
+the whole device agrees.
 
-**代わりに、他の実装が採っている 2 つの防御を入れた。**
+**In its place, the two defences other implementations do use went in.**
 
-- **署名後の検証**: 作った署名を外に出す前に自分で検証する。グリッチで壊れた署名と正しい署名を
-  突き合わせると鍵が復元されうる（差分故障解析）。出さなければ材料を与えない。
-  Core・BDK・btcd・BIP340 の手順 15 も同じ
-- **context のブラインド化**: 署名の前に `secp256k1_context_randomize` を呼び、秘密鍵を使う計算の
-  中間値を毎回変える。電力波形を重ねて平均を取る攻撃が効かなくなる。
-  **ここの乱数は質を問われない**ので `pico_rand` で足りる（予測されても安全性は落ちず、効果が無くなるだけ）。
-  Trezor は署名ごとに 2 回、Coldcard はセッションごと、Core は起動時に呼んでいる
+- **Verifying after signing**: check our own signature before letting it out. A glitched signature set
+  next to a correct one can recover the key, which is differential fault analysis; not emitting it
+  withholds the material. Core, BDK, btcd and BIP340's step 15 all do the same
+- **Blinding the context**: call `secp256k1_context_randomize` before signing, so the intermediate
+  values of every computation touching the key differ each time. Averaging power traces over repeated
+  runs stops working. **The quality of this randomness does not matter**, so `pico_rand` is enough: a
+  predictable value costs nothing in security, it just stops helping. Trezor calls it twice per
+  signature, Coldcard once per session, Core at startup
 
-費用は Flash +2,552 byte。**マルチシグに広げるときは決定論的 nonce が危険になる**（BIP340 が明記）ので、
-そのときに aux を見直すこと。コードにもコメントを残した。
+The cost is 2,552 bytes of flash. **Deterministic nonces become unsafe with multisig** — BIP340 says so
+— which is when aux has to be revisited. There is a comment in the code saying as much.
 
-### B. 使い勝手
+### B. Usability
 
-5. **読み取りの速度。** 1 フレーム 120ms（取り込み）+ 62ms（デコード）で実効 2.5fps。
-   2 コアで取り込みとデコードを並行させれば倍になる
-6. **パスフレーズの入力**（BIP39 の 25 番目の単語）。今は空のみ
-7. 画面の可読性。金額やアドレスだけ倍角で描くと読みやすくなる
-8. ジョイスティックのはんだ付け。2 ボタンで足りてはいるが、戻る操作が楽になる
+5. **Reading speed.** 120ms to capture a frame plus 62ms to decode gives an effective 2.5fps. Running
+   capture and decode on the two cores in parallel would double it
+6. **Entering a passphrase**, BIP39's 25th word. Only empty is supported now
+7. Legibility. Drawing just the amounts and addresses double width would help
+8. Soldering the joystick. Two buttons do suffice, but going back would be easier
 
-### C. 外部との関係
+### C. Relationships outside this repository
 
-8.5 **PWA（相方）。** 同じ `parser.wasm` を使い、PSBT の表示と UR の受け渡しをするオフライン対応のページ。
-   鍵は持たない。デバイスが出す解析器のハッシュと突き合わせられるようにする（[positioning.md](positioning.md)）
-9. **wasm-psbt-parser の公開判断。** 解析器を先に公開し、本体はその後という順序で決めてある
-10. **quirc フォークの上流 PR。** 未マージのセキュリティ修正（#158、#159）と固定小数点版。
-    実カメラの画像が撮れるようになったので、読取率のコーパスを作って裏付けを添えられる
-11. WAMR の非整列 `i64.store` は上流にマージ済み（#5123）
+8.5 **The companion web page.** An offline-capable page using the same `parser.wasm` to display a PSBT
+   and move URs back and forth. It holds no keys. It should let the parser hash the device reports be
+   compared against it ([positioning.md](positioning.md))
+9. ~~**Whether to publish wasm-psbt-parser.**~~ Published on 2026-10-04, with v0.1.0 released. The order
+   was settled deliberately: the parser first, this repository after
+10. **An upstream PR for the quirc fork.** The unmerged security fixes (#158, #159) and the fixed-point
+    version. Now that real camera frames can be captured, a corpus of read rates can back it up
+11. WAMR's unaligned `i64.store` fix is merged upstream (#5123)
 
-### D. ハードウェア
+### D. Hardware
 
-12. 手元の OV7670 を 1.8V LDO で動かす（部品は注文済み）。OV7675 が動いているので優先度は低い
-13. ケースと基板化。ブレッドボードのままでは持ち運べない
+12. Run the OV7670 that is already here from a 1.8V LDO; the parts are ordered. Low priority, since the
+    OV7675 works
+13. A case and a real board. A breadboard cannot be carried anywhere
