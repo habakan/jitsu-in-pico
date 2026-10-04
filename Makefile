@@ -93,9 +93,11 @@ deps-host:
 check-deps:
 	@for d in secp256k1:$(SECP_REV) wasm-micro-runtime:$(WAMR_REV) pico-sdk:$(PICO_REV) \
 	          quirc:$(QUIRC_REV) QR-Code-generator:$(QRGEN_REV) spleen:$(SPLEEN_REV); do \
-	  n=$${d%%:*}; want=$${d#*:}; got=$$(git -C third_party/$$n rev-parse HEAD 2>/dev/null); \
+	  n=$${d%%:*}; want=$${d#*:}; \
+	  if [ ! -d third_party/$$n ]; then echo "$$n: 未取得（飛ばす）"; continue; fi; \
+	  got=$$(git -C third_party/$$n rev-parse HEAD 2>/dev/null); \
 	  if [ "$$got" != "$$want" ]; then echo "$$n: $$got != $$want"; exit 1; fi; done
-	@echo "third_party はすべて固定した commit"
+	@echo "取得済みの third_party はすべて固定した commit"
 .PHONY: check-deps
 
 # classic interp の i64.store は 4 byte 境界を前提にしており、Hazard3 では非整列ストアで例外になる。
@@ -131,7 +133,7 @@ build/native: apps/host/native.c components/signer/signer.c components/signer/sh
 build/host-%/signer_wamr: build/signer_wasm.h apps/host/wamr_main.c apps/host/CMakeLists.txt
 	cmake -S apps/host -B build/host-$* -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DWAMR_BUILD_FAST_INTERP=$(if $(filter fast,$*),1,0) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
-	ninja -C build/host-$* >/dev/null
+	ninja -C build/host-$*
 
 check-host: build/native build/host-classic/signer_wamr build/host-fast/signer_wamr
 	build/native
