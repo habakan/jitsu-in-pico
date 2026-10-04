@@ -1,4 +1,5 @@
-/* parser.wasm → core → parser.wasm を一巡させるホスト。parse だけの検査と、署名までの一巡の 2 モード */
+/* A host that runs the full round: parser.wasm, core, parser.wasm. Two modes, one that only parses
+ * and one that goes through to a signature */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,7 +20,7 @@ static uint64_t now(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t
 #define MNEMONIC "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
 
 static char pool[256 * 1024];
-/* classic interp がロード時に書き換えるので、書き込み可能なコピーを渡す */
+/* The classic interpreter rewrites on load, so it is handed a writable copy */
 static uint8_t parser_wasm_rw[sizeof(parser_wasm)];
 static uint8_t file_buf[PARSER_PSBT_MAX + 1];
 static uint8_t prevtx_arena[PARSER_PSBT_MAX];
@@ -33,7 +34,7 @@ static long read_file(const char *path) {
     return n;
 }
 
-/* 確認画面を 240x240 の PPM に書き出す（実機が無くてもレイアウトを確かめるため） */
+/* Writes the review screens as 240x240 PPMs, so the layout can be checked without the hardware */
 static void write_screens(const core_display_t *d, const char *prefix) {
     static ui_review_t ui;
     uint16_t line[UI_W];
@@ -56,9 +57,9 @@ static void write_screens(const core_display_t *d, const char *prefix) {
     }
 }
 
-static int zero_rng(uint8_t *b, size_t n) { memset(b, 0, n); return 1; } /* 検査用。実機は TRNG */
+static int zero_rng(uint8_t *b, size_t n) { memset(b, 0, n); return 1; } /* for tests; the device uses its TRNG */
 
-/* 1 行 1 パートの UR を流して PSBT を組み立て、file_buf に置く。長さを返し、失敗は -1 */
+/* Feeds a UR, one part per line, reassembles the PSBT into file_buf and returns its length, or -1 */
 static long assemble_ur(const char *path) {
     static char line[PARSER_PSBT_MAX];
     FILE *f = fopen(path, "r");
@@ -82,9 +83,9 @@ static long assemble_ur(const char *path) {
     return rc > 0 ? rc : -1;
 }
 
-/* 署名済み PSBT を UR にし、純粋なパートの 3 倍（混ぜたパートを含む）を <out>.ur に 1 行ずつ書く。
- * preview があれば最初の 2 パートの QR 画面も PPM に書く */
-/* 符号化を始めた後、純粋なパートを 3 周ぶん書き出す */
+/* Turns the signed PSBT into a UR and writes three times the pure part count, mixed parts included,
+ * one per line, to <out>.ur. With preview it also writes the first two parts' QR screens as PPMs */
+/* Once encoding has started, write three passes over the pure parts */
 static int write_ur_parts(const char *out_path) {
     static char text[4096];
     char path[256];
@@ -188,7 +189,7 @@ int main(int argc, char **argv) {
     uint8_t seed[64];
 
 #ifdef QEMU_BUILD
-    /* libgloss の crt0 は semihosting のコマンドラインを渡さないので固定する */
+    /* libgloss's crt0 does not pass the semihosting command line through, so it is fixed here */
     static char *qemu_argv[] = {"psbt_host", "sign", "build/psbt/own_mixed_nwu.ur", "build/psbt/own_mixed_nwu.qemu"};
     argc = 4, argv = qemu_argv;
 #endif
@@ -200,12 +201,12 @@ int main(int argc, char **argv) {
     if (!core_load_seed(seed)) return 1;
 
     if (!strcmp(argv[1], "sign")) return argc >= 4 ? sign(argv[2], argv[3], argc > 4 ? argv[4] : NULL) : 2;
-    if (!strcmp(argv[1], "bin2ur") && argc == 4) { /* PSBT を UR（1 行 1 パート）にする。実機の読み取り試験用 */
+    if (!strcmp(argv[1], "bin2ur") && argc == 4) { /* a PSBT as a UR, one part per line, to test reading on the device */
         long len = read_file(argv[2]);
         if (len <= 0 || parser_host_ur_encode_bytes(file_buf, (uint32_t)len, UI_UR_FRAGMENT) <= 0) return 1;
         return write_ur_parts(argv[3]);
     }
-    if (!strcmp(argv[1], "ur2bin") && argc == 4) { /* UR（1 行 1 パート）を組み立てて PSBT のバイナリを書く */
+    if (!strcmp(argv[1], "ur2bin") && argc == 4) { /* reassemble a UR, one part per line, and write the PSBT */
         long len = assemble_ur(argv[2]);
         FILE *f = len > 0 ? fopen(argv[3], "wb") : NULL;
         if (!f) return 1;

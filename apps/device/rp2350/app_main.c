@@ -1,7 +1,8 @@
-/* 実機アプリ。メニューから PSBT 署名の一巡を回す。確認画面を全て見てから承認すると署名し、
- * 署名済み PSBT をアニメーション QR（UR）で返して、メニューに戻る。
- * シードは電源が入っている間だけ RAM に置き、Lock で消す。Flash には何も書かない。
- * TEST_SEED=1 のビルドでは BIP39 のテストベクタを使える（警告画面を出す）。資金を扱ってはならない */
+/* The device application. The menu runs one signing round: read a PSBT, show every review screen,
+ * and on approval sign it and hand the result back as an animated QR, then return to the menu.
+ * The seed lives in RAM only while the power is on, and Lock clears it. Nothing is ever written to
+ * flash. A TEST_SEED=1 build can load BIP39's test vector, and shows a warning screen for it; such a
+ * build must never hold funds */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,10 +24,12 @@
 
 #define TEST_MNEMONIC "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about"
 
-/* parser.wasm の線形メモリ（UR の復元と符号化込みで約 132KB）もこのプールから取られる。QEMU の実測で最大 149KB */
+/* parser.wasm's linear memory comes out of this pool too, about 132KB with UR reassembly and
+ * encoding. Measured at 149KB peak under QEMU */
 static char pool[160 * 1024];
 static uint8_t parser_wasm_rw[sizeof(parser_wasm)];
-/* 読み取り中の quirc（画像 77KB を含む 90KB）と同時には要らないので、署名の段だけヒープから取る */
+/* Not needed at the same time as quirc while reading (90KB, 77KB of it the image), so this is taken
+ * from the heap only for the signing step */
 #define SIGNED_PSBT_MAX (PARSER_PSBT_MAX + 2048)
 static uint8_t *prevtx_arena, *signed_psbt, *psbt;
 static int camera_ready;
@@ -34,7 +37,8 @@ static plan_t plan;
 static ui_review_t review_ui;
 static ui_menu_t menu;
 
-/* NO_LCD=1 では液晶の代わりに UART へ画面の文字を出す（はんだ付け前の確認用） */
+/* With NO_LCD=1 the screens' text goes to the UART instead of the panel, which is how this was
+ * checked before anything was soldered */
 static void show(const ui_screen_t *s) {
     uint16_t line[UI_W];
 #if NO_LCD
@@ -68,7 +72,8 @@ static void message(const char *title, const char *body, int warn) {
     wait_key();
 }
 
-/* 署名の段で使うバッファ。メニューに戻るときに返す（読み取りの段で quirc が同じ領域を使う） */
+/* The buffers the signing step uses, released on the way back to the menu because quirc takes the
+ * same memory while reading */
 static int sign_buffers_take(void) {
     prevtx_arena = malloc(PARSER_PSBT_MAX);
     signed_psbt = malloc(SIGNED_PSBT_MAX);
@@ -81,7 +86,8 @@ static void sign_buffers_give(void) {
     prevtx_arena = signed_psbt = NULL;
 }
 
-/* 取り込んだ画像を上下の帯を残して出し、1 行目に状態を書く。狙いを定められるようにするため */
+/* Shows the captured frame, keeping a band at the top and bottom, with the status on the first line,
+ * so the camera can actually be aimed */
 static void show_preview(const uint8_t *img, const char *status) {
 #if NO_LCD
     (void)img;
@@ -97,7 +103,7 @@ static void show_preview(const uint8_t *img, const char *status) {
     for (int y = 0; y < UI_H; y++) {
         if (y < 16) {
             ui_render_line(&s, y, line);
-        } else if (y >= 30 && y < 210) { /* 320x240 を 3/4 に間引いて 240x180 で出す */
+        } else if (y >= 30 && y < 210) { /* 320x240 decimated to three quarters, shown as 240x180 */
             int sy = (y - 30) * 4 / 3;
             for (int x = 0; x < UI_W; x++) {
                 uint8_t v = img[sy * CAMERA_W + x * 4 / 3];
@@ -111,11 +117,11 @@ static void show_preview(const uint8_t *img, const char *status) {
 #endif
 }
 
-/* アニメーション QR（UR）を読み取って PSBT を組み立てる。成功なら長さ、取り消しや失敗なら 0 */
+/* Reads an animated QR and reassembles the PSBT. Returns its length, or 0 if cancelled or failed */
 static uint32_t scan_psbt(void) {
     struct quirc *q;
     unsigned parts = 0;
-    uint64_t seen = 0; /* 受け取ったパートの番号。重複を数えない */
+    uint64_t seen = 0; /* which parts have arrived, so a repeat is not counted twice */
     uint32_t len = 0;
     char status[UI_COLS + 1];
 
@@ -129,9 +135,9 @@ static uint32_t scan_psbt(void) {
     snprintf(status, sizeof(status), "Scan PSBT: aim at the QR");
 
     while (!len) {
-        uint8_t *img = quirc_begin(q, NULL, NULL); /* quirc の画像バッファへ直接取り込む */
+        uint8_t *img = quirc_begin(q, NULL, NULL); /* captured straight into quirc's image buffer */
         int found = 0;
-        if (buttons_poll() >= 0) break; /* どのキーでも取り消し */
+        if (buttons_poll() >= 0) break; /* any key cancels */
         if (!camera_capture(img, 500)) continue;
         show_preview(img, status);
         quirc_end(q);
@@ -146,7 +152,7 @@ static uint32_t scan_psbt(void) {
                 snprintf(status, sizeof(status), "QR found, cannot read");
                 continue;
             }
-            /* "UR:CRYPTO-PSBT/<n>-<m>/" の n と m を読んで、何枚中何枚かを出す */
+            /* n and m out of "UR:CRYPTO-PSBT/<n>-<m>/", to show how many of how many */
             for (const char *c = (const char *)data.payload; *c; c++)
                 if (*c == '/') {
                     while (*++c >= '0' && *c <= '9') seq = seq * 10 + (unsigned)(*c - '0');
@@ -180,7 +186,8 @@ static uint32_t scan_psbt(void) {
 }
 
 static int trng(uint8_t *buf, size_t len) {
-    /* pico_rand は TRNG を種にするが暗号用 PRNG ではない。初期確認で Schnorr の aux にだけ使う */
+    /* pico_rand is seeded from the TRNG but is not a cryptographic PRNG. It is used only as Schnorr
+ * aux data during the initial bring-up */
     for (size_t i = 0; i < len; i++) buf[i] = (uint8_t)get_rand_32();
     return 1;
 }
@@ -198,8 +205,8 @@ static void draw_qr(void) {
 #endif
 }
 
-/* 署名済み PSBT をアニメーション QR で返す。純粋なパートだけを周回させるので、混ぜたパートを
- * 使えない受信側でも完成でき、取りこぼしても次の周回で拾える。どのキーでも終える */
+/* Hands the signed PSBT back as an animated QR. Only pure parts are cycled, so a receiver that
+ * cannot use mixed parts still completes, and a missed part comes round again. Any key ends it */
 static void export_qr(uint32_t len) {
     long seq_len = parser_host_ur_encode_start(len, UI_UR_FRAGMENT);
     if (seq_len <= 0) return message("UR encode failed", NULL, 1);
@@ -219,17 +226,17 @@ static void export_qr(uint32_t len) {
             if (!parser_host_ur_encode_next(text, sizeof(text)) || !ui_qr_set(text))
                 return message("QR failed", NULL, 1);
             part++;
-            /* カメラで読めないときのために、UART にも出しておく */
+            /* also on the UART, for when the camera cannot read the screen */
             printf("%s\n", text);
             draw_qr();
-            /* 250ms だとスマホがピントを合わせる前に切り替わり、パートを取りこぼす */
+            /* at 250ms a phone changes part before it has focused, and parts get missed */
             next = time_us_64() + 500 * 1000;
         }
         sleep_ms(10);
     }
 }
 
-/* PSBT を 1 つ署名してメニューに戻る。psbt / psbt_len が読み取ったもの */
+/* Signs one PSBT and returns to the menu. psbt and psbt_len are what was read */
 static void sign_flow(const uint8_t *in, uint32_t in_len) {
     core_prevtx_t prev[PLAN_MAX_INPUTS];
     core_review_t review;
@@ -295,12 +302,13 @@ static void scan_and_sign(void) {
     free(psbt), psbt = NULL;
 }
 
-/* SeedQR を読んでシードを載せる。秘密なので解析器（WASM）には渡さず、ここで扱う */
+/* Reads a SeedQR and loads the seed. It is the secret itself, so it is handled here and never goes
+ * through the parser */
 static int scan_seed(void) {
     struct quirc *q;
     char status[UI_COLS + 1], mnemonic[256];
     uint8_t seed[64];
-    /* SeedQR の中身はシードそのもの。スタックに置くには大きいので static にし、最後に消す */
+    /* The payload is the seed. Too large for the stack, so it is static and wiped at the end */
     static struct quirc_code code;
     static struct quirc_data data;
     int ok = 0;
@@ -330,7 +338,7 @@ static int scan_seed(void) {
             ok = core_load_seed(seed);
         }
     }
-    /* 取り込んだ画像には SeedQR が写っている。SWD が繋がっていれば読めるので消してから解放する */
+    /* The captured frame still holds the SeedQR, readable over SWD, so it is wiped before release */
     wipe(quirc_begin(q, NULL, NULL), (size_t)CAMERA_W * CAMERA_H);
     quirc_destroy(q);
     wipe(&code, sizeof(code));
@@ -382,7 +390,7 @@ static void seed_menu(void) {
     }
 }
 
-/* 口座の拡張公開鍵とディスクリプタを見せる。PC 側はこれだけでウォッチオンリーになり、鍵は要らない */
+/* Shows the account xpub and descriptor. That is all the PC needs to watch the wallet, with no key */
 static void show_xpub(void) {
     static ui_screen_t s;
     static char xpub[CORE_XPUB_MAX], desc[CORE_DESC_MAX];
@@ -393,7 +401,7 @@ static void show_xpub(void) {
     printf("%s\n%s\n", xpub, desc);
     wait_key();
 
-    /* ディスクリプタは 145 文字ほどで QR の v8 に収まるので、1 枚の静止画で渡せる */
+    /* The descriptor runs to about 145 characters, which fits QR v8, so one still image carries it */
     if (!ui_qr_set(desc)) return message("QR failed", NULL, 1);
     printf("descriptor QR: %d modules\n", ui_qr_modules());
     for (;;) {
@@ -406,8 +414,8 @@ static void show_xpub(void) {
     }
 }
 
-/* 積んでいる parser.wasm のハッシュ。ビューアのページが出す値と一致すれば、
- * 手元で動かしているものとデバイスの中身が同じだと言える */
+/* The hash of the parser.wasm actually loaded. Matching it against what the viewer page reports is
+ * how you confirm the device is running the same module you are */
 static void show_parser_hash(void) {
     static ui_screen_t s;
     uint8_t h[32];
@@ -455,7 +463,7 @@ int main(void) {
     printf("\nbaremetal-wasm-signer (%s)\n", TESTNET ? "testnet/signet" : "mainnet");
 
     memcpy(parser_wasm_rw, parser_wasm, sizeof(parser_wasm_rw));
-    /* TESTNET=1 でビルドすると signet / testnet 用になる（アドレスは tb1、導出は m/84'/1'/...） */
+    /* A TESTNET=1 build targets signet and testnet: tb1 addresses, derived under m/84'/1'/... */
     if (!core_init(TESTNET ? CORE_TESTNET : CORE_MAINNET)
         || !parser_host_init(parser_wasm_rw, sizeof(parser_wasm_rw), pool, sizeof(pool))) {
         message("Init failed", NULL, 1);

@@ -17,7 +17,7 @@ typedef struct {
     int row;
 } writer_t;
 
-/* 右寄せでアプリ名を出す。各画面の 1 行目 */
+/* The application name, right-aligned, on the first line of every screen */
 static void put_header(writer_t *w);
 
 static void put(writer_t *w, uint16_t color, const char *text) {
@@ -32,11 +32,11 @@ static void put_header(writer_t *w) {
     size_t n = strlen(UI_APP_NAME);
     memset(line, ' ', UI_COLS);
     line[UI_COLS] = 0;
-    if (n < UI_COLS) memcpy(line + (UI_COLS - 1 - n), UI_APP_NAME, n); /* 右端に 1 文字の余白を残す */
+    if (n < UI_COLS) memcpy(line + (UI_COLS - 1 - n), UI_APP_NAME, n); /* one column of margin at the right */
     put(w, C_HINT, line);
 }
 
-/* 長い文字列（アドレス、16 進のスクリプト）は途中で切らずに全部折り返す */
+/* A long string, an address or a script in hex, is wrapped in full rather than truncated */
 static void put_wrapped(writer_t *w, uint16_t color, const char *text) {
     size_t n = strlen(text);
     char chunk[UI_COLS + 1];
@@ -127,7 +127,7 @@ void ui_review_init(ui_review_t *r, const core_display_t *d) {
     put(&w, C_HINT, "PUSH: sign");
     put(&w, C_HINT, "NEXT: cancel screen");
 
-    /* 最後は取り消し画面。ボタン 2 個（進む・押込）だけでも取り消せて、ここから先頭へ回り込む */
+    /* The last screen is the cancel screen, so two buttons are enough to reject; it wraps to the first */
     w = (writer_t){&r->screens[r->n++], 0};
     put_header(&w);
     put(&w, C_TITLE, "Cancel transaction?");
@@ -140,7 +140,8 @@ void ui_review_init(ui_review_t *r, const core_display_t *d) {
 }
 
 int ui_review_key(ui_review_t *r, int key) {
-    /* 署名確認は最後から 2 枚目、取り消しは最後。全画面を見ていないと署名できない（取り消し画面は除く） */
+    /* Confirmation is second from last and cancel is last. Signing needs every screen to have been
+     * seen, the cancel screen aside */
     unsigned sign = r->n - 2, must_see = (1u << (r->n - 1)) - 1;
     if (key == UI_KEY_A) return UI_REJECTED;
     if (key == UI_KEY_RIGHT || key == UI_KEY_DOWN) r->cur = (r->cur + 1) % r->n;
@@ -218,8 +219,8 @@ int ui_qr_set(const char *text) {
 
 int ui_qr_modules(void) { return qrcodegen_getSize(qr); }
 
-/* バックライトが 3V3 直結なので、白の濃さで明るさを変える。
- * 明るすぎるとカメラの露出が飽和して読めない */
+/* The backlight is wired straight to 3V3, so brightness is changed through the white level instead.
+ * Too bright saturates the camera's exposure and cannot be read */
 static const uint16_t qr_white[] = {RGB565(255, 255, 255), RGB565(190, 190, 190),
                                     RGB565(130, 130, 130), RGB565(80, 80, 80)};
 static unsigned qr_level = 1;
@@ -241,7 +242,7 @@ void ui_qr_render_line(int y, uint16_t line[UI_W]) {
     }
 }
 
-/* 口座の拡張公開鍵。PC 側と目で突き合わせられるよう、頭と尻を切らずに全部出す */
+/* The account xpub, shown in full with nothing trimmed from either end, so it can be compared by eye */
 void ui_xpub(ui_screen_t *s, const char *xpub, uint32_t fp, int testnet) {
     writer_t w = {s, 0};
     char line[UI_COLS + 1];
@@ -261,7 +262,7 @@ void ui_xpub(ui_screen_t *s, const char *xpub, uint32_t fp, int testnet) {
     put(&w, C_HINT, "PUSH: show QR");
 }
 
-/* 積んでいる wasm のハッシュ。ブラウザ側が出す値と目で突き合わせるので、8 文字ずつ区切る */
+/* The hash of the loaded wasm, grouped in eights because it is compared by eye with the browser's */
 void ui_hash(ui_screen_t *s, const char *name, unsigned len, const uint8_t h[32]) {
     writer_t w = {s, 0};
     char line[UI_COLS + 1];

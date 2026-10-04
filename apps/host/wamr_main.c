@@ -10,7 +10,7 @@
 #define now() time_us_64()
 #define UNIT "us"
 #elif defined(QEMU_BUILD)
-/* QEMU では時間が実機と無関係なので、リタイア命令数を数える */
+/* Time under QEMU says nothing about the device, so retired instructions are counted instead */
 static uint64_t now(void) { uint32_t lo, hi; __asm__ volatile("csrr %0, minstret; csrr %1, minstreth" : "=r"(lo), "=r"(hi)); return ((uint64_t)hi << 32) | lo; }
 #define UNIT "instret"
 #else
@@ -19,16 +19,16 @@ static uint64_t now(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t
 #define UNIT "us"
 #endif
 
-/* WAMR の全確保をこのプールに閉じ込め、highmark で実使用量を測る */
+/* Every WAMR allocation is confined to this pool, and highmark reports what was actually used */
 #ifndef POOL_KB
 #define POOL_KB 128
 #endif
 static char pool[POOL_KB * 1024];
 
-/* argv は引数を渡し、戻り値を argv[0] で受ける */
+/* argv carries the arguments in and the return value back out in argv[0] */
 static int call_args(wasm_exec_env_t env, wasm_module_inst_t inst, const char *name, uint32_t argc, uint32_t *argv) {
     uint32_t last = argc ? argv[argc - 1] : 0;
-    /* 途中で止まったときにどの呼び出しかが分かるよう、開始も出す（計時の外） */
+    /* The start is printed too, outside the timing, so a hang can be traced to a call */
     printf("> %s/%u\n", name, last);
     uint64_t t0 = now();
     wasm_function_inst_t f = wasm_runtime_lookup_function(inst, name);
@@ -47,7 +47,7 @@ static int call(wasm_exec_env_t env, wasm_module_inst_t inst, const char *name, 
     return 1;
 }
 
-/* SHA512_HOST_COMPRESS でビルドした wasm が import する。範囲外のアドレスは例外にする */
+/* Imported by a wasm built with SHA512_HOST_COMPRESS. An out-of-range address raises an exception */
 static void host_sha512_compress(wasm_exec_env_t env, uint32_t s_off, uint32_t blk_off) {
     wasm_module_inst_t inst = wasm_runtime_get_module_inst(env);
     uint64_t s[8];
@@ -62,7 +62,8 @@ static void host_sha512_compress(wasm_exec_env_t env, uint32_t s_off, uint32_t b
 static NativeSymbol natives[] = {{"host_sha512_compress", host_sha512_compress, "(ii)", NULL}};
 
 #ifdef PICO_BUILD
-/* SDK の既定ハンドラは黙ってコアを止めるので、原因を UART に直接出す（printf は使えない場所かもしれない） */
+/* The SDK's default handler stops the core silently, so the cause goes straight to the UART; printf
+ * may not be usable from here */
 void __attribute__((used, noinline)) trap_report(uint32_t sp) {
     uint32_t csr[4];
     __asm__ volatile("csrr %0, mcause; csrr %1, mepc; csrr %2, mtval; csrr %3, mstatus"
@@ -80,7 +81,8 @@ void __attribute__((used, noinline)) trap_report(uint32_t sp) {
     while (1) tight_loop_contents();
 }
 
-/* ベクタ表は RAM にあり j 命令で飛ぶので、入口は Flash に置けない */
+/* The vector table is in RAM and dispatches with a j instruction, so these entry points cannot live
+ * in flash */
 void __attribute__((naked, section(".time_critical.trap"))) isr_riscv_machine_exception(void) {
     __asm__ volatile("mv a0, sp\n tail trap_report");
 }
@@ -94,7 +96,8 @@ static void hex(const char *label, const unsigned char *p, int n) {
 
 #ifdef QEMU_BUILD
 extern uint32_t qemu_stack[], qemu_stack_top[];
-/* crt0 が BSS ごとスタックを消すので、main 入口で未使用部分を塗って使用量を測る */
+/* crt0 clears the stack along with BSS, so the unused part is painted at the top of main to measure
+ * how much gets used */
 static void __attribute__((noinline)) paint_stack(void) {
     uint32_t *sp, *p = qemu_stack;
     __asm__ volatile("mv %0, sp" : "=r"(sp));
@@ -118,13 +121,15 @@ int main(void) {
     wasm_runtime_register_natives("env", natives, sizeof(natives) / sizeof(natives[0]));
 
 #ifdef QEMU_BUILD
-    /* XIP で Flash に置けるかの確認用。ローダが元バイナリへ書き込むかを実行後に比べる */
+    /* To find out whether this can be executed in place from flash: compare afterwards and see if the
+     * loader wrote back into the original bytes */
     static unsigned char orig[sizeof(signer_wasm)];
     memcpy(orig, signer_wasm, sizeof(orig));
 #endif
     uint8_t *wasm_buf = (uint8_t *)signer_wasm;
 #if defined(PICO_BUILD) && WASM_ENABLE_INTERP != 0
-    /* classic interp はロード時にバイトコードを書き換える。実機では .rodata が Flash(XIP) で書けないので RAM へ写す */
+    /* The classic interpreter rewrites the bytecode as it loads. On the device .rodata is in flash and
+     * cannot be written, so it is copied to RAM first */
     static unsigned char wasm_ram[sizeof(signer_wasm)];
     memcpy(wasm_ram, signer_wasm, sizeof(wasm_ram));
     wasm_buf = wasm_ram;
@@ -176,7 +181,7 @@ int main(void) {
     printf("native_stack_used %u\n", (unsigned)((char *)qemu_stack_top - (char *)p));
 #endif
 #ifdef PICO_BUILD
-    /* main から戻ると SDK が ebreak するので、トラップ報告と紛れないようここで止める */
+    /* Returning from main makes the SDK ebreak, which would read like a trap, so stop here instead */
     printf("done\n");
     while (1) tight_loop_contents();
 #endif

@@ -1,17 +1,18 @@
 #ifndef UI_UI_H
 #define UI_UI_H
 
-/* 240x240 の確認画面。文字列はすべて core_display_t（ネイティブが plan のバイト列から作ったもの）から組み立てる。
- * 画面はフルフレームバッファを持たず、1 行ずつ RGB565 で生成して LCD に流す */
+/* The 240x240 review screens. Every string comes from core_display_t, which the native side built
+ * from the plan's bytes. There is no full framebuffer: each row is generated as RGB565 and streamed
+ * to the LCD */
 
 #include <stdint.h>
 #include "core.h"
 
 #define UI_W 240
 #define UI_H 240
-/* 全画面の右上に出す。UI_COLS に収まる長さにする */
+/* Shown at the top right of every screen; must fit within UI_COLS */
 #define UI_APP_NAME "Baremetal wasm DIY Signer"
-#define UI_COLS 30 /* 8x16 フォント */
+#define UI_COLS 30 /* with the 8x16 font */
 #define UI_ROWS 15
 #define UI_MAX_SCREENS (PLAN_MAX_OUTPUTS + 2)
 
@@ -26,16 +27,17 @@ enum { UI_PENDING = 0, UI_APPROVED, UI_REJECTED };
 typedef struct {
     ui_screen_t screens[UI_MAX_SCREENS];
     uint8_t n, cur;
-    uint32_t seen; /* 表示した画面のビット集合。全て見るまで署名を受け付けない */
+    uint32_t seen; /* which screens have been shown; signing is refused until every one has been */
 } ui_review_t;
 
-/* 概要、出力ごとの詳細、署名確認の順に画面を組む */
+/* The screens, in order: the summary, one per output, then the confirmation */
 void ui_review_init(ui_review_t *r, const core_display_t *d);
-/* キー入力で画面を移し、署名確認画面で PUSH されたら UI_APPROVED、A なら UI_REJECTED を返す */
+/* Moves between screens on a key press. On the confirmation screen, PUSH gives UI_APPROVED and A
+ * gives UI_REJECTED */
 int ui_review_key(ui_review_t *r, int key);
 void ui_render_line(const ui_screen_t *s, int y, uint16_t line[UI_W]);
 
-/* 項目を選ぶ画面。ボタン 2 個（進む＝カーソル移動、押込＝決定）でも回せる */
+/* A list to pick from. Two buttons are enough: one moves the cursor, the other selects */
 #define UI_MENU_MAX 6
 enum { UI_MENU_PENDING = -1, UI_MENU_BACK = -2 };
 
@@ -47,32 +49,32 @@ typedef struct {
 } ui_menu_t;
 
 void ui_menu_init(ui_menu_t *m, const char *title, const char *const *items, unsigned n);
-/* 選ばれた項目の番号、UI_MENU_PENDING、UI_MENU_BACK のいずれかを返す */
+/* Returns the chosen item's index, or UI_MENU_PENDING or UI_MENU_BACK */
 int ui_menu_key(ui_menu_t *m, int key);
-/* 文字だけの画面（起動時やエラー、警告） */
+/* A text-only screen, for startup, errors and warnings */
 void ui_message(ui_screen_t *s, const char *title, const char *body, int warn);
 
-/* 署名済み PSBT を返すアニメーション QR。1 パート 120 byte だと文字列が約 300 文字で QR は v8 前後、
- * 240 px に 1 モジュール 4 px で収まる */
-/* 1 パートを QR v8（49 モジュール）に収める大きさ。240px の LCD で 1 モジュール 4px になり、
- * 1.54 インチでは 0.47mm。これより大きい版にすると倍率が 3px に落ちてカメラが読めない */
+/* The animated QR that hands back the signed PSBT. At 120 bytes per part the string runs to about
+ * 300 characters, which lands around QR v8 and fits 240 px at 4 px per module */
+/* Sized so one part fits QR v8 (49 modules). That is 4 px per module on a 240 px LCD, or 0.47 mm on
+ * a 1.54 inch panel. A larger version drops the scale to 3 px, which a camera cannot read */
 #define UI_UR_FRAGMENT 100
 #define UI_QR_MAX_VERSION 12
-/* text を QR にする。収まらなければ 0 */
-/* 口座の拡張公開鍵の画面。文字列は折り返して全部出す */
+/* Encodes text as a QR, or returns 0 if it does not fit */
+/* The account xpub screen; the string is wrapped so all of it is shown */
 void ui_xpub(ui_screen_t *s, const char *xpub, uint32_t fp, int testnet);
 
-/* 積んでいる wasm のハッシュを見せる画面 */
+/* Shows the hash of the wasm actually loaded */
 void ui_hash(ui_screen_t *s, const char *name, unsigned len, const uint8_t h[32]);
 
 int ui_qr_set(const char *text);
-/* 周囲に 4 モジュールの余白を付けて、画面いっぱいに整数倍で拡大する */
+/* Adds the four-module quiet zone and scales by a whole number to fill the screen */
 void ui_qr_render_line(int y, uint16_t line[UI_W]);
 
-/* QR の白の濃さを 1 段変える。明るすぎるとカメラが飽和して読めない */
+/* Steps the brightness of the QR's white. Too bright saturates the camera and cannot be read */
 void ui_qr_level(int delta);
 int ui_qr_level_get(void);
-/* 直前に ui_qr_set した QR の一辺のモジュール数（表示の確認用） */
+/* How many modules a side the last ui_qr_set produced, for checking what is on screen */
 int ui_qr_modules(void);
 
 #endif
