@@ -88,9 +88,9 @@ const hex = u8 => [...u8].map(b => b.toString(16).padStart(2, "0")).join("");
 
 function toAddress(spk, testnet) {
   const mem = new Uint8Array(address.memory.buffer);
-  mem.set(spk, address.addr_spk());
+  mem.set(spk, address.addr_input());
   if (!address.addr_encode(spk.length, testnet ? 1 : 0)) return null;
-  let s = "", p = address.addr_out();
+  let s = "", p = address.addr_output();
   while (mem[p]) s += String.fromCharCode(mem[p++]);
   return s;
 }
@@ -207,13 +207,13 @@ async function camera() {
     const rgba = ctx.getImageData(0, 0, W, H);
     let text = null, how = (mode & 1) ? "centre" : "whole frame", detail = "";
     {
-      const gray = new Uint8Array(qr.memory.buffer, qr.qr_image(), W * H);
+      const gray = new Uint8Array(qr.memory.buffer, qr.qr_input(), W * H);
       const d = rgba.data;
       for (let i = 0, j = 0; i < gray.length; i++, j += 4)  // ITU-R BT.601 luma
         gray[i] = (d[j] * 77 + d[j + 1] * 150 + d[j + 2] * 29) >> 8;
       const n = qr.qr_decode();
       if (n > 0) {
-        text = new TextDecoder().decode(new Uint8Array(qr.memory.buffer, qr.qr_payload(), n));
+        text = new TextDecoder().decode(new Uint8Array(qr.memory.buffer, qr.qr_output(), n));
         how += "・quirc";
       } else if (n < 0) {
         const px = qr.qr_last_px(), cells = qr.qr_last_cells();

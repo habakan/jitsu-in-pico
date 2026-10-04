@@ -9,7 +9,7 @@ so they run wherever a WebAssembly runtime does.
 
 <img src="docs/everywhere.svg" alt="The same WASM runs everywhere" width="900">
 
-The same **15,598 bytes** run on a microcontroller with no OS (RP2350) and in Safari on an iPhone.
+The same **15,570 bytes** run on a microcontroller with no OS (RP2350) and in Safari on an iPhone.
 `parser.wasm` is byte-for-byte identical in both, the device shows its SHA-256 on screen, and
 `make check-repro` rebuilds it from source to the same hash — so you can check for yourself that the
 parser inside the device is the one in this repository.
@@ -18,7 +18,8 @@ parser inside the device is the one in this repository.
 |---|---|
 | The idea, with diagrams | [docs/everywhere.md](docs/everywhere.md) (Japanese) |
 | What this is for, and who it helps | [docs/positioning.md](docs/positioning.md) (Japanese) |
-| **How to drive the module from your language** | [components/parser/docs/abi.md](components/parser/docs/abi.md) |
+| **The module convention** (prefixes, buffers, what is checked) | [docs/module-abi.md](docs/module-abi.md) |
+| **How to drive the parser from your language** | [components/parser/docs/abi.md](components/parser/docs/abi.md) |
 
 A Japanese version is at [README.ja.md](README.ja.md). The design notes and measurements under
 `docs/` are still Japanese only.

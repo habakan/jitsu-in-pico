@@ -15,10 +15,10 @@ wasm modules, and compares them against `checksums.txt`.
 
 ```
 21ea6dbc…  build/parser.wasm           the parser; the device and the browser load the same file
-372f6284…  build/signer.wasm           keys, derivation and signing, as a wasm component
-3f922e3c…  build/bitcoin-signer.wasm   the signing primitives the viewer uses
-d98b87b1…  build/address.wasm          scriptPubKey to an address
-9e75254d…  build/qr.wasm               the QR decoder (quirc)
+57155143…  build/signer.wasm           keys, derivation and signing, as a wasm component
+94f92d82…  build/bitcoin-signer.wasm   the signing primitives alone; what the RV32 benchmark exercises
+ba25a15d…  build/address.wasm          scriptPubKey to an address
+c70531df…  build/qr.wasm               the QR decoder (quirc)
 ```
 
 ## What is pinned

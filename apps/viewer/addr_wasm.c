@@ -4,8 +4,8 @@
 static uint8_t spk[128];
 static char out[ADDRESS_MAX];
 
-__attribute__((export_name("addr_spk"))) uint8_t *addr_spk(void) { return spk; }
-__attribute__((export_name("addr_out"))) char *addr_out(void) { return out; }
+__attribute__((export_name("addr_input"))) uint8_t *addr_input(void) { return spk; }
+__attribute__((export_name("addr_output"))) char *addr_output(void) { return out; }
 /* 1 on success; testnet is 0 or 1 */
 __attribute__((export_name("addr_encode"))) int addr_encode(unsigned len, int testnet) {
     return len <= sizeof(spk) && address_encode(spk, len, testnet, out);

@@ -15,7 +15,7 @@ WASI も JS のポリフィルも要らず、置かれた場所の違いが結�
 
 | | 大きさ | import | 役割 |
 |---|---:|---:|---|
-| `parser.wasm` | 15,598 B | 0 | UR の復元、PSBT の解析、Plan 生成、署名の差し込み、UR 符号化 |
+| `parser.wasm` | 15,570 B | 0 | UR の復元、PSBT の解析、Plan 生成、署名の差し込み、UR 符号化 |
 | `qr.wasm`（quirc） | 16,546 B | 0 | QR のデコード（FPU 無し向けに固定小数点化した自前フォーク） |
 | `address.wasm` | 3,058 B | 0 | scriptPubKey → アドレス（bech32 / bech32m / base58check） |
 

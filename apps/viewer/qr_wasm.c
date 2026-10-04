@@ -31,8 +31,8 @@ __attribute__((export_name("qr_init"))) int qr_init(int w, int h) {
     return q && quirc_resize(q, w, h) >= 0;
 }
 /* Write w*h bytes of 8-bit greyscale here, then call qr_decode */
-__attribute__((export_name("qr_image"))) uint8_t *qr_image(void) { return quirc_begin(q, NULL, NULL); }
-__attribute__((export_name("qr_payload"))) uint8_t *qr_payload(void) { return data.payload; }
+__attribute__((export_name("qr_input"))) uint8_t *qr_input(void) { return quirc_begin(q, NULL, NULL); }
+__attribute__((export_name("qr_output"))) uint8_t *qr_output(void) { return data.payload; }
 
 /* The last QR's size in pixels and in modules, for working out why one will not read */
 static int last_px, last_cells, last_err;

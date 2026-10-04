@@ -141,34 +141,34 @@ int main(void) {
     wasm_exec_env_t env = wasm_runtime_create_exec_env(inst, 4096);
 
     uint32_t io_off, ok;
-    if (!call(env, inst, "signer_io", &io_off)) return 1;
+    if (!call(env, inst, "prim_io", &io_off)) return 1;
     unsigned char *io = wasm_runtime_addr_app_to_native(inst, io_off);
-    if (!call(env, inst, "signer_init", &ok) || !ok) return 1;
+    if (!call(env, inst, "prim_init", &ok) || !ok) return 1;
     memcpy(io, TV_IN, 96);
-    if (!call(env, inst, "signer_sign_ecdsa", &ok) || !ok) return 1;
+    if (!call(env, inst, "prim_sign_ecdsa", &ok) || !ok) return 1;
     hex("ecdsa", io + 96, 64);
-    if (!call(env, inst, "signer_sign_schnorr", &ok) || !ok) return 1;
+    if (!call(env, inst, "prim_sign_schnorr", &ok) || !ok) return 1;
     hex("schnorr", io + 96, 64);
 
     uint32_t in_off, a[2];
-    if (!call(env, inst, "signer_in", &in_off)) return 1;
+    if (!call(env, inst, "prim_input", &in_off)) return 1;
     unsigned char *in = wasm_runtime_addr_app_to_native(inst, in_off);
     memcpy(in, TV_MN12 "TREZOR", sizeof(TV_MN12) + 5);
     a[0] = sizeof(TV_MN12) - 1, a[1] = 6;
-    if (!call_args(env, inst, "signer_seed_from_mnemonic", 2, a) || !a[0]) return 1;
+    if (!call_args(env, inst, "prim_seed_from_mnemonic", 2, a) || !a[0]) return 1;
     hex("seed12", io + 96, 64);
     memcpy(in, TV_MN24 "TREZOR", sizeof(TV_MN24) + 5);
     a[0] = sizeof(TV_MN24) - 1, a[1] = 6;
-    if (!call_args(env, inst, "signer_seed_from_mnemonic", 2, a) || !a[0]) return 1;
+    if (!call_args(env, inst, "prim_seed_from_mnemonic", 2, a) || !a[0]) return 1;
     hex("seed24", io + 96, 64);
     memcpy(in, TV_MN12, sizeof(TV_MN12) - 1);
     a[0] = sizeof(TV_MN12) - 1, a[1] = 0;
-    if (!call_args(env, inst, "signer_seed_from_mnemonic", 2, a) || !a[0]) return 1;
+    if (!call_args(env, inst, "prim_seed_from_mnemonic", 2, a) || !a[0]) return 1;
     memcpy(in, TV_PATH, sizeof(TV_PATH));
     a[0] = 4;
-    if (!call_args(env, inst, "signer_bip32_derive", 1, a) || !a[0]) return 1;
+    if (!call_args(env, inst, "prim_bip32_derive", 1, a) || !a[0]) return 1;
     a[0] = 5;
-    if (!call_args(env, inst, "signer_bip32_derive", 1, a) || !a[0]) return 1;
+    if (!call_args(env, inst, "prim_bip32_derive", 1, a) || !a[0]) return 1;
     hex("bip84_pub", io + 96, 33);
 
     mem_alloc_info_t mi;

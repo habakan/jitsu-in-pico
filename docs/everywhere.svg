@@ -10,7 +10,7 @@
 <rect x="325.0" y="256.0" width="250" height="128" rx="10" fill="#2a2113" stroke="#ffaa00" stroke-width="2"/>
 <text x="450.0" y="282.0" fill="#ffcf6b" font-size="15" text-anchor="middle">the same WASM</text>
 <text x="343.0" y="308.0" fill="#e8e8e8" font-size="13">parser.wasm</text>
-<text x="557.0" y="308.0" fill="#8b93a1" font-size="12" text-anchor="end">15,598 B</text>
+<text x="557.0" y="308.0" fill="#8b93a1" font-size="12" text-anchor="end">15,570 B</text>
 <text x="343.0" y="331.0" fill="#e8e8e8" font-size="13">qr.wasm</text>
 <text x="557.0" y="331.0" fill="#8b93a1" font-size="12" text-anchor="end">16,546 B</text>
 <text x="343.0" y="354.0" fill="#e8e8e8" font-size="13">address.wasm</text>

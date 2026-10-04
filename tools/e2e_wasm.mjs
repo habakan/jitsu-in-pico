@@ -15,7 +15,7 @@ if (rc) throw new Error("parse rc=" + rc);
 // 2. plan_t をそのまま signer.wasm へ渡す
 if (!S.signer_init(0)) throw new Error("init");
 const enc = new TextEncoder().encode(MN);
-new Uint8Array(S.memory.buffer).set(enc, S.signer_in());
+new Uint8Array(S.memory.buffer).set(enc, S.signer_input());
 if (!S.signer_seed_from_mnemonic(enc.length, 0)) throw new Error("seed");
 console.log("fingerprint", S.signer_fingerprint().toString(16).padStart(8, "0"));
 
@@ -42,7 +42,7 @@ if (rv) throw new Error("review rc=" + rv);
 const dv = S.signer_display();
 if (dv) throw new Error("display rc=" + dv);
 const mem = new DataView(S.memory.buffer), u8 = new Uint8Array(S.memory.buffer);
-const d = S.signer_display_out();
+const d = S.signer_display_output();
 const fee = mem.getBigUint64(d, true), spend = mem.getBigUint64(d + 8, true), nOut = u8[d + 16];
 const btc = v => (Number(v) / 1e8).toFixed(8);
 console.log(`fee ${btc(fee)}  spend ${btc(spend)}  outputs ${nOut}`);

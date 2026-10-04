@@ -10,7 +10,7 @@
 
 <img src="docs/everywhere.svg" alt="The same WASM runs everywhere" width="900">
 
-OS の無いマイコン（RP2350）と iPhone の Safari で、**同じ 15,598 byte** が動く。
+OS の無いマイコン（RP2350）と iPhone の Safari で、**同じ 15,570 byte** が動く。
 `parser.wasm` はバイト単位で同じものが載り、その SHA-256 をデバイスも画面に出すので、
 手元で `make check-repro` した結果と突き合わせられる。
 

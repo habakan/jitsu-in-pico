@@ -44,7 +44,7 @@ def icon(kind, x, y, size, color):
     body = "".join(d)
     return (f'<g transform="translate({x},{y}) scale({k})" fill="none" stroke="{color}" '
             f'stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">{body}</g>')
-ARTIFACTS = [("parser.wasm", "15,598 B"), ("qr.wasm", "16,546 B"), ("address.wasm", "3,058 B")]
+ARTIFACTS = [("parser.wasm", "15,570 B"), ("qr.wasm", "16,546 B"), ("address.wasm", "3,058 B")]
 
 FONT = "Hiragino Sans, Noto Sans JP, sans-serif"
 BG, LINE, DIM, FG = "#13151a", "#3a404d", "#8b93a1", "#e8e8e8"
