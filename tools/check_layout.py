@@ -1,0 +1,84 @@
+#!/usr/bin/env -S uv run -q --script
+# /// script
+# requires-python = ">=3.11"
+# ///
+"""The structure offsets in the spec and in the host library have to equal what C says they are.
+
+A number written by hand in a document is wrong the moment a struct changes, and nothing would
+notice. components/signer/tests/layout.c prints the truth; this compares everything against it.
+"""
+import json
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+
+def main():
+    if len(sys.argv) < 2:
+        sys.exit("usage: check_layout.py PATH_TO_LAYOUT_BINARY")
+    try:
+        run = subprocess.run([sys.argv[1]], capture_output=True, text=True, check=True)
+    except (FileNotFoundError, subprocess.CalledProcessError) as e:
+        sys.exit(f"check-layout: cannot run {sys.argv[1]}: {e}")
+    truth = json.loads(run.stdout)
+    bad = []
+
+    # The JavaScript host library's constants
+    js = Path("components/signer/hosts/js/signer.mjs").read_text()
+    want_js = {
+        "plan.size": truth["plan_t"]["size"],
+        "plan.nInputs": truth["plan_t"]["n_inputs"],
+        "plan.nOutputs": truth["plan_t"]["n_outputs"],
+        "review.size": truth["core_review_t"]["size"],
+        "review.fee": truth["core_review_t"]["fee"],
+        "review.owner": truth["core_review_t"]["owner"],
+        "review.willSign": truth["core_review_t"]["will_sign"],
+        "review.nSign": truth["core_review_t"]["n_sign"],
+        "display.size": truth["core_display_t"]["size"],
+        "display.outputs": truth["core_display_t"]["outputs"],
+        "display.outSize": truth["core_display_t"]["output_size"],
+        "display.outText": truth["core_display_t"]["output_text"],
+        "display.outTextCap": truth["core_display_t"]["output_text_cap"],
+        "sig.size": truth["plan_sig_t"]["size"],
+        "sig.sigLen": truth["plan_sig_t"]["sig_len"],
+        "sig.sig": truth["plan_sig_t"]["sig"],
+    }
+    for name, want in want_js.items():
+        key = name.split(".")[1]
+        # the constants live in one object literal per structure
+        block = re.search(r"\b" + name.split(".")[0] + r":\s*\{(.*?)\}", js, re.S)
+        if not block:
+            bad.append(f"signer.mjs: no block for {name.split('.')[0]}")
+            continue
+        m = re.search(r"\b" + key + r":\s*(\d+)", block.group(1))
+        if not m:
+            bad.append(f"signer.mjs: {name} not found")
+        elif int(m.group(1)) != want:
+            bad.append(f"signer.mjs: {name} is {m.group(1)}, C says {want}")
+
+    # The error codes, in the library and in the spec
+    for code, name in [(v, k) for k, v in truth["errors"].items()]:
+        if f'{code}: "{name}"' not in js.replace("'", '"'):
+            bad.append(f"signer.mjs: ERRORS is missing {code} -> {name}")
+
+    # Every offset the spec states
+    spec = Path("components/signer/docs/abi.md").read_text()
+    for label, want in [
+        (f"`core_review_t` ({truth['core_review_t']['size']} bytes)", None),
+        (f"`core_display_t` ({truth['core_display_t']['size']} bytes)", None),
+        (f"`plan_sig_t` ({truth['plan_sig_t']['size']} bytes)", None),
+    ]:
+        if label not in spec:
+            bad.append(f"abi.md: does not say {label}")
+    if f"the `plan_t`, {truth['plan_t']['size']} bytes" not in spec:
+        bad.append(f"abi.md: plan_t size is not {truth['plan_t']['size']}")
+
+    for b in bad:
+        print(f"  {b}")
+    print(f"check-layout: {'FAILED' if bad else 'the spec, the host library and the structs agree'}")
+    return 1 if bad else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

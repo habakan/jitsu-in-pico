@@ -30,8 +30,19 @@ both could not tell them apart by name.
 A module that genuinely has one combined scratch area says so: `prim_io` is a fixed layout of
 seckey, message, aux and result, and calling it an input or an output would be a lie.
 
-**Operations are `<mod>_<verb>`** and return an `int`: zero or a positive count on success, negative
-for failure. What each negative value means belongs to the module.
+**Operations are `<mod>_<verb>`.** There is no single return convention, because three different
+kinds of thing are being reported, and pretending otherwise would mean a host checking the wrong
+sense somewhere. Each module states which of these each function uses:
+
+| | |
+|---|---|
+| a predicate | `1` on success, `0` on failure, for something that can only fail one way |
+| an error code | `0` on success, a positive module-specific code otherwise |
+| a count | the number produced, or the negated error code |
+
+Writing the first host library for `signer.wasm` is what found that `signer_xpub` had been returning
+`1` for success while `signer_review` next to it returned `0`. It now returns an error code like its
+neighbours. A convention nobody has driven from another language is a guess.
 
 **Every module has zero imports.** No clock, no randomness, no filesystem, no network, nothing to
 polyfill. A host that needs randomness passes it in through a buffer. This is checked in CI
@@ -51,16 +62,18 @@ by accident is how a module starts offering more than it documents.
 | module | prefix | what it does | spec | host libraries |
 |---|---|---|---|---|
 | `parser.wasm` | `parser_` | UR reassembly, PSBT parsing, building the Plan, taking signatures back, UR encoding | [abi.md](../components/parser/docs/abi.md) | JS, Kotlin, Swift |
-| `signer.wasm` | `signer_` | keys, derivation, re-checking a Plan, the display model, signing, xpub export | none yet | none yet |
+| `signer.wasm` | `signer_` | keys, derivation, re-checking a Plan, the display model, signing, xpub export | [abi.md](../components/signer/docs/abi.md) | JS |
 | `bitcoin-signer.wasm` | `prim_` | the signing primitives on their own; what the RV32 benchmark exercises | none | none |
 | `address.wasm` | `addr_` | a scriptPubKey to an address string | none | none |
 | `qr.wasm` | `qr_` | QR decoding (quirc), for the browser | none | none |
 
-**Only `parser.wasm` is finished as a part.** It has a specification, three host libraries, 529
-vectors, fuzzing, its own CI and a signed release. The other four are built and tested through the
-applications that use them, not on their own terms, and a third party should not expect to drive them
-from this page alone. What `signer.wasm` would need to become a part — and the conditions for giving
-it a repository of its own — is in [design.md](design.md) §16.
+**`parser.wasm` is finished as a part**: a specification, three host libraries, 529 vectors,
+fuzzing, its own CI and a signed release. **`signer.wasm` now has a specification, a JavaScript host
+library and 24 checks of its own**, which is the first of the conditions in [design.md](design.md)
+§16 for giving it a repository of its own; Kotlin and Swift libraries are not written yet.
+
+The remaining three are built and tested through the applications that use them, not on their own
+terms, and a third party should not expect to drive them from this page alone.
 
 ## Driving one
 

@@ -305,6 +305,23 @@ build/psbt/own_mixed_nwu.ur: components/parser/tests/ur_vectors.json build/psbt/
 	python3 -c "import json,re; v=[x for x in json.load(open('$<'))['vectors'] if x['name']=='own_mixed_nwu' and x['fragment_len']==60][0]; \
 	  print('\n'.join(p for p in v['parts'] if not (int(re.match(r'UR:[A-Z-]+/(\d+)', p).group(1)) <= v['seq_len'] and int(re.match(r'UR:[A-Z-]+/(\d+)', p).group(1)) % 3 == 0)))" > $@
 
+# The structure offsets in the spec and the host library, against what C says they are. A number
+# written by hand in a document is wrong the moment a struct changes, and nothing else would notice
+build/layout: components/signer/tests/layout.c components/signer/core.h components/parser/include/plan.h
+	@mkdir -p build
+	$(CC) -Icomponents/signer -Icomponents/parser/include -o $@ $<
+
+check-layout: build/layout
+	uv run -q tools/check_layout.py $<
+.PHONY: check-layout
+
+# signer.wasm driven from JavaScript, with the signatures compared against the native side's.
+# The .signed file is produced here rather than depended on: check-psbt deletes and rewrites it
+check-signer-host: build/signer.wasm build/parser.wasm build/host-classic/psbt_host build/psbt/own_p2wpkh_1in.psbt
+	build/host-classic/psbt_host sign build/psbt/own_mixed_nwu.psbt build/psbt/own_mixed_nwu.signed
+	node components/signer/hosts/js/test.mjs
+.PHONY: check-signer-host
+
 # Bitcoin Core as the oracle. Core decides what a PSBT means, so agreeing with it is worth more than
 # agreeing with our own expectations. Needs bitcoind and bitcoin-cli on PATH.
 # Its own port, so a regtest node already running on the default one does not get in the way

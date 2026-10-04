@@ -50,6 +50,10 @@ jobs:
       - run: make check-xpub
       - run: make check-seedqr
       - run: make check-ui
+      - name: The spec, the host library and the structs agree on every offset
+        run: make check-layout
+      - name: signer.wasm driven from JavaScript (24 checks)
+        run: make check-signer-host
       - name: A full PSBT round (WAMR plus the native core, signatures verified independently with embit)
         run: |
           SDK=$(./tools/toolchain.sh)

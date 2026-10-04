@@ -15,7 +15,7 @@ wasm modules, and compares them against `checksums.txt`.
 
 ```
 21ea6dbc…  build/parser.wasm           the parser; the device and the browser load the same file
-57155143…  build/signer.wasm           keys, derivation and signing, as a wasm component
+6f05069b…  build/signer.wasm           keys, derivation and signing, as a wasm component
 94f92d82…  build/bitcoin-signer.wasm   the signing primitives alone; what the RV32 benchmark exercises
 ba25a15d…  build/address.wasm          scriptPubKey to an address
 c70531df…  build/qr.wasm               the QR decoder (quirc)
