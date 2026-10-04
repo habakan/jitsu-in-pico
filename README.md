@@ -20,7 +20,8 @@ parser inside the device is the one in this repository.
 | What this is for, and who it helps | [docs/positioning.md](docs/positioning.md) (Japanese) |
 | **How to drive the module from your language** | [components/parser/docs/abi.md](components/parser/docs/abi.md) |
 
-日本語版は [README.ja.md](README.ja.md)。設計と実測の記録はいまのところ日本語のみ。
+A Japanese version is at [README.ja.md](README.ja.md). The design notes and measurements under
+`docs/` are still Japanese only.
 
 ## Disclaimer
 
