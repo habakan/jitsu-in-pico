@@ -11,6 +11,7 @@ touching the parser or writing a host for it.
 ## Language
 
 - **Issues, pull requests and code review: English.**
+- **Source-code comments: English.**
 - This repository's commit messages and `docs/` are **Japanese**; `README.md` and
   `docs/limitations.md` are English. Translations of existing Japanese docs are welcome.
 - The [jitsu-in](https://github.com/habakan/jitsu-in) submodule is **English
@@ -31,6 +32,9 @@ change over language.
 
 If a change alters any `.wasm`, `checksums.txt` changes too. Include it in the same commit and say so
 in the PR — a reviewer needs to see that the hash moved on purpose.
+
+For C changes, run `make format-c` before `make check-c-format check-c-tidy`. The formatter and
+static-analysis settings match the [jitsu-in](https://github.com/habakan/jitsu-in) project.
 
 ## Conventions
 

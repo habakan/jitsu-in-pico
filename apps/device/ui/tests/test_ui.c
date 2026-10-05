@@ -3,7 +3,14 @@
 #include "ui.h"
 
 static int failures, checks;
-#define CHECK(cond, msg) do { checks++; if (!(cond)) { failures++; printf("FAIL %s:%d %s\n", __FILE__, __LINE__, msg); } } while (0)
+#define CHECK(cond, msg)                                                                                               \
+    do {                                                                                                               \
+        checks++;                                                                                                      \
+        if (!(cond)) {                                                                                                 \
+            failures++;                                                                                                \
+            printf("FAIL %s:%d %s\n", __FILE__, __LINE__, msg);                                                        \
+        }                                                                                                              \
+    } while (0)
 
 static void display3(core_display_t *d) {
     memset(d, 0, sizeof(*d));

@@ -9,11 +9,19 @@
 #include "sha512.h"
 #include "parser_wasm.h"
 #ifdef QEMU_BUILD
-static uint64_t now(void) { uint32_t lo, hi; __asm__ volatile("csrr %0, minstret; csrr %1, minstreth" : "=r"(lo), "=r"(hi)); return ((uint64_t)hi << 32) | lo; }
+static uint64_t now(void) {
+    uint32_t lo, hi;
+    __asm__ volatile("csrr %0, minstret; csrr %1, minstreth" : "=r"(lo), "=r"(hi));
+    return ((uint64_t)hi << 32) | lo;
+}
 #define UNIT "instret"
 #else
 #include <time.h>
-static uint64_t now(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint64_t)t.tv_sec * 1000000 + t.tv_nsec / 1000; }
+static uint64_t now(void) {
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return (uint64_t)t.tv_sec * 1000000 + t.tv_nsec / 1000;
+}
 #define UNIT "us"
 #endif
 
@@ -57,7 +65,10 @@ static void write_screens(const core_display_t *d, const char *prefix) {
     }
 }
 
-static int zero_rng(uint8_t *b, size_t n) { memset(b, 0, n); return 1; } /* for tests; the device uses its TRNG */
+static int zero_rng(uint8_t *b, size_t n) {
+    memset(b, 0, n);
+    return 1;
+} /* for tests; the device uses its TRNG */
 
 /* Feeds a UR, one part per line, reassembles the PSBT into file_buf and returns its length, or -1 */
 static long assemble_ur(const char *path) {
@@ -203,8 +214,10 @@ static int sign(const char *in_path, const char *out_path, const char *preview) 
     int err;
     FILE *f;
 
-    if (len < 0 || !parser_host_parse(file_buf, (uint32_t)len, core_fingerprint(), &rc, &plan, prev, prevtx_arena,
-                                      sizeof(prevtx_arena)) || rc)
+    if (len < 0 ||
+        !parser_host_parse(file_buf, (uint32_t)len, core_fingerprint(), &rc, &plan, prev, prevtx_arena,
+                           sizeof(prevtx_arena)) ||
+        rc)
         return printf("parse rc=%u\n", (unsigned)rc), 1;
     t1 = now();
     if ((err = core_review(&plan, prev, &r)) != CORE_OK) return printf("review err=%d\n", err), 1;
@@ -226,8 +239,8 @@ static int sign(const char *in_path, const char *out_path, const char *preview) 
     fwrite(file_buf, 1, out_len, f);
     fclose(f);
     if (write_ur(out_path, out_len, preview) != 0) return printf("ur encode failed\n"), 1;
-    printf("  signed %u input(s); %s parse=%llu review=%llu sign=%llu finalize=%llu; pool_highmark=%u\n", n_sigs,
-           UNIT, (unsigned long long)(t1 - t0), (unsigned long long)(t2 - t1), (unsigned long long)(t3 - t2),
+    printf("  signed %u input(s); %s parse=%llu review=%llu sign=%llu finalize=%llu; pool_highmark=%u\n", n_sigs, UNIT,
+           (unsigned long long)(t1 - t0), (unsigned long long)(t2 - t1), (unsigned long long)(t3 - t2),
            (unsigned long long)(t4 - t3), (unsigned)parser_host_pool_highmark());
     return 0;
 }
@@ -240,7 +253,12 @@ int main(int argc, char **argv) {
     static char *qemu_argv[] = {"psbt_host", "sign", "build/psbt/own_mixed_nwu.ur", "build/psbt/own_mixed_nwu.qemu"};
     argc = 4, argv = qemu_argv;
 #endif
-    if (argc < 3) return fprintf(stderr, "usage: %s parse FILE... | plan FILE | sign IN(.psbt|.ur) OUT [PREVIEW_PREFIX] | bin2ur IN.psbt OUT | ur2bin IN.ur OUT\n", argv[0]), 2;
+    if (argc < 3)
+        return fprintf(stderr,
+                       "usage: %s parse FILE... | plan FILE | sign IN(.psbt|.ur) OUT [PREVIEW_PREFIX] | bin2ur IN.psbt "
+                       "OUT | ur2bin IN.ur OUT\n",
+                       argv[0]),
+               2;
     memcpy(parser_wasm_rw, parser_wasm, sizeof(parser_wasm_rw));
     if (!core_init(CORE_MAINNET) || !parser_host_init(parser_wasm_rw, sizeof(parser_wasm_rw), pool, sizeof(pool)))
         return 1;
@@ -249,7 +267,8 @@ int main(int argc, char **argv) {
 
     if (!strcmp(argv[1], "plan") && argc == 3) return emit_plan(argv[2]);
     if (!strcmp(argv[1], "sign")) return argc >= 4 ? sign(argv[2], argv[3], argc > 4 ? argv[4] : NULL) : 2;
-    if (!strcmp(argv[1], "bin2ur") && argc == 4) { /* a PSBT as a UR, one part per line, to test reading on the device */
+    if (!strcmp(argv[1], "bin2ur") &&
+        argc == 4) { /* a PSBT as a UR, one part per line, to test reading on the device */
         long len = read_file(argv[2]);
         if (len <= 0 || parser_host_ur_encode_bytes(file_buf, (uint32_t)len, UI_UR_FRAGMENT) <= 0) return 1;
         return write_ur_parts(argv[3]);

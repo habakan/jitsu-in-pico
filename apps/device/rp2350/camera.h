@@ -16,9 +16,9 @@ typedef struct {
 
 typedef struct {
     const char *name;
-    uint8_t sccb_addr;            /* 7bit */
-    bool needs_xclk;              /* a board without a crystal is fed XCLK from GP21 */
-    const camera_reg_t *regs;     /* terminated by 0xff, 0xff; {0xfe, ms} waits ms milliseconds */
+    uint8_t sccb_addr;        /* 7bit */
+    bool needs_xclk;          /* a board without a crystal is fed XCLK from GP21 */
+    const camera_reg_t *regs; /* terminated by 0xff, 0xff; {0xfe, ms} waits ms milliseconds */
 } camera_model_t;
 
 extern const camera_model_t camera_ov7670;

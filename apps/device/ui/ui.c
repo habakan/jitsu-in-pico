@@ -110,8 +110,10 @@ void ui_review_init(ui_review_t *r, const core_display_t *d) {
         put(&w, color, owner[o->owner]);
         put_amount(&w, color, "", o->amount);
         put(&w, C_TEXT, "");
-        put(&w, C_HINT, o->text_kind == CORE_TEXT_ADDRESS ? "Address:" : o->text_kind == CORE_TEXT_OP_RETURN
-                                                                           ? "OP_RETURN data (hex):" : "Script (hex):");
+        put(&w, C_HINT,
+            o->text_kind == CORE_TEXT_ADDRESS     ? "Address:"
+            : o->text_kind == CORE_TEXT_OP_RETURN ? "OP_RETURN data (hex):"
+                                                  : "Script (hex):");
         put_wrapped(&w, C_TEXT, o->text);
         w.row = UI_ROWS - 1;
         put(&w, C_HINT, "LEFT/RIGHT: prev/next");
@@ -217,12 +219,14 @@ int ui_qr_set(const char *text) {
     return qrcodegen_encodeText(text, tmp, qr, qrcodegen_Ecc_LOW, 1, UI_QR_MAX_VERSION, qrcodegen_Mask_AUTO, true);
 }
 
-int ui_qr_modules(void) { return qrcodegen_getSize(qr); }
+int ui_qr_modules(void) {
+    return qrcodegen_getSize(qr);
+}
 
 /* The backlight is wired straight to 3V3, so brightness is changed through the white level instead.
  * Too bright saturates the camera's exposure and cannot be read */
-static const uint16_t qr_white[] = {RGB565(255, 255, 255), RGB565(190, 190, 190),
-                                    RGB565(130, 130, 130), RGB565(80, 80, 80)};
+static const uint16_t qr_white[] = {RGB565(255, 255, 255), RGB565(190, 190, 190), RGB565(130, 130, 130),
+                                    RGB565(80, 80, 80)};
 static unsigned qr_level = 1;
 
 void ui_qr_level(int delta) {
@@ -230,7 +234,9 @@ void ui_qr_level(int delta) {
     qr_level = (qr_level + (unsigned)(delta > 0 ? 1 : n - 1)) % n;
 }
 
-int ui_qr_level_get(void) { return (int)qr_level; }
+int ui_qr_level_get(void) {
+    return (int)qr_level;
+}
 
 void ui_qr_render_line(int y, uint16_t line[UI_W]) {
     int size = qrcodegen_getSize(qr), scale = UI_W / (size + 8), off = (UI_W - size * scale) / 2;
@@ -275,8 +281,8 @@ void ui_hash(ui_screen_t *s, const char *name, unsigned len, const uint8_t h[32]
     put(&w, C_TEXT, "");
     for (int r = 0; r < 4; r++) {
         const uint8_t *p = h + r * 8;
-        snprintf(line, sizeof(line), "%02x%02x%02x%02x %02x%02x%02x%02x",
-                 p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
+        snprintf(line, sizeof(line), "%02x%02x%02x%02x %02x%02x%02x%02x", p[0], p[1], p[2], p[3], p[4], p[5], p[6],
+                 p[7]);
         put(&w, C_OURS, line);
     }
     put(&w, C_TEXT, "");

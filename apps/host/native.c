@@ -8,10 +8,22 @@ int prim_init(void), prim_sign_ecdsa(void), prim_sign_schnorr(void);
 int prim_seed_from_mnemonic(unsigned mn_len, unsigned pass_len), prim_bip32_derive(unsigned depth);
 
 #ifdef QEMU_BUILD
-static unsigned long long now(void) { unsigned lo, hi; __asm__ volatile("csrr %0, minstret; csrr %1, minstreth" : "=r"(lo), "=r"(hi)); return ((unsigned long long)hi << 32) | lo; }
-#define MEASURE(label, expr) do { unsigned long long t0 = now(); if (!(expr)) return 1; printf("instret %s %llu\n", label, now() - t0); } while (0)
+static unsigned long long now(void) {
+    unsigned lo, hi;
+    __asm__ volatile("csrr %0, minstret; csrr %1, minstreth" : "=r"(lo), "=r"(hi));
+    return ((unsigned long long)hi << 32) | lo;
+}
+#define MEASURE(label, expr)                                                                                           \
+    do {                                                                                                               \
+        unsigned long long t0 = now();                                                                                 \
+        if (!(expr)) return 1;                                                                                         \
+        printf("instret %s %llu\n", label, now() - t0);                                                                \
+    } while (0)
 #else
-#define MEASURE(label, expr) do { if (!(expr)) return 1; } while (0)
+#define MEASURE(label, expr)                                                                                           \
+    do {                                                                                                               \
+        if (!(expr)) return 1;                                                                                         \
+    } while (0)
 #endif
 
 static void hex(const char *label, const unsigned char *p, int n) {

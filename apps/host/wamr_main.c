@@ -11,11 +11,19 @@
 #define UNIT "us"
 #elif defined(QEMU_BUILD)
 /* Time under QEMU says nothing about the device, so retired instructions are counted instead */
-static uint64_t now(void) { uint32_t lo, hi; __asm__ volatile("csrr %0, minstret; csrr %1, minstreth" : "=r"(lo), "=r"(hi)); return ((uint64_t)hi << 32) | lo; }
+static uint64_t now(void) {
+    uint32_t lo, hi;
+    __asm__ volatile("csrr %0, minstret; csrr %1, minstreth" : "=r"(lo), "=r"(hi));
+    return ((uint64_t)hi << 32) | lo;
+}
 #define UNIT "instret"
 #else
 #include <time.h>
-static uint64_t now(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint64_t)t.tv_sec * 1000000 + t.tv_nsec / 1000; }
+static uint64_t now(void) {
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return (uint64_t)t.tv_sec * 1000000 + t.tv_nsec / 1000;
+}
 #define UNIT "us"
 #endif
 
@@ -135,9 +143,15 @@ int main(void) {
     wasm_buf = wasm_ram;
 #endif
     wasm_module_t mod = wasm_runtime_load(wasm_buf, signer_wasm_len, err, sizeof(err));
-    if (!mod) { printf("load: %s\n", err); return 1; }
+    if (!mod) {
+        printf("load: %s\n", err);
+        return 1;
+    }
     wasm_module_inst_t inst = wasm_runtime_instantiate(mod, 4096, 0, err, sizeof(err));
-    if (!inst) { printf("instantiate: %s\n", err); return 1; }
+    if (!inst) {
+        printf("instantiate: %s\n", err);
+        return 1;
+    }
     wasm_exec_env_t env = wasm_runtime_create_exec_env(inst, 4096);
 
     uint32_t io_off, ok;

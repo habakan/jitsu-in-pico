@@ -169,10 +169,8 @@ static uint32_t scan_psbt(void) {
                 len = (uint32_t)rc;
             } else if (rc == 0) {
                 if (seq && seq <= 64 && !(seen >> (seq - 1) & 1)) seen |= (uint64_t)1 << (seq - 1), parts++;
-                if (seq_len)
-                    snprintf(status, sizeof(status), "Scan PSBT  %u/%u parts", parts, seq_len);
-                else
-                    snprintf(status, sizeof(status), "Scan PSBT  %u parts", parts);
+                if (seq_len) snprintf(status, sizeof(status), "Scan PSBT  %u/%u parts", parts, seq_len);
+                else snprintf(status, sizeof(status), "Scan PSBT  %u parts", parts);
             } else {
                 snprintf(status, sizeof(status), "UR error %d", (int)rc);
             }
@@ -187,7 +185,7 @@ static uint32_t scan_psbt(void) {
 
 static int trng(uint8_t *buf, size_t len) {
     /* pico_rand is seeded from the TRNG but is not a cryptographic PRNG. It is used only as Schnorr
- * aux data during the initial bring-up */
+     * aux data during the initial bring-up */
     for (size_t i = 0; i < len; i++) buf[i] = (uint8_t)get_rand_32();
     return 1;
 }
@@ -211,7 +209,7 @@ static void export_qr(uint32_t len) {
     long seq_len = parser_host_ur_encode_start(len, UI_UR_FRAGMENT);
     if (seq_len <= 0) return message("UR encode failed", NULL, 1);
     unsigned long part = 0;
-    for (uint64_t next = 0; ;) {
+    for (uint64_t next = 0;;) {
         static char text[1024];
         int key = buttons_poll();
         if (key == UI_KEY_UP || key == UI_KEY_DOWN) {
@@ -250,8 +248,7 @@ static void sign_flow(const uint8_t *in, uint32_t in_len) {
     if (!sign_buffers_take()) return sign_buffers_give(), message("Out of memory", NULL, 1);
 
     t = time_us_64();
-    if (!parser_host_parse(in, in_len, core_fingerprint(), &rc, &plan, prev, prevtx_arena, PARSER_PSBT_MAX)
-        || rc) {
+    if (!parser_host_parse(in, in_len, core_fingerprint(), &rc, &plan, prev, prevtx_arena, PARSER_PSBT_MAX) || rc) {
         printf("parse failed rc=%u\n", (unsigned)rc);
         return sign_buffers_give(), message("Invalid PSBT", NULL, 1);
     }
@@ -259,8 +256,8 @@ static void sign_flow(const uint8_t *in, uint32_t in_len) {
            (unsigned)parser_host_pool_highmark());
 
     t = time_us_64();
-    if ((err = core_review(&plan, prev, &review)) != CORE_OK
-        || (err = core_display(&plan, &review, &display)) != CORE_OK) {
+    if ((err = core_review(&plan, prev, &review)) != CORE_OK ||
+        (err = core_display(&plan, &review, &display)) != CORE_OK) {
         printf("review err=%d\n", err);
         return sign_buffers_give(), message("Rejected by review", NULL, 1);
     }
@@ -333,8 +330,7 @@ static int scan_seed(void) {
                 snprintf(status, sizeof(status), "Not a valid SeedQR");
                 continue;
             }
-            pbkdf2_hmac_sha512((const uint8_t *)mnemonic, strlen(mnemonic), (const uint8_t *)"mnemonic", 8, 2048,
-                               seed);
+            pbkdf2_hmac_sha512((const uint8_t *)mnemonic, strlen(mnemonic), (const uint8_t *)"mnemonic", 8, 2048, seed);
             ok = core_load_seed(seed);
         }
     }
@@ -357,8 +353,8 @@ static int load_test_seed(void) {
 
     message("TEST SEED", "Public BIP39 vector. Never send funds to this wallet.", 1);
     t = time_us_64();
-    pbkdf2_hmac_sha512((const uint8_t *)TEST_MNEMONIC, sizeof(TEST_MNEMONIC) - 1, (const uint8_t *)"mnemonic", 8,
-                       2048, seed);
+    pbkdf2_hmac_sha512((const uint8_t *)TEST_MNEMONIC, sizeof(TEST_MNEMONIC) - 1, (const uint8_t *)"mnemonic", 8, 2048,
+                       seed);
     ok = core_load_seed(seed);
     memset(seed, 0, sizeof(seed));
     printf("seed %llu us, fingerprint %08x\n", (unsigned long long)(time_us_64() - t), (unsigned)core_fingerprint());
@@ -464,8 +460,8 @@ int main(void) {
 
     memcpy(parser_wasm_rw, parser_wasm, sizeof(parser_wasm_rw));
     /* A TESTNET=1 build targets signet and testnet: tb1 addresses, derived under m/84'/1'/... */
-    if (!core_init(TESTNET ? CORE_TESTNET : CORE_MAINNET)
-        || !parser_host_init(parser_wasm_rw, sizeof(parser_wasm_rw), pool, sizeof(pool))) {
+    if (!core_init(TESTNET ? CORE_TESTNET : CORE_MAINNET) ||
+        !parser_host_init(parser_wasm_rw, sizeof(parser_wasm_rw), pool, sizeof(pool))) {
         message("Init failed", NULL, 1);
         return 1;
     }

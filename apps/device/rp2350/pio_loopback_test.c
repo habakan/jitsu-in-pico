@@ -13,12 +13,12 @@
 #include "hardware/dma.h"
 #include "hardware/pio.h"
 
-#define W 64          /* pixels captured; kept small because the waveform lives in RAM */
+#define W 64 /* pixels captured; kept small because the waveform lives in RAM */
 #define H 8
-#define SW (2 * W)    /* pixels the sensor emits; PIO halves both directions */
+#define SW (2 * W) /* pixels the sensor emits; PIO halves both directions */
 #define SH (2 * H)
-#define HBLANK 16     /* pixels between rows */
-#define VSYNC_PX 128  /* the VSYNC pulse, in pixels */
+#define HBLANK 16    /* pixels between rows */
+#define VSYNC_PX 128 /* the VSYNC pulse, in pixels */
 #define FRAMES 3
 /* A pixel is two bytes, Y and U; a byte is two samples, PCLK low then high */
 #define LINE_S (4 * (SW + HBLANK))
@@ -141,11 +141,10 @@ static int run(const char *name, float clkdiv, int mid_frame) {
     /* Armed mid-frame, which frame arrives next depends on the start-up delay. What is being checked is
      * that some whole frame comes out, never a picture torn across two */
     if (ok && mid_frame)
-        for (frame = 0; frame < FRAMES && memcmp(captured, expect[frame], sizeof(captured)); frame++)
-            ;
+        for (frame = 0; frame < FRAMES && memcmp(captured, expect[frame], sizeof(captured)); frame++);
     if (ok) ok = frame < FRAMES && !memcmp(captured, expect[frame], sizeof(captured));
-    printf("%-22s %s (%llu us, frame %dx%d = %u us%s", name, ok ? "ok" : "NG", (unsigned long long)t, W, H,
-           frame_us, ok && mid_frame ? ", got frame " : "");
+    printf("%-22s %s (%llu us, frame %dx%d = %u us%s", name, ok ? "ok" : "NG", (unsigned long long)t, W, H, frame_us,
+           ok && mid_frame ? ", got frame " : "");
     if (ok && mid_frame) printf("%d", frame);
     printf(")\n");
     if (!ok) {
@@ -156,8 +155,7 @@ static int run(const char *name, float clkdiv, int mid_frame) {
         printf("\n  sensor row 1:");
         for (int i = 0; i < 8; i++) printf(" %02x", sensor_line0[i]);
         printf("\n  wave[0..3]: %08x %08x %08x %08x  samples %u\n", wave[0], wave[1], wave[2], wave[3], n_samples);
-        printf("  gen dma remaining %u / %u\n", (unsigned)dma_channel_hw_addr(dma_gen)->transfer_count,
-               n_samples / 2);
+        printf("  gen dma remaining %u / %u\n", (unsigned)dma_channel_hw_addr(dma_gen)->transfer_count, n_samples / 2);
         /* Runs only the generator, to look at what is actually on the pins */
         gen_start(16.0f);
         printf("  pins:");

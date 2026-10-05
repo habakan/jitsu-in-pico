@@ -36,7 +36,9 @@ static uint8_t *prevtx_arena, *signed_psbt;
 static plan_t plan;
 
 /* Schnorr aux is fixed at zero so the signatures can be compared between device and host */
-static int zero_rng(uint8_t *buf, size_t len) { return memset(buf, 0, len), 1; }
+static int zero_rng(uint8_t *buf, size_t len) {
+    return memset(buf, 0, len), 1;
+}
 
 int main(void) {
     core_prevtx_t prev[PLAN_MAX_INPUTS];
@@ -75,20 +77,22 @@ int main(void) {
     printf("init %llu us (image %u B)\n", (unsigned long long)(time_us_64() - t), (unsigned)sizeof(parser_wasm));
 
     t = time_us_64();
-    pbkdf2_hmac_sha512((const uint8_t *)TEST_MNEMONIC, sizeof(TEST_MNEMONIC) - 1, (const uint8_t *)"mnemonic", 8,
-                       2048, seed);
+    pbkdf2_hmac_sha512((const uint8_t *)TEST_MNEMONIC, sizeof(TEST_MNEMONIC) - 1, (const uint8_t *)"mnemonic", 8, 2048,
+                       seed);
     core_load_seed(seed);
     memset(seed, 0, sizeof(seed));
     printf("seed %llu us (native)\n", (unsigned long long)(time_us_64() - t));
 
     t = time_us_64();
     if (!parser_host_parse(test_psbt, sizeof(test_psbt), core_fingerprint(), &rc, &plan, prev, prevtx_arena,
-                           PARSER_PSBT_MAX) || rc)
+                           PARSER_PSBT_MAX) ||
+        rc)
         return printf("parse failed rc=%u\n", (unsigned)rc), 1;
     printf("parse %llu us (wasm)\n", (unsigned long long)(time_us_64() - t));
 
     t = time_us_64();
-    if ((err = core_review(&plan, prev, &review)) != CORE_OK || (err = core_display(&plan, &review, &display)) != CORE_OK)
+    if ((err = core_review(&plan, prev, &review)) != CORE_OK ||
+        (err = core_display(&plan, &review, &display)) != CORE_OK)
         return printf("review err=%d\n", err), 1;
     printf("review %llu us (native)\n", (unsigned long long)(time_us_64() - t));
 
@@ -115,12 +119,12 @@ int main(void) {
         t = time_us_64() - t;
         if (t > worst) worst = t;
     }
-    printf("ur+qr %llu us total for %ld parts, worst part %llu us\n",
-           (unsigned long long)(time_us_64() - ur_total), parts, (unsigned long long)worst);
+    printf("ur+qr %llu us total for %ld parts, worst part %llu us\n", (unsigned long long)(time_us_64() - ur_total),
+           parts, (unsigned long long)worst);
 
     printf("signed %u bytes, first 32: ", (unsigned)out_len);
     for (int i = 0; i < 32; i++) printf("%02x", signed_psbt[i]);
-    printf("\npool_highmark %u\nheap arena %d B (%d B if not shared)\ndone\n",
-           (unsigned)parser_host_pool_highmark(), mallinfo().arena, 91648 + PARSER_PSBT_MAX + SIGNED_PSBT_MAX);
+    printf("\npool_highmark %u\nheap arena %d B (%d B if not shared)\ndone\n", (unsigned)parser_host_pool_highmark(),
+           mallinfo().arena, 91648 + PARSER_PSBT_MAX + SIGNED_PSBT_MAX);
     while (1) tight_loop_contents();
 }

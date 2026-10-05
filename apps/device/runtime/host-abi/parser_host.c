@@ -41,8 +41,8 @@ int parser_host_init(const uint8_t *wasm, uint32_t wasm_len, void *pool, uint32_
     if (!wasm_runtime_full_init(&args)) return 0;
     /* The classic interpreter rewrites the bytecode as it loads, so the caller has to hand it a wasm
      * sitting in writable RAM */
-    if (!(mod = wasm_runtime_load((uint8_t *)wasm, wasm_len, err, sizeof(err)))
-        || !(inst = wasm_runtime_instantiate(mod, 8192, 0, err, sizeof(err)))) {
+    if (!(mod = wasm_runtime_load((uint8_t *)wasm, wasm_len, err, sizeof(err))) ||
+        !(inst = wasm_runtime_instantiate(mod, 8192, 0, err, sizeof(err)))) {
         printf("parser.wasm: %s\n", err);
         return 0;
     }

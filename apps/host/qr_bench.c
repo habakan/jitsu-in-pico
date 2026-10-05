@@ -7,7 +7,11 @@
 
 #ifdef QEMU_BUILD
 #include <malloc.h>
-static uint64_t now(void) { uint32_t lo, hi; __asm__ volatile("csrr %0, minstret; csrr %1, minstreth" : "=r"(lo), "=r"(hi)); return ((uint64_t)hi << 32) | lo; }
+static uint64_t now(void) {
+    uint32_t lo, hi;
+    __asm__ volatile("csrr %0, minstret; csrr %1, minstreth" : "=r"(lo), "=r"(hi));
+    return ((uint64_t)hi << 32) | lo;
+}
 #define UNIT "instret"
 extern uint32_t qemu_stack[], qemu_stack_top[];
 static void __attribute__((noinline)) paint_stack(void) {
@@ -22,7 +26,11 @@ static void __attribute__((noinline)) paint_stack(void) {
 #define UNIT "us"
 #else
 #include <time.h>
-static uint64_t now(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC, &t); return (uint64_t)t.tv_sec * 1000000 + t.tv_nsec / 1000; }
+static uint64_t now(void) {
+    struct timespec t;
+    clock_gettime(CLOCK_MONOTONIC, &t);
+    return (uint64_t)t.tv_sec * 1000000 + t.tv_nsec / 1000;
+}
 #define UNIT "us"
 #endif
 
@@ -40,7 +48,7 @@ static void render_qr(const uint8_t *qr) {
             int dark = y >= off && x >= off && my < size && mx < size && qrcodegen_getModule(qr, mx, my);
             line[x] = dark ? 0x0000 : 0xffff;
         }
-        lcd_sink = line[y];  /* stands in for the SPI write, and keeps the row from being optimised away */
+        lcd_sink = line[y]; /* stands in for the SPI write, and keeps the row from being optimised away */
     }
 }
 
@@ -60,7 +68,7 @@ int main(void) {
     for (unsigned i = 0; i < sizeof(frames) / sizeof(frames[0]); i++) {
         const struct frame *f = &frames[i];
         uint8_t *buf = quirc_begin(q, NULL, NULL);
-        memcpy(buf, f->pix, FRAME_W * FRAME_H);  /* on the device the camera's DMA writes straight here */
+        memcpy(buf, f->pix, FRAME_W * FRAME_H); /* on the device the camera's DMA writes straight here */
 
         uint64_t t0 = now(), t_ext = 0, t_dec = 0;
         quirc_end(q);
@@ -86,10 +94,11 @@ int main(void) {
         render_qr(qr);
         uint64_t t3 = now();
 
-        printf("%-10s v%-2d codes=%d decode=%s(%s) %s decode=%llu (end=%llu extract=%llu ecc=%llu) encode=%llu render=%llu\n",
+        printf("%-10s v%-2d codes=%d decode=%s(%s) %s decode=%llu (end=%llu extract=%llu ecc=%llu) encode=%llu "
+               "render=%llu\n",
                f->name, f->version, n, ok ? "ok" : "NG", quirc_strerror(err), UNIT, (unsigned long long)(t1 - t0),
-               (unsigned long long)t_end, (unsigned long long)t_ext, (unsigned long long)t_dec, (unsigned long long)(t2 - t1),
-               (unsigned long long)(t3 - t2));
+               (unsigned long long)t_end, (unsigned long long)t_ext, (unsigned long long)t_dec,
+               (unsigned long long)(t2 - t1), (unsigned long long)(t3 - t2));
     }
 #ifdef QEMU_BUILD
     printf("heap_arena %d\n", mallinfo().arena);

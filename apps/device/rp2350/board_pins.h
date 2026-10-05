@@ -14,7 +14,7 @@
 #define PIN_CAM_XCLK 21 /* CLOCK GPOUT0; unused on an OV2640 board that has its own crystal */
 
 #define PIN_LCD_DC 16
-#define PIN_LCD_SCK 18 /* SPI0 SCK */
+#define PIN_LCD_SCK 18  /* SPI0 SCK */
 #define PIN_LCD_MOSI 19 /* SPI0 TX; CS is tied to ground, RES and BLK to 3V3 */
 
 #define PIN_JOY_UP 13

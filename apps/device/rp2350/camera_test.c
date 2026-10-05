@@ -32,9 +32,9 @@ static void probe_signals(void) {
     }
     /* GP13 to GP17 are reported too, so a lead in the wrong hole shows up */
     for (unsigned gp = PIN_CAM_D0; gp <= 17; gp++) {
-        static const char *const name[] = {"D0",   "D1",   "D2",  "D3",      "D4",      "D5",     "D6",  "D7",
-                                           "PCLK", "HREF", "VSYNC", "(joy UP)", "(cam SDA)", "(cam SCL)", "(lcd DC)",
-                                           "(btn next)"};
+        static const char *const name[] = {"D0",        "D1",        "D2",       "D3",        "D4",    "D5",
+                                           "D6",        "D7",        "PCLK",     "HREF",      "VSYNC", "(joy UP)",
+                                           "(cam SDA)", "(cam SCL)", "(lcd DC)", "(btn next)"};
         printf("%-10s GP%-2u %s\n", name[gp - PIN_CAM_D0], gp,
                changed >> gp & 1 ? "toggling" : (high >> gp & 1 ? "stuck high" : "stuck low"));
     }
@@ -54,7 +54,7 @@ static void probe_signals(void) {
         uint64_t end = time_us_64() + 500000;
         while (time_us_64() < end) {
             int vs = gpio_get(PIN_CAM_VSYNC), href = gpio_get(PIN_CAM_HREF);
-            if (!prev_vs && vs) {           /* VSYNC's rising edge separates frames */
+            if (!prev_vs && vs) { /* VSYNC's rising edge separates frames */
                 if (started) break;
                 started = 1, lines = 0;
             }
@@ -112,10 +112,8 @@ int main(void) {
             static struct quirc_data data;
             quirc_extract(q, i, &code);
             quirc_decode_error_t err = quirc_decode(&code, &data);
-            if (err)
-                printf("  %s\n", quirc_strerror(err));
-            else
-                printf("  v%d: %.*s\n", data.version, data.payload_len, (const char *)data.payload);
+            if (err) printf("  %s\n", quirc_strerror(err));
+            else printf("  v%d: %.*s\n", data.version, data.payload_len, (const char *)data.payload);
         }
     }
 }

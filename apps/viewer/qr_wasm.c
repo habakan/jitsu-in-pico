@@ -20,7 +20,9 @@ void *calloc(size_t n, size_t m) {
         for (size_t i = 0; i < n * m; i++) p[i] = 0;
     return p;
 }
-void free(void *p) { (void)p; }
+void free(void *p) {
+    (void)p;
+}
 
 static struct quirc *q;
 static struct quirc_data data;
@@ -31,15 +33,25 @@ __attribute__((export_name("qr_init"))) int qr_init(int w, int h) {
     return q && quirc_resize(q, w, h) >= 0;
 }
 /* Write w*h bytes of 8-bit greyscale here, then call qr_decode */
-__attribute__((export_name("qr_input"))) uint8_t *qr_input(void) { return quirc_begin(q, NULL, NULL); }
-__attribute__((export_name("qr_output"))) uint8_t *qr_output(void) { return data.payload; }
+__attribute__((export_name("qr_input"))) uint8_t *qr_input(void) {
+    return quirc_begin(q, NULL, NULL);
+}
+__attribute__((export_name("qr_output"))) uint8_t *qr_output(void) {
+    return data.payload;
+}
 
 /* The last QR's size in pixels and in modules, for working out why one will not read */
 static int last_px, last_cells, last_err;
 
-__attribute__((export_name("qr_last_px"))) int qr_last_px(void) { return last_px; }
-__attribute__((export_name("qr_last_cells"))) int qr_last_cells(void) { return last_cells; }
-__attribute__((export_name("qr_last_err"))) int qr_last_err(void) { return last_err; }
+__attribute__((export_name("qr_last_px"))) int qr_last_px(void) {
+    return last_px;
+}
+__attribute__((export_name("qr_last_cells"))) int qr_last_cells(void) {
+    return last_cells;
+}
+__attribute__((export_name("qr_last_err"))) int qr_last_err(void) {
+    return last_err;
+}
 
 /* The length of the first QR read: 0 if none was found, negative if one was found but did not decode */
 __attribute__((export_name("qr_decode"))) int qr_decode(void) {

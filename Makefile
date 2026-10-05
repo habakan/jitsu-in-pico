@@ -1,19 +1,21 @@
 LLVM    ?= /opt/homebrew/opt/llvm/bin
 WASI    ?= /opt/homebrew/opt/wasi-libc/share/wasi-sysroot
 SECP    := third_party/secp256k1
-# COMB 設定と ecmult_gen テーブル: 2,5=2KB / 11,6=22KB / 43,6=86KB。WASM では data segment として RAM に載る
+C_SRC_FILES := $(shell git ls-files '*.c')
+C_FORMAT_FILES := $(C_SRC_FILES) $(shell git ls-files '*.h')
+C_TIDY_FILES := $(addprefix components/parts/,$(shell git -C components/parts ls-files 'parser/c/src/*.c'))
+# COMB settings and ecmult_gen table sizes: 2,5=2KB / 11,6=22KB / 43,6=86KB; WASM loads this data segment into RAM
 COMB    ?= -DCOMB_BLOCKS=2 -DCOMB_TEETH=5
 SECP_DEFS := -DENABLE_MODULE_EXTRAKEYS=1 -DENABLE_MODULE_SCHNORRSIG=1 -DECMULT_WINDOW_SIZE=2 \
              -DUSE_EXTERNAL_DEFAULT_CALLBACKS=1 $(COMB)
 RTLIB   ?= /opt/homebrew/opt/wasi-runtimes/share/wasi-runtimes/lib/wasm32-unknown-wasip1
-# clang のドライバは PATH にある wasm-opt を黙って走らせる。版を固定して明示的に呼ぶ
+# The clang driver silently runs wasm-opt from PATH; pin its version and invoke it explicitly
 WASM_OPT ?= wasm-opt
-# Lime1: WebAssembly 1.0 + phase-5 の 7 機能。WebAssembly/tool-conventions/Lime.md が定義し、
-# 以後変わらないと約束している集合。リンカに渡すと関門になり、依存が SIMD や threads を
-# 引き込もうとした時点でリンクが失敗する（黙って要求ランタイムが広がらない）
+# Lime1 is WebAssembly 1.0 plus seven phase-5 features, defined in WebAssembly/tool-conventions/Lime.md.
+# Passing it to the linker rejects dependencies that require SIMD or threads.
 LIME1 := mutable-globals,multivalue,sign-ext,nontrapping-fptoint,bulk-memory-opt,extended-const,call-indirect-overlong
 LIME_FLAGS := -mcpu=lime1 -Xlinker --features=$(LIME1)
-# SHA512_HOST=1 で SHA-512 圧縮関数をホストの import にする
+# SHA512_HOST=1 imports the SHA-512 compression function from the host
 SHA512_HOST ?= 0
 CFLAGS  := -Oz -Wall -Wno-unused-function -Icomponents/parts/signer -I$(SECP)/include -I$(SECP)/src $(SECP_DEFS) $(if $(filter 1,$(SHA512_HOST)),-DSHA512_HOST_COMPRESS)
 STACK   ?= 16384
@@ -27,8 +29,8 @@ build/bitcoin-signer.wasm: components/parts/signer/signer.c components/parts/sig
 	  -o $@ components/parts/signer/signer.c components/parts/signer/sha512.c components/parts/signer/bip32.c components/parts/signer/secp_callbacks.c components/parts/signer/secp256k1_unity.c -lc $(RTLIB)/libclang_rt.builtins.a
 	$(WASM_OPT) $@ -Oz -o $@
 
-# plan_t を受けて検証・表示・署名まで行う部品。parser.wasm と対になる。
-# 実機はこれと同じ core.c をネイティブで動かす（鍵をネイティブに置く設計のため）
+# The signer module validates, displays, and signs a plan_t; it pairs with parser.wasm.
+# The device runs the same core.c natively so keys stay on the native side.
 SIGNER_WASM_SRC := components/parts/signer/wasm_main.c components/parts/signer/core.c components/parts/signer/address.c \
   components/parts/signer/bip32.c components/parts/signer/sighash.c components/parts/signer/ripemd160.c \
   components/parts/signer/sha512.c components/parts/signer/secp_callbacks.c components/parts/signer/secp256k1_unity.c \
@@ -52,8 +54,8 @@ clean:
 .PHONY: clean
 
 RISCV_TC_URL := https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.3.1-0/riscv-toolchain-16-mac.zip
-# 依存はすべて commit で固定する。鍵を扱うものを master の先頭から取ってはいけない。
-# 上げるときは差分を読んでからここを書き換える
+# Pin every dependency to a commit, especially code that handles keys; never track the tip of a branch.
+# Review the diff before updating a pin.
 SECP_REV   := 46db787112beabdb5e17e0dc35680716f1057e7b
 WAMR_REV   := b70d708d46be750bfcf008218b42c7b98c49368a
 PICO_REV   := 079c6f39023649b154152db30f1d781e884879bc
@@ -61,7 +63,7 @@ QUIRC_REV  := 927d680904dc95fdff4cd9d022eb374b438ff8f2
 QRGEN_REV  := 3c6d0b3cefb4e049dc337e82237c9644399716a8
 SPLEEN_REV := 57f9219328c9f5873085320fe8bc8f7dd34b8791
 
-# $(1) 置き先, $(2) URL, $(3) commit
+# $(1) destination, $(2) URL, $(3) commit
 define clone_at
 	git clone --filter=blob:none $(2) third_party/$(1)
 	cd third_party/$(1) && git checkout --detach $(3)
@@ -79,7 +81,7 @@ deps:
 	curl -sL -o third_party/rv.zip $(RISCV_TC_URL) && unzip -q third_party/rv.zip -d third_party/riscv-toolchain && rm third_party/rv.zip
 	$(MAKE) patch-deps
 
-# CI 用。実機と QEMU を除いた、ホストで動かす検査に要るものだけ
+# Dependencies for CI host checks; excludes hardware and QEMU requirements
 deps-host:
 	mkdir -p third_party
 	$(call clone_at,secp256k1,https://github.com/bitcoin-core/secp256k1.git,$(SECP_REV))
@@ -89,7 +91,7 @@ deps-host:
 	$(MAKE) patch-deps
 .PHONY: deps-host
 
-# 取得済みの third_party が固定した commit と一致するか
+# Check that each available third_party dependency matches its pinned commit
 check-deps:
 	@for d in secp256k1:$(SECP_REV) wasm-micro-runtime:$(WAMR_REV) pico-sdk:$(PICO_REV) \
 	          quirc:$(QUIRC_REV) QR-Code-generator:$(QRGEN_REV) spleen:$(SPLEEN_REV); do \
@@ -100,16 +102,16 @@ check-deps:
 	@echo "取得済みの third_party はすべて固定した commit"
 .PHONY: check-deps
 
-# classic interp の i64.store は 4 byte 境界を前提にしており、Hazard3 では非整列ストアで例外になる。
-# 上流は PR #5123 で修正済み（2026-09-30 に main へマージ）なので、2.4.3 を使う間だけ要る
+# WAMR 2.4.3's classic interpreter assumes i64.store is 4-byte aligned; unaligned stores trap on Hazard3.
+# Upstream fixed this in PR #5123 (merged 2026-09-30); keep the patch only while using 2.4.3.
 patch-deps:
 	@cd third_party/wasm-micro-runtime && p=$(CURDIR)/patches/wamr-classic-interp-unaligned-i64-store.patch; \
 	  if git apply --reverse --check $$p 2>/dev/null; then echo "wamr: 既に修正済み（パッチ不要）"; \
 	  else git apply $$p && echo "wamr: パッチ適用"; fi
 .PHONY: deps patch-deps
 
-# AOT=1 では wamrc で RV32 ネイティブにした .aot を Flash に置いて XIP 実行する。--bounds-checks=1 は MMU 無しでの線形メモリ保護。
-# XIP の既定は i64 の乗算・シフトまで関数呼び出しにするが、rv32 で libgcc 呼び出しになるのは除算・剰余だけなので絞る
+# AOT=1 compiles an RV32 .aot with wamrc and executes it from flash via XIP; --bounds-checks=1 protects linear memory without an MMU.
+# Limit XIP helper calls to division and remainder; RV32 handles i64 multiply and shifts directly.
 AOT     ?= 0
 WAMRC   := build/wamrc/wamrc
 WAMRC_FLAGS ?= --target=riscv32 --target-abi=ilp32 --cpu=generic-rv32 --cpu-features=+m,+a,+c,+zba,+zbb,+zbs \
@@ -152,7 +154,7 @@ POOL_KB ?= 128
 RP2350_POOL_KB ?= 48
 PARSER_POOL_KB ?= 256
 TESTNET ?= 0
-# テストシードを選べるようにするかどうか。本番のビルドでは 0 のままにする
+# Allow selecting the test seed; keep this at 0 for production builds.
 TEST_SEED ?= 0
 FAST    ?= 0
 QEMU_DIR := build/qemu-fast$(FAST)-aot$(AOT)-$(POOL_KB)
@@ -169,7 +171,7 @@ check-qemu: $(QEMU_DIR)/signer.elf
 	  -kernel $< </dev/null
 .PHONY: check-qemu
 
-# 比較用: WASM を通さず同じ signer を RV32 ネイティブで動かす
+# For comparison: run the same signer natively on RV32 without WASM.
 build/qemu-native.elf: apps/host/native.c components/parts/signer/signer.c components/parts/signer/sha512.c components/parts/signer/bip32.c components/parts/signer/secp_callbacks.c components/parts/signer/secp256k1_unity.c apps/host/qemu-riscv32/start.S
 	$(RISCV_TC)/bin/riscv32-pico-elf-gcc -mcpu=hazard3-rp2350 -Os -DQEMU_BUILD=1 -Wall -Wno-unused-function \
 	  -Icomponents/parts/signer -I$(SECP)/include -I$(SECP)/src $(SECP_DEFS) --specs=semihost.specs -Wl,--section-start=.qemu_start=0x80000000 \
@@ -180,15 +182,15 @@ check-qemu-native: build/qemu-native.elf
 	  -kernel $< </dev/null
 .PHONY: check-qemu-native
 
-# 既定は自前のフォーク（submodule、mcu ブランチ）の固定小数点版。
-# 上流と比べるときは QUIRC=third_party/quirc/lib QUIRC_DEFS= を渡す
+# Default to the fixed-point fork on the mcu submodule branch.
+# To compare with upstream, pass QUIRC=third_party/quirc/lib QUIRC_DEFS=.
 QUIRC   ?= components/qr/quirc/lib
 QUIRC_DEFS ?= -DQUIRC_FIXED_POINT_FITNESS -DQUIRC_FLOAT_TYPE=float -DQUIRC_USE_TGMATH
 QRGEN   := third_party/QR-Code-generator/c
 build/qr_frames.h: tools/gen_qr_frames.py
 	mkdir -p build && uv run -q $< $@
 
-# -O2 だと Hazard3 独自の Xh3bextm 命令が出て QEMU で落ちるため、標準拡張だけを指定する
+# Use only standard extensions: -O2 may emit Hazard3-specific Xh3bextm instructions that QEMU cannot run.
 QEMU_MARCH := -march=rv32imac_zicsr_zifencei_zba_zbb_zbs_zbkb_zcb_zcmp -mabi=ilp32
 build/qemu-qr.elf: apps/host/qr_bench.c build/qr_frames.h apps/host/qemu-riscv32/start.S $(QUIRC)/identify.c
 	$(RISCV_TC)/bin/riscv32-pico-elf-gcc $(QEMU_MARCH) -O2 -DQEMU_BUILD=1 -Wall \
@@ -201,7 +203,7 @@ check-qemu-qr: build/qemu-qr.elf
 	  -kernel $< </dev/null
 .PHONY: check-qemu-qr
 
-# 読取可否は Mac ネイティブで quirc と zxing-cpp を比べる（命令数は check-qemu-qr で測る）
+# Compare quirc and zxing-cpp decoding on macOS; check-qemu-qr measures instruction counts.
 build/qr_bench_mac: apps/host/qr_bench.c build/qr_frames.h $(QUIRC)/identify.c
 	cc -O2 -Wall $(QUIRC_DEFS) -I$(QUIRC) -I$(QRGEN) -Ibuild -o $@ apps/host/qr_bench.c $(QUIRC)/*.c $(QRGEN)/qrcodegen.c
 
@@ -210,8 +212,8 @@ check-qr-mac: build/qr_bench_mac
 	uv run -q tools/zxing_check.py build/qr_frames | sed 's/^/zxing /'
 .PHONY: check-qr-mac
 
-# 案 B のネイティブ署名中核（docs/architecture-b.md）
-# tx.c / sha256.c は jitsu-in（submodule）と共有する
+# Native signing core for architecture B (docs/architecture-b.md).
+# tx.c and sha256.c are shared with the jitsu-in submodule.
 CORE_SRC := components/parts/signer/core.c components/parts/signer/address.c components/parts/signer/bip32.c components/parts/signer/sighash.c components/parts/parser/c/src/tx.c components/parts/parser/c/src/sha256.c components/parts/signer/ripemd160.c components/parts/signer/sha512.c \
             components/parts/signer/secp_callbacks.c
 build/core_vectors.h: tools/gen_core_vectors.py test-vectors/bip341-wallet-test-vectors.json
@@ -224,6 +226,19 @@ build/test_core: components/parts/signer/tests/test_core.c $(CORE_SRC) component
 check-core: build/test_core
 	build/test_core
 .PHONY: check-core
+
+format-c:
+	$(LLVM)/clang-format -i $(C_FORMAT_FILES)
+.PHONY: format-c
+
+check-c-format:
+	$(LLVM)/clang-format --dry-run --Werror $(C_FORMAT_FILES)
+.PHONY: check-c-format
+
+check-c-tidy:
+	$(LLVM)/clang-tidy $(C_TIDY_FILES) -- -std=c11 -Icomponents/parts/parser/c/include \
+	  --target=wasm32-wasip1 --sysroot=$(WASI)
+.PHONY: check-c-tidy
 
 build/test_xpub: components/parts/signer/tests/test_xpub.c $(CORE_SRC) components/parts/signer/*.h components/parts/signer/secp256k1_unity.c
 	cc -O2 -Wall -Wextra -Wno-unused-function -Icomponents/parts/signer -Icomponents/parts/parser/c/include -I$(SECP)/include -I$(SECP)/src $(SECP_DEFS) \
@@ -244,18 +259,18 @@ check-qemu-core: build/qemu-test-core.elf
 	  -kernel $< </dev/null
 .PHONY: check-qemu-core
 
-# parser.wasm は jitsu-in（submodule）の Makefile でビルドする
+# Build parser.wasm with the jitsu-in submodule's Makefile.
 build/parser.wasm: components/parts/parser/c/src/*.c components/parts/parser/c/include/*.h
 	mkdir -p build
 	$(MAKE) -C components/parts/parser build/parser.wasm LLVM=$(LLVM) WASI=$(WASI) RTLIB=$(RTLIB) WASM_OPT=$(WASM_OPT)
 	cp components/parts/parser/build/parser.wasm $@
 
-# 版とハッシュを固定したツールチェーンで 4 つの wasm を作り直し、記録と突き合わせる。
-# 第三者が同じものを出せることの確認（docs/reproducible-build.md）
+# Rebuild four WASM modules with pinned tool versions and compare their hashes with the record.
+# This checks that others can reproduce the artifacts (docs/reproducible-build.md).
 SDK = $(shell ./tools/toolchain.sh)
 REPRO_WASM := build/address.wasm build/bitcoin-signer.wasm build/parser.wasm build/qr.wasm build/signer.wasm
 
-# 配る .wasm が、公開して差し支えない形か。wasm-tools が要る（brew install wasm-tools）
+# Check that the distributable WASM modules have the expected shape; requires wasm-tools.
 check-wasm: $(REPRO_WASM)
 	uv run -q tools/check_wasm.py $(REPRO_WASM)
 .PHONY: check-wasm
@@ -275,7 +290,7 @@ check-parser:
 	$(MAKE) -C components/parts/parser test
 .PHONY: check-parser
 
-# PARSER_AOT=1 では parser も wamrc で RV32 ネイティブにする。実機では XIP が 7 倍遅いので RAM 展開のみ
+# PARSER_AOT=1 compiles the parser to RV32 with wamrc; on hardware, XIP is 7x slower, so use RAM only.
 PARSER_AOT ?= 0
 WAMRC_RAM_FLAGS := --target=riscv32 --target-abi=ilp32 --cpu=generic-rv32 --cpu-features=+m,+a,+c,+zba,+zbb,+zbs \
   --bounds-checks=1
@@ -299,8 +314,8 @@ build/host-classic/psbt_host: build/parser_wasm.h build/signer_wasm.h build/font
 	  -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/host-classic psbt_host
 
-# 解析器リポジトリの UR ベクタ（参照エンコーダの出力）から、混在 PSBT の 60 byte 断片版を 1 行 1 パートで書き出す。
-# 純粋なパートを 3 つに 1 つ落として、混ぜたパートでの復元も通す
+# Write 60-byte mixed-PSBT UR fragments from the parser's reference-encoder vectors, one part per line.
+# Drop every third original part and verify recovery from the mixed set.
 build/psbt/own_mixed_nwu.ur: components/parts/parser/tests/ur_vectors.json build/psbt/own_p2wpkh_1in.psbt
 	python3 -c "import json,re; v=[x for x in json.load(open('$<'))['vectors'] if x['name']=='own_mixed_nwu' and x['fragment_len']==60][0]; \
 	  print('\n'.join(p for p in v['parts'] if not (int(re.match(r'UR:[A-Z-]+/(\d+)', p).group(1)) <= v['seq_len'] and int(re.match(r'UR:[A-Z-]+/(\d+)', p).group(1)) % 3 == 0)))" > $@
@@ -369,7 +384,7 @@ check-psbt: build/host-classic/psbt_host build/psbt/own_p2wpkh_1in.psbt build/ps
 	for f in build/psbt/own_*.psbt; do echo "== $$f"; build/host-classic/psbt_host sign $$f $${f%.psbt}.signed || true; done
 	build/host-classic/psbt_host sign build/psbt/own_mixed_nwu.ur build/psbt/own_mixed_nwu_ur.out build/psbt/qr
 	cmp build/psbt/own_mixed_nwu_ur.out build/psbt/own_mixed_nwu.signed && echo "UR path matches the binary PSBT path"
-	# 署名済み PSBT の UR（混ぜたパートを含む）を読み戻すと、署名済み PSBT そのものに戻ること
+	# Decoding the signed-PSBT UR, including mixed fragments, must recover the signed PSBT byte for byte.
 	build/host-classic/psbt_host ur2bin build/psbt/own_mixed_nwu_ur.out.ur build/psbt/roundtrip.out
 	cmp build/psbt/roundtrip.out build/psbt/own_mixed_nwu.signed && echo "signed PSBT survives the UR round trip"
 	uv run -q tools/check_qr_screen.py build/psbt/qr build/psbt/own_mixed_nwu_ur.out.ur
@@ -394,7 +409,7 @@ build/test_ui: apps/device/ui/tests/test_ui.c apps/device/ui/ui.c apps/device/ui
 build/bip39_words.h: tools/gen_bip39_words.py
 	mkdir -p build && uv run -q $< $@
 
-# SeedQR は untrusted な入力を読むので、範囲外アクセスを sanitizer で見る
+# SeedQR is untrusted input; run this check with sanitizers to catch out-of-bounds access.
 build/test_seedqr: components/parts/signer/tests/test_seedqr.c components/parts/signer/seedqr.c components/parts/signer/seedqr.h build/bip39_words.h components/parts/parser/c/src/sha256.c
 	cc -O1 -g -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all \
 	  -Icomponents/parts/signer -Icomponents/parts/parser/c/include -Ibuild -o $@ components/parts/signer/tests/test_seedqr.c components/parts/signer/seedqr.c components/parts/parser/c/src/sha256.c
@@ -437,26 +452,26 @@ build/rp2350/camera_test.elf: apps/device/rp2350/camera_test.c apps/device/rp235
   apps/device/rp2350/camera_ov7670.c apps/device/rp2350/CMakeLists.txt build/rp2350/app.elf
 	ninja -C build/rp2350 camera_test
 
-# camera.pio を実機なしで確かめる（pioasm が生成した命令語を最小の PIO シミュレータで実行する）
+# Check camera.pio without hardware by running pioasm-generated instructions in a minimal PIO simulator.
 check-camera-sim: build/rp2350/camera_test.elf
 	python3 tools/sim_dvp_pio.py build/rp2350/camera.pio.h
 .PHONY: check-camera-sim
 
-# 実機の立ち上げ: BOOTSEL を押しながら USB を挿すと RP2350 ドライブとして見えるので、そこへ uf2 をコピーする
-# ドライブ名は RP2350 のこともラベル無し（NO NAME）のこともあるので、134MB の FAT16 を探す
+# To start the device, hold BOOTSEL while connecting USB, then copy the UF2 to the RP2350 drive.
+# The drive may be named RP2350 or NO NAME; identify it by its 134MB FAT16 volume.
 UF2 ?= build/rp2350/app.uf2
 SECONDS ?= 60
 BOOT_VOL = $$(diskutil list | awk '/Windows_FAT_16/ && /134.2 MB/ {print $$NF}' | head -1 | \
   xargs -I{} sh -c 'diskutil info {} | sed -n "s/.*Mount Point: *//p"')
 flash: $(UF2)
 	@vol="$(BOOT_VOL)"; test -n "$$vol" \
-	  || (echo "ブートドライブが見えません。BOOTSEL を押しながら USB を挿してください"; false)
+	  || (echo "Boot drive not found. Hold BOOTSEL while connecting USB."; false)
 	@vol="$(BOOT_VOL)"; cp $(UF2) "$$vol/" 2>/dev/null \
-	  && echo "$(UF2) を $$vol へ書き込みました（ドライブが外れて再起動します）" \
-	  || (echo "$$vol へ書き込めません。macOS の「プライバシーとセキュリティ → ファイルとフォルダ」で"; \
-	      echo "ターミナルに「リムーバブルボリューム」を許可するか、Finder で $(UF2) をドラッグしてください"; false)
+	  && echo "Copied $(UF2) to $$vol; the drive will disconnect and reboot." \
+	  || (echo "Could not write to $$vol. In macOS Privacy & Security > Files and Folders,"; \
+	      echo "allow Terminal to access removable volumes, or drag $(UF2) in Finder."; false)
 
-# ブラウザで PSBT を表示する単一 HTML。実機と同じ parser.wasm を埋め込むので file:// でも動く
+# Single-file HTML viewer for PSBTs; embeds the same parser.wasm as the device and works from file://.
 build/address.wasm: components/parts/signer/address.c components/parts/signer/ripemd160.c components/parts/parser/c/src/sha256.c apps/viewer/addr_wasm.c
 	mkdir -p build && $(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs \
 	  -Oz -Wall -Wextra $(LIME_FLAGS) -Icomponents/parts/signer -Icomponents/parts/parser/c/include \
@@ -466,7 +481,7 @@ build/address.wasm: components/parts/signer/address.c components/parts/signer/ri
 	  -o $@ apps/viewer/addr_wasm.c components/parts/signer/address.c components/parts/signer/ripemd160.c components/parts/parser/c/src/sha256.c -lc $(RTLIB)/libclang_rt.builtins.a
 	$(WASM_OPT) $@ -Oz -o $@
 
-# 実機と同じ quirc。assert を外さないと wasi の stdio が入り、import が増える
+# Use the same quirc as the device. Keep assertions enabled to avoid WASI stdio imports.
 build/qr.wasm: apps/viewer/qr_wasm.c $(QUIRC)/decode.c $(QUIRC)/identify.c $(QUIRC)/quirc.c $(QUIRC)/version_db.c
 	mkdir -p build && $(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs \
 	  -Oz -Wall -DNDEBUG $(LIME_FLAGS) $(QUIRC_DEFS) -I$(QUIRC) \
@@ -482,13 +497,13 @@ viewer: build/parser.wasm build/address.wasm build/qr.wasm apps/viewer/viewer.ht
 	open build/viewer.html
 .PHONY: viewer
 
-# コンセプト図は submodule 側にある（モジュールの話なので）
+# The concept diagram lives in the submodule because it describes the modules.
 everywhere:
 	$(MAKE) -C components/parts everywhere
 	open components/parts/docs/everywhere.svg
 .PHONY: everywhere
 
-# 実配線から図を作る。wiring は信号の対応（WireViz、graphviz が要る）、breadboard は穴の位置
+# Generate diagrams from the wiring data. wiring shows signal connections (WireViz and Graphviz); breadboard shows hole positions.
 wiring: docs/wiring.yml
 	uv run -q --with wireviz wireviz $< -o build/wiring
 	open build/wiring/wiring.html
@@ -498,18 +513,17 @@ breadboard: docs/breadboard.yml tools/draw_breadboard.py
 	open build/breadboard.svg
 .PHONY: wiring breadboard
 
-# Debug Probe の UART（115200bps）を受ける。SECONDS=10 のように秒数を指定できる
+# Read the Debug Probe UART at 115200bps; set a duration with SECONDS=10.
 monitor:
 	mkdir -p build && uv run -q tools/monitor.py $(SECONDS)
 
-# Debug Probe の SWD で書く。BOOTSEL も USB の抜き差しも要らない。
-# Hazard3 を DAP 経由で叩く riscv ドライバは上流の OpenOCD に無いので、Raspberry Pi のフォークを使う
-# （make deps-openocd でビルドする）
+# Flash over the Debug Probe's SWD; this does not require BOOTSEL or reconnecting USB.
+# Use Raspberry Pi's OpenOCD fork because upstream lacks a RISC-V DAP driver for Hazard3 (make deps-openocd builds it).
 ELF ?= $(UF2:.uf2=.elf)
 OPENOCD_DIR ?= $(HOME)/work/oss/openocd-rpi
 OPENOCD = $(OPENOCD_DIR)/src/openocd -s $(OPENOCD_DIR)/tcl -f interface/cmsis-dap.cfg \
   -c "adapter speed 5000" -f target/rp2350-riscv.cfg
-# 上流の OpenOCD は riscv ターゲットを DAP 経由で作れない（rp2350.cfg の -dap が通らない）
+# Upstream OpenOCD cannot create the RISC-V target over DAP; rp2350.cfg's -dap option fails.
 deps-openocd:
 	mkdir -p $(dir $(OPENOCD_DIR))
 	git clone --depth 1 https://github.com/raspberrypi/openocd.git $(OPENOCD_DIR)
@@ -520,7 +534,7 @@ deps-openocd:
 flash-swd: $(ELF)
 	$(OPENOCD) -c "program $(ELF) verify reset exit"
 
-# 書き込み → 受信開始 → リセット。出力を頭から取れる
+# Flash, start receiving, and reset; capture output from the beginning.
 run: $(ELF)
 	@mkdir -p build
 	$(OPENOCD) -c "program $(ELF) verify exit" 2>&1 | tail -3

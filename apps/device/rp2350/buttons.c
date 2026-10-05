@@ -5,8 +5,8 @@
 
 /* In UI_KEY_* order. The joystick has 10k pull-ups on its board; the tactile switches use the
  * internal pull-ups and pull to ground */
-static const unsigned pins[] = {PIN_JOY_UP, PIN_JOY_DOWN, PIN_JOY_LEFT, PIN_JOY_RIGHT, PIN_JOY_PUSH,
-                                PIN_BTN_A, PIN_BTN_B, PIN_BTN_C};
+static const unsigned pins[] = {PIN_JOY_UP,   PIN_JOY_DOWN, PIN_JOY_LEFT, PIN_JOY_RIGHT,
+                                PIN_JOY_PUSH, PIN_BTN_A,    PIN_BTN_B,    PIN_BTN_C};
 #define N_KEYS (sizeof(pins) / sizeof(pins[0]))
 static unsigned char history[N_KEYS];
 
