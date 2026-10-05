@@ -11,7 +11,7 @@ The code that reads an attacker-controlled transaction (PSBT, UR) and the code t
 separate WebAssembly modules, each with **zero imports**. Nothing to polyfill, no WASI, no host functions —
 so they run wherever a WebAssembly runtime does.
 
-<img src="docs/everywhere.svg" alt="The same WASM runs everywhere" width="900">
+<img src="components/parts/docs/everywhere.svg" alt="The same bytes run everywhere" width="940">
 
 The same **15,570 bytes** run on a microcontroller with no OS (RP2350) and in Safari on an iPhone.
 `parser.wasm` is byte-for-byte identical in both, the device shows its SHA-256 on screen, and
@@ -22,7 +22,7 @@ parser inside the device is the one in this repository.
 |---|---|
 | The idea, with diagrams | [docs/everywhere.md](docs/everywhere.md) (Japanese) |
 | What this is for, and who it helps | [docs/positioning.md](docs/positioning.md) (Japanese) |
-| **The module convention** (prefixes, buffers, what is checked) | [docs/module-abi.md](docs/module-abi.md) |
+| **The module convention** (prefixes, buffers, what is checked) | [components/parts/docs/module-abi.md](components/parts/docs/module-abi.md) |
 | **How to drive the parser from your language** | [components/parts/parser/docs/abi.md](components/parts/parser/docs/abi.md) |
 
 A Japanese version is at [README.ja.md](README.ja.md). The design notes and measurements under

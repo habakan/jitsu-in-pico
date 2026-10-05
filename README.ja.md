@@ -12,7 +12,7 @@
 取引を読み解く部分（PSBT・UR の解析）と鍵を扱う部分を、それぞれ import を 1 個も持たない WASM にしてある。
 だから、どんな言語・どんな画面の裏にでも置ける。
 
-<img src="docs/everywhere.svg" alt="The same WASM runs everywhere" width="900">
+<img src="components/parts/docs/everywhere.svg" alt="The same bytes run everywhere" width="940">
 
 OS の無いマイコン（RP2350）と iPhone の Safari で、**同じ 15,570 byte** が動く。
 `parser.wasm` はバイト単位で同じものが載り、その SHA-256 をデバイスも画面に出すので、
