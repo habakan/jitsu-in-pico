@@ -1,16 +1,19 @@
 # jitsu-in-pico
 
 > **jitsu-in ── 実印。** 署名に拘束力を与える印。**pico** は動作先の RP2350 から。
-> 署名に使うモジュールは [jitsu-in](https://github.com/habakan/jitsu-in) にある。
 
 
 [![CI](https://github.com/habakan/jitsu-in-pico/actions/workflows/ci.yml/badge.svg)](https://github.com/habakan/jitsu-in-pico/actions/workflows/ci.yml)
 
 英語版は [README.md](README.md)。
 
-**署名器の中身を、UI から切り離した部品にした。**
-取引を読み解く部分（PSBT・UR の解析）と鍵を扱う部分を、それぞれ import を 1 個も持たない WASM にしてある。
-だから、どんな言語・どんな画面の裏にでも置ける。
+`jitsu-in-pico` は、再利用可能な Bitcoin 署名モジュール
+[jitsu-in](https://github.com/habakan/jitsu-in) を RP2350 / Raspberry Pi Pico 2 で動かす参照実装。
+このリポジトリにはファームウェア、ブラウザの PSBT ビューア、実機の配線と検証手順を置いている。
+再利用モジュール、ホスト API、仕様は jitsu-in を参照。
+
+ファームウェアとビューアは、jitsu-in の同じ parser モジュールを使う。
+PSBT・UR の解析は import を持たない WASM で行い、鍵を扱う処理とは分けている。
 
 <img src="components/parts/docs/everywhere.svg" alt="The same bytes run everywhere" width="940">
 
@@ -22,7 +25,8 @@ OS の無いマイコン（RP2350）と iPhone の Safari で、**同じ 15,570 
 |---|---|
 | コンセプト（図つき） | [docs/everywhere.md](docs/everywhere.md) |
 | 設計の狙いと利用例 | [docs/positioning.md](docs/positioning.md) |
-| 他の言語から呼ぶための仕様 | [components/parts/parser/docs/abi.md](components/parts/parser/docs/abi.md)（英語） |
+| モジュール本体と仕様 | [jitsu-in](https://github.com/habakan/jitsu-in)（英語） |
+| parser の ABI とホスト実装例 | [jitsu-in parser](https://github.com/habakan/jitsu-in/tree/main/parser)（英語） |
 
 ## 安全上の注意
 
@@ -35,7 +39,7 @@ mainnet の前提は [docs/architecture-b.md](docs/architecture-b.md) §15、
 
 セキュリティ上の問題は [SECURITY.md](SECURITY.md) へ。**公開の issue には書かないこと。**
 
-## 機能
+## Pico 2 の実装
 
 カメラで SeedQR を読み、アニメーション QR（UR）で PSBT を受け取る。画面で内容を確認して署名し、
 署名済み PSBT を QR で返す。PC 側に鍵やシードフレーズを置かずに、
@@ -68,10 +72,11 @@ make viewer        # build/viewer.html を作ってブラウザで開く
 189KB の HTML 1 枚に 3 つの WASM（解析・QR・アドレス）が入っている。オフラインで動き、
 `file://` のままカメラも使える（Android は localhost か HTTPS が要る）。
 
-### 他の言語から
+### parser のホスト実装
 
-`components/parts/parser/hosts/` に Kotlin（Chicory）と Swift（WasmKit）の例がある。
-どちらも JNI もネイティブのビルドも要らない。**C・JS・Kotlin・Swift・実機の 5 つが同じ答えを返す。**
+Kotlin と Swift のホスト実装例は [jitsu-in](https://github.com/habakan/jitsu-in/tree/main/parser/hosts) にある。
+[Chicory](https://github.com/dylibso/chicory) と [WasmKit](https://github.com/swiftwasm/WasmKit) を使い、
+JNI やネイティブのビルドは要らない。C・JavaScript・Kotlin・Swift とこの実機で、同じ PSBT から同じ plan を得られる。
 
 ### 実機
 
@@ -114,21 +119,20 @@ make -C components/parts/parser check-fuzz  # 解析器へのファジング
 期待値は独立に作る（embit / hashlib / `@ngraveio/bc-ur` / zxing-cpp / Bitcoin Core）。
 テストを足したらミューテーションテストで検出力を確かめる。
 
-## 構成
+## このリポジトリの内容
 
-**部品が主で、実機とビューアはその用例**という関係になっている。
+ファームウェアは Raspberry Pi Pico 2（RP2350）向け。ビューアとホスト検査では、同じ parser を実機以外でも動かして比較できる。
 
 | | | TCB |
 |---|---|---|
-| `components/parts/parser/` | PSBT・UR の解析（submodule [jitsu-in](https://github.com/habakan/jitsu-in)）。`parser.wasm` になる。ABI 仕様・ホスト実装例・ファジングもここ | **外** |
+| `components/parts/` | [jitsu-in](https://github.com/habakan/jitsu-in) の固定 submodule。再利用する parser / signer モジュールを含む。仕様とホスト実装例の管理先は jitsu-in | **外** |
 | `components/qr/` | QR デコーダ（submodule [quirc](https://github.com/habakan/quirc) の `mcu` ブランチ。FPU 無し向けに固定小数点化） | 外 |
-| `components/parts/signer/` | 鍵と署名。BIP32 導出、BIP143/BIP341 sighash、アドレス、plan の検査、SeedQR。実機にはネイティブ、ブラウザには wasm で載る | 内 |
 | `apps/device/rp2350/` | 実機のファーム。液晶（ST7789）、ボタン、カメラ（PIO + DMA） | 内 |
 | `apps/device/ui/` | 240x240 の画面を組む。表示先に依存しない | 内 |
 | `apps/device/runtime/` | parser.wasm の呼び出し口（線形メモリとの出入りを範囲検証する境界）と WAMR のプラットフォーム層 | 内 |
 | `apps/viewer/` | 実機と同じ wasm で PSBT を表示する単一 HTML | - |
 | `apps/host/` | Mac / QEMU で動かす検査用のホスト | - |
-| `tools/` `docs/` | ベクタ生成・参照実装との照合・配線図などのスクリプトと、設計・実測の記録 | - |
+| `tools/` `docs/` | ビルド・検証ツール、配線図、この実装の設計と実測の記録 | - |
 
 依存（`third_party/`、gitignore 済み）は `make deps` で clone する:
 libsecp256k1、WAMR 2.4.3、pico-sdk 2.3.1、QR-Code-generator、spleen フォント、RISC-V ツールチェーン。
