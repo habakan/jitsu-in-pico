@@ -78,7 +78,7 @@ const PARSER_WASM = "__PARSER_WASM__", ADDRESS_WASM = "__ADDRESS_WASM__", QR_WAS
 const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 /* instantiateStreaming insists on a MIME type, so this goes through the bytes and works on file:// */
 const load = async s => (await WebAssembly.instantiate(b64(s), {})).instance.exports;
-/* The parser is driven through the host in components/parser/hosts/js, which owns the offsets and
+/* The parser is driven through the host in components/parts/parser/hosts/js, which owns the offsets and
  * the bounds checks */
 const loadParser = async () => Parser.load(b64(PARSER_WASM));
 

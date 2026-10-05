@@ -9,8 +9,8 @@
 - [ ] `make check-core`
 - [ ] `make check-psbt` (PSBT round trip, signatures verified with embit)
 - [ ] `make check-xpub` / `check-ui` / `check-seedqr`
-- [ ] `make -C components/parser test` (529 vectors)
-- [ ] `make -C components/parser check-fuzz`
+- [ ] `make -C components/parts/parser test` (529 vectors)
+- [ ] `make -C components/parts/parser check-fuzz`
 - [ ] `make check-repro` still passes
 
 Tested on:

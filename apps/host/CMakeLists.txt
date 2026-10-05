@@ -24,8 +24,8 @@ set(WAMR_BUILD_SIMD 0)
 set(WAMR_BUILD_REF_TYPES 0)
 include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
 
-add_executable(signer_wamr wamr_main.c ../../components/signer/sha512.c ${WAMR_RUNTIME_LIB_SOURCE})
-target_include_directories(signer_wamr PRIVATE ${SIGNER_WASM_H_DIR} ../../components/signer)
+add_executable(signer_wamr wamr_main.c ../../components/parts/signer/sha512.c ${WAMR_RUNTIME_LIB_SOURCE})
+target_include_directories(signer_wamr PRIVATE ${SIGNER_WASM_H_DIR} ../../components/parts/signer)
 target_compile_definitions(signer_wamr PRIVATE POOL_KB=256)
 # WAMR's interpreter uses ceilf, sqrt and friends. They are in libc on macOS but separate on Linux
 if(NOT APPLE)
@@ -35,10 +35,10 @@ endif()
 # A full round of parser.wasm plus the native core (make check-psbt)
 set(ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
 set(SECP ${ROOT}/third_party/secp256k1)
-add_executable(psbt_host psbt_main.c ${ROOT}/apps/device/runtime/host-abi/parser_host.c ${ROOT}/apps/device/ui/ui.c ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c ${ROOT}/components/signer/core.c ${ROOT}/components/signer/address.c ${ROOT}/components/signer/bip32.c
-  ${ROOT}/components/signer/sighash.c ${ROOT}/components/parser/src/tx.c ${ROOT}/components/parser/src/sha256.c ${ROOT}/components/signer/ripemd160.c ${ROOT}/components/signer/sha512.c
-  ${ROOT}/components/signer/secp_callbacks.c ${ROOT}/components/signer/secp256k1_unity.c ${WAMR_RUNTIME_LIB_SOURCE})
-target_include_directories(psbt_host PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/components/signer ${ROOT}/apps/device/runtime/host-abi ${ROOT}/components/parser/include ${ROOT}/apps/device/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include)
+add_executable(psbt_host psbt_main.c ${ROOT}/apps/device/runtime/host-abi/parser_host.c ${ROOT}/apps/device/ui/ui.c ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c ${ROOT}/components/parts/signer/core.c ${ROOT}/components/parts/signer/address.c ${ROOT}/components/parts/signer/bip32.c
+  ${ROOT}/components/parts/signer/sighash.c ${ROOT}/components/parts/parser/src/tx.c ${ROOT}/components/parts/parser/src/sha256.c ${ROOT}/components/parts/signer/ripemd160.c ${ROOT}/components/parts/signer/sha512.c
+  ${ROOT}/components/parts/signer/secp_callbacks.c ${ROOT}/components/parts/signer/secp256k1_unity.c ${WAMR_RUNTIME_LIB_SOURCE})
+target_include_directories(psbt_host PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/components/parts/signer ${ROOT}/apps/device/runtime/host-abi ${ROOT}/components/parts/parser/include ${ROOT}/apps/device/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include ${SECP}/src)
 target_compile_definitions(psbt_host PRIVATE ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1 ECMULT_WINDOW_SIZE=2
   USE_EXTERNAL_DEFAULT_CALLBACKS=1 COMB_BLOCKS=2 COMB_TEETH=5)
 target_compile_options(psbt_host PRIVATE -Wno-unused-function)

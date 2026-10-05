@@ -3,7 +3,7 @@
 ## Before you start
 
 Read [README.md](README.md) for what this is, [docs/limitations.md](docs/limitations.md) for where
-the boundaries are, and [components/parser/docs/abi.md](components/parser/docs/abi.md) if you are
+the boundaries are, and [components/parts/parser/docs/abi.md](components/parts/parser/docs/abi.md) if you are
 touching the parser or writing a host for it.
 
 **Security problems do not go in issues.** See [SECURITY.md](SECURITY.md).
@@ -13,7 +13,7 @@ touching the parser or writing a host for it.
 - **Issues, pull requests and code review: English.**
 - This repository's commit messages and `docs/` are **Japanese**; `README.md` and
   `docs/limitations.md` are English. Translations of existing Japanese docs are welcome.
-- The [wasm-psbt-parser](https://github.com/habakan/wasm-psbt-parser) submodule is **English
+- The [wasm-bitcoin-signer](https://github.com/habakan/wasm-bitcoin-signer) submodule is **English
   throughout**, including its commits.
 
 Write a patch in whichever of the two you are comfortable with; the maintainer will not reject a
@@ -45,7 +45,7 @@ in the PR — a reviewer needs to see that the hash moved on purpose.
 ## Testing
 
 `make check-core` `check-xpub` `check-psbt` `check-ui` `check-seedqr` `check-repro`,
-`make -C components/parser test` and `check-fuzz`. The full list with one line each is in
+`make -C components/parts/parser test` and `check-fuzz`. The full list with one line each is in
 [README.md](README.md#check-it-yourself). Expected values come from independent implementations
 (embit, Bitcoin Core, `@ngraveio/bc-ur`, zxing-cpp), not from this code.
 

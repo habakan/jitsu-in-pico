@@ -18,7 +18,7 @@ OS の無いマイコン（RP2350）と iPhone の Safari で、**同じ 15,570 
 |---|---|
 | コンセプト（図つき） | [docs/everywhere.md](docs/everywhere.md) |
 | 何を作っていて誰のどんな問題を解くのか | [docs/positioning.md](docs/positioning.md) |
-| 他の言語から呼ぶための仕様 | [components/parser/docs/abi.md](components/parser/docs/abi.md)（英語） |
+| 他の言語から呼ぶための仕様 | [components/parts/parser/docs/abi.md](components/parts/parser/docs/abi.md)（英語） |
 
 ## 注意
 
@@ -66,7 +66,7 @@ make viewer        # build/viewer.html を作ってブラウザで開く
 
 ### 他の言語から
 
-`components/parser/examples/` に Kotlin（Chicory）と Swift（WasmKit）の例がある。
+`components/parts/parser/hosts/` に Kotlin（Chicory）と Swift（WasmKit）の例がある。
 どちらも JNI もネイティブのビルドも要らない。**C・JS・Kotlin・Swift・実機の 5 つが同じ答えを返す。**
 
 ### 実機
@@ -103,8 +103,8 @@ make check-qemu-psbt   # RV32 で PSBT 一巡（ホストの出力と一致す�
 make check-qemu-qr     # quirc の命令数
 make check-qr-mac      # quirc と zxing-cpp の読取可否を比べる
 make check-camera-sim  # camera.pio を Python のシミュレータで検証
-make -C components/parser test        # 解析器のベクタ（529 項目）
-make -C components/parser check-fuzz  # 解析器へのファジング
+make -C components/parts/parser test        # 解析器のベクタ（529 項目）
+make -C components/parts/parser check-fuzz  # 解析器へのファジング
 ```
 
 期待値は独立に作る（embit / hashlib / `@ngraveio/bc-ur` / zxing-cpp / Bitcoin Core）。
@@ -116,9 +116,9 @@ make -C components/parser check-fuzz  # 解析器へのファジング
 
 | | | TCB |
 |---|---|---|
-| `components/parser/` | PSBT・UR の解析（submodule [wasm-psbt-parser](https://github.com/habakan/wasm-psbt-parser)）。`parser.wasm` になる。ABI 仕様・ホスト実装例・ファジングもここ | **外** |
+| `components/parts/parser/` | PSBT・UR の解析（submodule [wasm-bitcoin-signer](https://github.com/habakan/wasm-bitcoin-signer)）。`parser.wasm` になる。ABI 仕様・ホスト実装例・ファジングもここ | **外** |
 | `components/qr/` | QR デコーダ（submodule [quirc](https://github.com/habakan/quirc) の `mcu` ブランチ。FPU 無し向けに固定小数点化） | 外 |
-| `components/signer/` | 鍵と署名。BIP32 導出、BIP143/BIP341 sighash、アドレス、plan の検査、SeedQR。実機にはネイティブ、ブラウザには wasm で載る | 内 |
+| `components/parts/signer/` | 鍵と署名。BIP32 導出、BIP143/BIP341 sighash、アドレス、plan の検査、SeedQR。実機にはネイティブ、ブラウザには wasm で載る | 内 |
 | `apps/device/rp2350/` | 実機のファーム。液晶（ST7789）、ボタン、カメラ（PIO + DMA） | 内 |
 | `apps/device/ui/` | 240x240 の画面を組む。表示先に依存しない | 内 |
 | `apps/device/runtime/` | parser.wasm の呼び出し口（線形メモリとの出入りを範囲検証する境界）と WAMR のプラットフォーム層 | 内 |

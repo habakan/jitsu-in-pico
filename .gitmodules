@@ -1,6 +1,6 @@
-[submodule "parser"]
-	path = components/parser
-	url = git@github.com:habakan/wasm-psbt-parser.git
+[submodule "parts"]
+	path = components/parts
+	url = git@github.com:habakan/wasm-bitcoin-signer.git
 [submodule "qr/quirc"]
 	path = components/qr/quirc
 	url = git@github.com:habakan/quirc.git

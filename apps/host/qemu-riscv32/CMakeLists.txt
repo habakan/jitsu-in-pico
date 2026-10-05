@@ -26,20 +26,20 @@ set(WAMR_BUILD_REF_TYPES 0)
 set(WAMR_DISABLE_HW_BOUND_CHECK 1)
 include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
 
-add_executable(signer.elf ${ROOT}/apps/host/wamr_main.c ${ROOT}/components/signer/sha512.c ${CMAKE_CURRENT_LIST_DIR}/start.S ${WAMR_RUNTIME_LIB_SOURCE})
+add_executable(signer.elf ${ROOT}/apps/host/wamr_main.c ${ROOT}/components/parts/signer/sha512.c ${CMAKE_CURRENT_LIST_DIR}/start.S ${WAMR_RUNTIME_LIB_SOURCE})
 target_compile_definitions(signer.elf PRIVATE QEMU_BUILD=1 POOL_KB=${POOL_KB})
 target_compile_options(signer.elf PRIVATE -mcpu=hazard3-rp2350 -Os)
-target_include_directories(signer.elf PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/components/signer)
+target_include_directories(signer.elf PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/components/parts/signer)
 target_link_options(signer.elf PRIVATE -mcpu=hazard3-rp2350 --specs=semihost.specs
   -Wl,--section-start=.qemu_start=0x80000000 -Wl,-Ttext=0x80001000 -Wl,-e,qemu_start -Wl,--gc-sections)
 target_link_libraries(signer.elf m)
 
 # A full round of parser.wasm plus the native core (make check-qemu-psbt)
 set(SECP ${ROOT}/third_party/secp256k1)
-add_executable(psbt.elf ${ROOT}/apps/host/psbt_main.c ${ROOT}/apps/device/runtime/host-abi/parser_host.c ${ROOT}/apps/device/ui/ui.c ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c ${ROOT}/components/signer/core.c ${ROOT}/components/signer/address.c ${ROOT}/components/signer/bip32.c
-  ${ROOT}/components/signer/sighash.c ${ROOT}/components/parser/src/tx.c ${ROOT}/components/parser/src/sha256.c ${ROOT}/components/signer/ripemd160.c ${ROOT}/components/signer/sha512.c
-  ${ROOT}/components/signer/secp_callbacks.c ${ROOT}/components/signer/secp256k1_unity.c ${CMAKE_CURRENT_LIST_DIR}/start.S ${WAMR_RUNTIME_LIB_SOURCE})
-target_include_directories(psbt.elf PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/components/signer ${ROOT}/apps/device/runtime/host-abi ${ROOT}/components/parser/include ${ROOT}/apps/device/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include)
+add_executable(psbt.elf ${ROOT}/apps/host/psbt_main.c ${ROOT}/apps/device/runtime/host-abi/parser_host.c ${ROOT}/apps/device/ui/ui.c ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c ${ROOT}/components/parts/signer/core.c ${ROOT}/components/parts/signer/address.c ${ROOT}/components/parts/signer/bip32.c
+  ${ROOT}/components/parts/signer/sighash.c ${ROOT}/components/parts/parser/src/tx.c ${ROOT}/components/parts/parser/src/sha256.c ${ROOT}/components/parts/signer/ripemd160.c ${ROOT}/components/parts/signer/sha512.c
+  ${ROOT}/components/parts/signer/secp_callbacks.c ${ROOT}/components/parts/signer/secp256k1_unity.c ${CMAKE_CURRENT_LIST_DIR}/start.S ${WAMR_RUNTIME_LIB_SOURCE})
+target_include_directories(psbt.elf PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/components/parts/signer ${ROOT}/apps/device/runtime/host-abi ${ROOT}/components/parts/parser/include ${ROOT}/apps/device/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include ${SECP}/src)
 target_compile_definitions(psbt.elf PRIVATE QEMU_BUILD=1 ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1
   ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1 COMB_BLOCKS=2 COMB_TEETH=5)
 # -mcpu=hazard3-rp2350 can emit Xh3bextm, which QEMU does not implement, so only the standard

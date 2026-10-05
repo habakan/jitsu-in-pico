@@ -1,7 +1,7 @@
 # /// script
 # dependencies = ["embit"]
 # ///
-"""components/signer/tests 用の期待値を C ヘッダにする。BIP341 は公式 JSON、BIP84 / BIP86 の鍵とスクリプトは embit で独立に計算する。"""
+"""components/parts/signer/tests 用の期待値を C ヘッダにする。BIP341 は公式 JSON、BIP84 / BIP86 の鍵とスクリプトは embit で独立に計算する。"""
 import hashlib, json, sys
 from embit import bip32, script
 

@@ -17,7 +17,7 @@ qr = open("build/qr.wasm", "rb").read()
 jsqr = open("apps/viewer/vendor/jsQR.min.js").read()  # Safari には内蔵デコーダが無いので同梱する
 # 解析器のホスト。単一 HTML は file:// で開くので ES モジュールにできない（CORS で弾かれる）。
 # export を落として普通のスクリプトとして埋める
-host = re.sub(r"^export ", "", open("components/parser/hosts/js/parser.mjs").read(), flags=re.M)
+host = re.sub(r"^export ", "", open("components/parts/parser/hosts/js/parser.mjs").read(), flags=re.M)
 page = open("apps/viewer/viewer.html").read()
 
 html = (page.replace("__PARSER_WASM__", base64.b64encode(parser).decode())

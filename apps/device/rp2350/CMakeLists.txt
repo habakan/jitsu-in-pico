@@ -32,14 +32,14 @@ include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
 # runtime_lib.cmake adds -std=gnu99, but pico-sdk needs C11 for static_assert
 string(REPLACE "-std=gnu99" "-std=gnu11" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 
-add_executable(signer ${ROOT}/apps/host/wamr_main.c ${ROOT}/components/signer/sha512.c ${WAMR_RUNTIME_LIB_SOURCE})
+add_executable(signer ${ROOT}/apps/host/wamr_main.c ${ROOT}/components/parts/signer/sha512.c ${WAMR_RUNTIME_LIB_SOURCE})
 # The pool is the highmark measured under QEMU with room to spare. Pass -DPOOL_KB=320 when expanding
 # AOT into RAM
 if(NOT DEFINED POOL_KB)
   set(POOL_KB 48)
 endif()
 target_compile_definitions(signer PRIVATE PICO_BUILD=1 POOL_KB=${POOL_KB} PICO_STACK_SIZE=0x4000)
-target_include_directories(signer PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/components/signer)
+target_include_directories(signer PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/components/parts/signer)
 target_link_libraries(signer pico_stdlib)
 pico_enable_stdio_uart(signer 1)
 pico_enable_stdio_usb(signer 0)
@@ -56,9 +56,9 @@ set(QUIRC ${ROOT}/components/qr/quirc/lib)
 set(QUIRC_SRC ${QUIRC}/decode.c ${QUIRC}/identify.c ${QUIRC}/quirc.c ${QUIRC}/version_db.c)
 set(APP_SRC ${CMAKE_CURRENT_LIST_DIR}/app_main.c ${CMAKE_CURRENT_LIST_DIR}/st7789.c
   ${CMAKE_CURRENT_LIST_DIR}/buttons.c ${ROOT}/apps/device/runtime/host-abi/parser_host.c ${ROOT}/apps/device/ui/ui.c ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c
-  ${ROOT}/components/signer/core.c ${ROOT}/components/signer/address.c ${ROOT}/components/signer/bip32.c ${ROOT}/components/signer/sighash.c ${ROOT}/components/parser/src/tx.c
-  ${ROOT}/components/parser/src/sha256.c ${ROOT}/components/signer/ripemd160.c ${ROOT}/components/signer/sha512.c ${ROOT}/components/signer/secp_callbacks.c ${ROOT}/components/signer/seedqr.c
-  ${ROOT}/components/signer/secp256k1_unity.c ${CMAKE_CURRENT_LIST_DIR}/camera.c ${CMAKE_CURRENT_LIST_DIR}/camera_ov7670.c
+  ${ROOT}/components/parts/signer/core.c ${ROOT}/components/parts/signer/address.c ${ROOT}/components/parts/signer/bip32.c ${ROOT}/components/parts/signer/sighash.c ${ROOT}/components/parts/parser/src/tx.c
+  ${ROOT}/components/parts/parser/src/sha256.c ${ROOT}/components/parts/signer/ripemd160.c ${ROOT}/components/parts/signer/sha512.c ${ROOT}/components/parts/signer/secp_callbacks.c ${ROOT}/components/parts/signer/seedqr.c
+  ${ROOT}/components/parts/signer/secp256k1_unity.c ${CMAKE_CURRENT_LIST_DIR}/camera.c ${CMAKE_CURRENT_LIST_DIR}/camera_ov7670.c
   ${QUIRC_SRC} ${WAMR_RUNTIME_LIB_SOURCE})
 foreach(t app app_nolcd)
   add_executable(${t} ${APP_SRC})
@@ -68,8 +68,8 @@ foreach(t app app_nolcd)
     NO_LCD=$<STREQUAL:${t},app_nolcd> TEST_SEED=${TEST_SEED} TESTNET=${TESTNET}
     QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH)
   target_compile_options(${t} PRIVATE -Wno-unused-function)
-  target_include_directories(${t} PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/components/signer
-    ${ROOT}/apps/device/runtime/host-abi ${ROOT}/components/parser/include ${ROOT}/apps/device/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include
+  target_include_directories(${t} PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/components/parts/signer
+    ${ROOT}/apps/device/runtime/host-abi ${ROOT}/components/parts/parser/include ${ROOT}/apps/device/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include ${SECP}/src
     ${QUIRC})
   target_link_libraries(${t} pico_stdlib pico_rand hardware_spi hardware_pio hardware_dma hardware_i2c hardware_clocks)
   pico_enable_stdio_uart(${t} 1)
@@ -110,9 +110,9 @@ pico_add_extra_outputs(button_test)
 
 # Times a full PSBT round on the hardware (make build/rp2350/psbt_bench.elf), with no screen or buttons
 add_executable(psbt_bench ${CMAKE_CURRENT_LIST_DIR}/psbt_bench.c ${ROOT}/apps/device/runtime/host-abi/parser_host.c ${ROOT}/apps/device/ui/ui.c
-  ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c ${ROOT}/components/signer/core.c ${ROOT}/components/signer/address.c ${ROOT}/components/signer/bip32.c
-  ${ROOT}/components/signer/sighash.c ${ROOT}/components/parser/src/tx.c ${ROOT}/components/parser/src/sha256.c ${ROOT}/components/signer/ripemd160.c
-  ${ROOT}/components/signer/sha512.c ${ROOT}/components/signer/secp_callbacks.c ${ROOT}/components/signer/secp256k1_unity.c ${QUIRC_SRC}
+  ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c ${ROOT}/components/parts/signer/core.c ${ROOT}/components/parts/signer/address.c ${ROOT}/components/parts/signer/bip32.c
+  ${ROOT}/components/parts/signer/sighash.c ${ROOT}/components/parts/parser/src/tx.c ${ROOT}/components/parts/parser/src/sha256.c ${ROOT}/components/parts/signer/ripemd160.c
+  ${ROOT}/components/parts/signer/sha512.c ${ROOT}/components/parts/signer/secp_callbacks.c ${ROOT}/components/parts/signer/secp256k1_unity.c ${QUIRC_SRC}
   ${WAMR_RUNTIME_LIB_SOURCE})
 if(NOT DEFINED PARSER_POOL_KB)
   set(PARSER_POOL_KB 256)
@@ -122,8 +122,8 @@ target_compile_definitions(psbt_bench PRIVATE PICO_BUILD=1 POOL_KB=${PARSER_POOL
   ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1 ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1
   COMB_BLOCKS=2 COMB_TEETH=5)
 target_compile_options(psbt_bench PRIVATE -Wno-unused-function)
-target_include_directories(psbt_bench PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/components/signer ${QUIRC}
-  ${ROOT}/apps/device/runtime/host-abi ${ROOT}/components/parser/include ${ROOT}/apps/device/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include)
+target_include_directories(psbt_bench PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/components/parts/signer ${QUIRC}
+  ${ROOT}/apps/device/runtime/host-abi ${ROOT}/components/parts/parser/include ${ROOT}/apps/device/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include ${SECP}/src)
 target_link_libraries(psbt_bench pico_stdlib)
 pico_enable_stdio_uart(psbt_bench 1)
 pico_enable_stdio_usb(psbt_bench 0)

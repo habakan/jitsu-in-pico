@@ -14,8 +14,8 @@ PKG     := dev.habakan.wasmsigner.sample
 
 ROOT    := ../..
 CHICORY := 1.4.0
-CP      := $(ROOT)/components/signer/hosts/kotlin/lib/runtime-$(CHICORY).jar:$(ROOT)/components/signer/hosts/kotlin/lib/wasm-$(CHICORY).jar
-SIGNER_KT := $(ROOT)/components/signer/hosts/kotlin/Signer.kt
+CP      := $(ROOT)/components/parts/signer/hosts/kotlin/lib/runtime-$(CHICORY).jar:$(ROOT)/components/parts/signer/hosts/kotlin/lib/wasm-$(CHICORY).jar
+SIGNER_KT := $(ROOT)/components/parts/signer/hosts/kotlin/Signer.kt
 # The Kotlin standard library has to be in the dex too, or the app dies on its first stdlib call with
 # NoClassDefFoundError. Taken from wherever kotlinc lives, so the version always matches the compiler
 # that built the code. Homebrew puts it under libexec; a plain install does not

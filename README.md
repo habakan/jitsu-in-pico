@@ -19,7 +19,7 @@ parser inside the device is the one in this repository.
 | The idea, with diagrams | [docs/everywhere.md](docs/everywhere.md) (Japanese) |
 | What this is for, and who it helps | [docs/positioning.md](docs/positioning.md) (Japanese) |
 | **The module convention** (prefixes, buffers, what is checked) | [docs/module-abi.md](docs/module-abi.md) |
-| **How to drive the parser from your language** | [components/parser/docs/abi.md](components/parser/docs/abi.md) |
+| **How to drive the parser from your language** | [components/parts/parser/docs/abi.md](components/parts/parser/docs/abi.md) |
 
 A Japanese version is at [README.ja.md](README.ja.md). The design notes and measurements under
 `docs/` are still Japanese only.
@@ -71,7 +71,7 @@ and the camera works straight from `file://` on desktop (Android needs localhost
 
 ### From another language
 
-`components/parser/examples/` has Kotlin (via [Chicory](https://github.com/dylibso/chicory), pure Java)
+`components/parts/parser/hosts/` has Kotlin (via [Chicory](https://github.com/dylibso/chicory), pure Java)
 and Swift (via [WasmKit](https://github.com/swiftwasm/WasmKit), pure Swift). Neither needs JNI or a
 native build step. **C, JavaScript, Kotlin, Swift and the device all print the same plan for the same PSBT.**
 
@@ -109,8 +109,8 @@ make check-qemu-psbt   # the same round on RV32, output compared with the host
 make check-qemu-qr     # quirc instruction counts
 make check-qr-mac      # quirc vs zxing-cpp on the same images
 make check-camera-sim  # camera.pio against a Python simulator
-make -C components/parser test        # parser vectors (529 checks)
-make -C components/parser check-fuzz  # fuzzing the PSBT and UR parsers
+make -C components/parts/parser test        # parser vectors (529 checks)
+make -C components/parts/parser check-fuzz  # fuzzing the PSBT and UR parsers
 ```
 
 Expected values come from independent implementations: embit, hashlib, `@ngraveio/bc-ur`, zxing-cpp,
@@ -122,9 +122,9 @@ Bitcoin Core. New tests are checked with mutation testing before they are truste
 
 | | | TCB |
 |---|---|---|
-| `components/parser/` | PSBT and UR parsing (submodule: [wasm-psbt-parser](https://github.com/habakan/wasm-psbt-parser)). Becomes `parser.wasm`. ABI spec, host examples and fuzzing live here | **outside** |
+| `components/parts/parser/` | PSBT and UR parsing (submodule: [wasm-bitcoin-signer](https://github.com/habakan/wasm-bitcoin-signer)). Becomes `parser.wasm`. ABI spec, host examples and fuzzing live here | **outside** |
 | `components/qr/` | QR decoder (submodule: [quirc](https://github.com/habakan/quirc), `mcu` branch, made fixed-point for CPUs without an FPU) | outside |
-| `components/signer/` | Keys and signing: BIP32 derivation, BIP143/BIP341 sighash, addresses, plan checks, SeedQR. Native on the device, WASM in the browser | inside |
+| `components/parts/signer/` | Keys and signing: BIP32 derivation, BIP143/BIP341 sighash, addresses, plan checks, SeedQR. Native on the device, WASM in the browser | inside |
 | `apps/device/rp2350/` | The firmware: display (ST7789), buttons, camera (PIO + DMA) | inside |
 | `apps/device/ui/` | Builds the 240x240 screens, independent of where they are shown | inside |
 | `apps/device/runtime/` | The call boundary into `parser.wasm` (every offset and length is range-checked) and the WAMR platform layer | inside |
