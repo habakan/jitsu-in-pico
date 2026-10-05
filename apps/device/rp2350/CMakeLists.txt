@@ -56,8 +56,8 @@ set(QUIRC ${ROOT}/components/qr/quirc/lib)
 set(QUIRC_SRC ${QUIRC}/decode.c ${QUIRC}/identify.c ${QUIRC}/quirc.c ${QUIRC}/version_db.c)
 set(APP_SRC ${CMAKE_CURRENT_LIST_DIR}/app_main.c ${CMAKE_CURRENT_LIST_DIR}/st7789.c
   ${CMAKE_CURRENT_LIST_DIR}/buttons.c ${ROOT}/apps/device/runtime/host-abi/parser_host.c ${ROOT}/apps/device/ui/ui.c ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c
-  ${ROOT}/components/parts/signer/core.c ${ROOT}/components/parts/signer/address.c ${ROOT}/components/parts/signer/bip32.c ${ROOT}/components/parts/signer/sighash.c ${ROOT}/components/parts/parser/src/tx.c
-  ${ROOT}/components/parts/parser/src/sha256.c ${ROOT}/components/parts/signer/ripemd160.c ${ROOT}/components/parts/signer/sha512.c ${ROOT}/components/parts/signer/secp_callbacks.c ${ROOT}/components/parts/signer/seedqr.c
+  ${ROOT}/components/parts/signer/core.c ${ROOT}/components/parts/signer/address.c ${ROOT}/components/parts/signer/bip32.c ${ROOT}/components/parts/signer/sighash.c ${ROOT}/components/parts/parser/c/src/tx.c
+  ${ROOT}/components/parts/parser/c/src/sha256.c ${ROOT}/components/parts/signer/ripemd160.c ${ROOT}/components/parts/signer/sha512.c ${ROOT}/components/parts/signer/secp_callbacks.c ${ROOT}/components/parts/signer/seedqr.c
   ${ROOT}/components/parts/signer/secp256k1_unity.c ${CMAKE_CURRENT_LIST_DIR}/camera.c ${CMAKE_CURRENT_LIST_DIR}/camera_ov7670.c
   ${QUIRC_SRC} ${WAMR_RUNTIME_LIB_SOURCE})
 foreach(t app app_nolcd)
@@ -69,7 +69,7 @@ foreach(t app app_nolcd)
     QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH)
   target_compile_options(${t} PRIVATE -Wno-unused-function)
   target_include_directories(${t} PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/components/parts/signer
-    ${ROOT}/apps/device/runtime/host-abi ${ROOT}/components/parts/parser/include ${ROOT}/apps/device/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include ${SECP}/src
+    ${ROOT}/apps/device/runtime/host-abi ${ROOT}/components/parts/parser/c/include ${ROOT}/apps/device/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include ${SECP}/src
     ${QUIRC})
   target_link_libraries(${t} pico_stdlib pico_rand hardware_spi hardware_pio hardware_dma hardware_i2c hardware_clocks)
   pico_enable_stdio_uart(${t} 1)
@@ -111,7 +111,7 @@ pico_add_extra_outputs(button_test)
 # Times a full PSBT round on the hardware (make build/rp2350/psbt_bench.elf), with no screen or buttons
 add_executable(psbt_bench ${CMAKE_CURRENT_LIST_DIR}/psbt_bench.c ${ROOT}/apps/device/runtime/host-abi/parser_host.c ${ROOT}/apps/device/ui/ui.c
   ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c ${ROOT}/components/parts/signer/core.c ${ROOT}/components/parts/signer/address.c ${ROOT}/components/parts/signer/bip32.c
-  ${ROOT}/components/parts/signer/sighash.c ${ROOT}/components/parts/parser/src/tx.c ${ROOT}/components/parts/parser/src/sha256.c ${ROOT}/components/parts/signer/ripemd160.c
+  ${ROOT}/components/parts/signer/sighash.c ${ROOT}/components/parts/parser/c/src/tx.c ${ROOT}/components/parts/parser/c/src/sha256.c ${ROOT}/components/parts/signer/ripemd160.c
   ${ROOT}/components/parts/signer/sha512.c ${ROOT}/components/parts/signer/secp_callbacks.c ${ROOT}/components/parts/signer/secp256k1_unity.c ${QUIRC_SRC}
   ${WAMR_RUNTIME_LIB_SOURCE})
 if(NOT DEFINED PARSER_POOL_KB)
@@ -123,7 +123,7 @@ target_compile_definitions(psbt_bench PRIVATE PICO_BUILD=1 POOL_KB=${PARSER_POOL
   COMB_BLOCKS=2 COMB_TEETH=5)
 target_compile_options(psbt_bench PRIVATE -Wno-unused-function)
 target_include_directories(psbt_bench PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/components/parts/signer ${QUIRC}
-  ${ROOT}/apps/device/runtime/host-abi ${ROOT}/components/parts/parser/include ${ROOT}/apps/device/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include ${SECP}/src)
+  ${ROOT}/apps/device/runtime/host-abi ${ROOT}/components/parts/parser/c/include ${ROOT}/apps/device/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include ${SECP}/src)
 target_link_libraries(psbt_bench pico_stdlib)
 pico_enable_stdio_uart(psbt_bench 1)
 pico_enable_stdio_usb(psbt_bench 0)
