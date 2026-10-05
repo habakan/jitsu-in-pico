@@ -81,7 +81,7 @@ flowchart LR
 | | 状態 |
 |---|---|
 | 実機で一巡（SeedQR → UR 読取 → 確認 → 署名 → UR 出力） | 済。signet の取引がブロックに入った |
-| 単一 HTML で PSBT を解析・表示 | 済（`make viewer`） |
+| 単一 HTML で PSBT を解析・表示 | 済（jitsu-in の viewer example） |
 | 単一 HTML でカメラから実機の QR を読む | 済。ただし離れて撮ると quirc は読めず、jsQR か内蔵デコーダに落ちる |
 | デバイスから xpub / 出力ディスクリプタを QR で出す | 済。PC 側をウォッチオンリーにできる |
 | PC に鍵を置かない一巡 | 済。[signet の取引](https://mempool.space/signet/tx/de849e8c01a39fcf2aa84aaeeccb2ac8aea128086b2f4252539bcab90a0a432f)（[手順](signet.md)） |
@@ -90,11 +90,9 @@ flowchart LR
 | 回復モード（`signer.wasm` を載せる） | 未。wasm 自体は動作確認済み |
 | 再現可能ビルド（第三者が同じハッシュを出せる） | 済（`make check-repro`、[reproducible-build.md](reproducible-build.md)） |
 
-## 作り方
+## ビューア
 
-```
-make viewer     # build/viewer.html（単一ファイル）を作ってブラウザで開く
-```
+ビューアのソースと作り方は [jitsu-in/examples/viewer](https://github.com/habakan/jitsu-in/tree/main/examples/viewer) を参照。
 
 `file://` で開いても動く。手元の Mac では `file://` のままカメラも使えた。
 

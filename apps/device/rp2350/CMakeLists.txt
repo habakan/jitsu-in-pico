@@ -32,7 +32,7 @@ include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
 # runtime_lib.cmake adds -std=gnu99, but pico-sdk needs C11 for static_assert
 string(REPLACE "-std=gnu99" "-std=gnu11" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 
-add_executable(signer ${ROOT}/apps/host/wamr_main.c ${ROOT}/components/parts/signer/sha512.c ${WAMR_RUNTIME_LIB_SOURCE})
+add_executable(signer ${ROOT}/tests/host/wamr_main.c ${ROOT}/components/parts/signer/sha512.c ${WAMR_RUNTIME_LIB_SOURCE})
 # The pool is the highmark measured under QEMU with room to spare. Pass -DPOOL_KB=320 when expanding
 # AOT into RAM
 if(NOT DEFINED POOL_KB)
@@ -80,7 +80,7 @@ endforeach()
 
 # Times quirc's decoding on the hardware (make build/rp2350/qr_bench.elf), from a built-in image
 # rather than the camera
-add_executable(qr_bench ${ROOT}/apps/host/qr_bench.c ${QUIRC_SRC} ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c)
+add_executable(qr_bench ${ROOT}/tests/host/qr_bench.c ${QUIRC_SRC} ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c)
 target_compile_definitions(qr_bench PRIVATE PICO_BUILD=1 PICO_STACK_SIZE=0x8000
   QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH)
 target_include_directories(qr_bench PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/components/qr/quirc/lib

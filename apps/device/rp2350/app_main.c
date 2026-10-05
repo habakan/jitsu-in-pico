@@ -410,7 +410,7 @@ static void show_xpub(void) {
     }
 }
 
-/* The hash of the parser.wasm actually loaded. Matching it against what the viewer page reports is
+/* The hash of the parser.wasm actually loaded. Matching it against the jitsu-in viewer is
  * how you confirm the device is running the same module you are */
 static void show_parser_hash(void) {
     static ui_screen_t s;

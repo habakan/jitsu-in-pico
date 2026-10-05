@@ -94,12 +94,12 @@ hardware, and it lets someone else verify the same artifact independently.
 
 ```mermaid
 flowchart LR
-    src["components/parser/src/*.c<br/>jitsu-in"] --> wasm["parser.wasm<br/>15,570 bytes"]
+    src["components/parts/parser/src/*.c<br/>jitsu-in"] --> wasm["parser.wasm<br/>15,570 bytes"]
     wasm --> mac["native on a Mac<br/>make check-psbt"]
     wasm --> qemu["QEMU RV32<br/>counts instructions"]
     wasm --> dev["RP2350 hardware<br/>WAMR interpreter"]
     wasm --> browser["a browser<br/>the single-file viewer"]
-    wasm --> other["Kotlin / Swift<br/>components/parser/hosts"]
+    wasm --> other["Kotlin / Swift<br/>components/parts/parser/hosts"]
     mac --> ref["checked against reference implementations<br/>embit / @ngraveio/bc-ur /<br/>Bitcoin Core's rpc_psbt.json"]
     qemu --> ref
     dev --> ref

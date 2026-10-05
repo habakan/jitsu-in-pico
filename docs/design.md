@@ -234,15 +234,16 @@ apps/                  the things that use them
     rp2350/            the board: panel, camera, buttons, the application itself
     ui/                building the screens
     runtime/           the boundary with WAMR (host-abi) and the platform layer
-  android/             a sample Android app on the Kotlin host, signing with the same modules
-  viewer/              the single-file HTML viewer
-  host/                development programs that run on a PC or under QEMU
+tests/host/             native and QEMU integration hosts
 tools/                 scripts for generating, measuring and drawing
 docs/                  the design notes and the measurements
 test-vectors/ third_party/ patches/
 ```
 
-`components/signer/` is both the device's signing code and the source of `bitcoin-signer.wasm`.
+The browser viewer is maintained in [jitsu-in](https://github.com/habakan/jitsu-in/tree/main/examples/viewer).
+The Android sample has its own repository at [jitsu-in-android](https://github.com/habakan/jitsu-in-android).
+
+`components/parts/signer/` is both the device's signing code and the source of `bitcoin-signer.wasm`.
 Giving it a repository of its own is on the table, but not yet: what makes the parser usable as a part
 is its specification, its host libraries and its tests, and the signer has none of those yet. Moving
 the files first would only produce an empty repository. The conditions for splitting it are that
@@ -251,7 +252,7 @@ of its own, and that someone outside this project wants to sign. Against those s
 2026-10-03: changing what `prevtx_off` meant touched three files at once, and the device uses this same
 `core.c` natively, so a split would mean a submodule bump for every device change.
 
-The host libraries for calling the parser from another language live in `components/parser/hosts/`,
+The host libraries for calling the parser from another language live in `components/parts/parser/hosts/`,
 in that part's own repository, because that is what they document.
 
 ## 17. Where this is going

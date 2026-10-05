@@ -17,7 +17,6 @@ Tested on:
 
 - [ ] real hardware (say which build: `TEST_SEED=`, `TESTNET=`)
 - [ ] QEMU
-- [ ] browser viewer
 - [ ] host only
 
 ## If this changes a `.wasm`

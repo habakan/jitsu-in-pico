@@ -129,11 +129,11 @@ build/bitcoin-signer.aot: build/bitcoin-signer.wasm $(WAMRC)
 build/signer_wasm.h: $(SIGNER_BIN)
 	xxd -i -n signer_wasm $< $(if $(filter 1,$(AOT)),| sed 's/^unsigned char/const unsigned char/') > $@
 
-build/native: apps/host/native.c components/parts/signer/signer.c components/parts/signer/sha512.c components/parts/signer/bip32.c components/parts/signer/secp_callbacks.c components/parts/signer/secp256k1_unity.c
+build/native: tests/host/native.c components/parts/signer/signer.c components/parts/signer/sha512.c components/parts/signer/bip32.c components/parts/signer/secp_callbacks.c components/parts/signer/secp256k1_unity.c
 	mkdir -p build && cc -O2 -Wall -Wno-unused-function -Icomponents/parts/signer -I$(SECP)/include -I$(SECP)/src $(SECP_DEFS) -o $@ $^
 
-build/host-%/signer_wamr: build/signer_wasm.h apps/host/wamr_main.c apps/host/CMakeLists.txt
-	cmake -S apps/host -B build/host-$* -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
+build/host-%/signer_wamr: build/signer_wasm.h tests/host/wamr_main.c tests/host/CMakeLists.txt
+	cmake -S tests/host -B build/host-$* -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DWAMR_BUILD_FAST_INTERP=$(if $(filter fast,$*),1,0) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/host-$*
 
@@ -144,7 +144,7 @@ check-host: build/native build/host-classic/signer_wamr build/host-fast/signer_w
 .PHONY: check-host
 
 RISCV_TC ?= $(CURDIR)/third_party/riscv-toolchain
-build/rp2350/signer.elf: build/signer_wasm.h apps/host/wamr_main.c apps/device/rp2350/CMakeLists.txt runtime/wamr-platform/rp2350/rp2350_platform.c
+build/rp2350/signer.elf: build/signer_wasm.h tests/host/wamr_main.c apps/device/rp2350/CMakeLists.txt runtime/wamr-platform/rp2350/rp2350_platform.c
 	cmake -S apps/device/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DPICO_SDK_PATH=$(CURDIR)/third_party/pico-sdk -DPICO_TOOLCHAIN_PATH=$(RISCV_TC) \
 	  -DWAMR_BUILD_AOT=$(AOT) -DPOOL_KB=$(RP2350_POOL_KB) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
@@ -158,8 +158,8 @@ TESTNET ?= 0
 TEST_SEED ?= 0
 FAST    ?= 0
 QEMU_DIR := build/qemu-fast$(FAST)-aot$(AOT)-$(POOL_KB)
-$(QEMU_DIR)/signer.elf: build/signer_wasm.h apps/host/wamr_main.c apps/host/qemu-riscv32/CMakeLists.txt runtime/wamr-platform/rp2350/rp2350_platform.c
-	cmake -S apps/host/qemu-riscv32 -B $(QEMU_DIR) -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
+$(QEMU_DIR)/signer.elf: build/signer_wasm.h tests/host/wamr_main.c tests/host/qemu-riscv32/CMakeLists.txt runtime/wamr-platform/rp2350/rp2350_platform.c
+	cmake -S tests/host/qemu-riscv32 -B $(QEMU_DIR) -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
 	  -DCMAKE_C_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc -DCMAKE_ASM_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc \
 	  -DPOOL_KB=$(POOL_KB) -DWAMR_BUILD_FAST_INTERP=$(FAST) -DWAMR_BUILD_AOT=$(AOT) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
@@ -172,7 +172,7 @@ check-qemu: $(QEMU_DIR)/signer.elf
 .PHONY: check-qemu
 
 # For comparison: run the same signer natively on RV32 without WASM.
-build/qemu-native.elf: apps/host/native.c components/parts/signer/signer.c components/parts/signer/sha512.c components/parts/signer/bip32.c components/parts/signer/secp_callbacks.c components/parts/signer/secp256k1_unity.c apps/host/qemu-riscv32/start.S
+build/qemu-native.elf: tests/host/native.c components/parts/signer/signer.c components/parts/signer/sha512.c components/parts/signer/bip32.c components/parts/signer/secp_callbacks.c components/parts/signer/secp256k1_unity.c tests/host/qemu-riscv32/start.S
 	$(RISCV_TC)/bin/riscv32-pico-elf-gcc -mcpu=hazard3-rp2350 -Os -DQEMU_BUILD=1 -Wall -Wno-unused-function \
 	  -Icomponents/parts/signer -I$(SECP)/include -I$(SECP)/src $(SECP_DEFS) --specs=semihost.specs -Wl,--section-start=.qemu_start=0x80000000 \
 	  -Wl,-Ttext=0x80001000 -Wl,-e,qemu_start -Wl,--gc-sections -o $@ $^
@@ -192,11 +192,11 @@ build/qr_frames.h: tools/gen_qr_frames.py
 
 # Use only standard extensions: -O2 may emit Hazard3-specific Xh3bextm instructions that QEMU cannot run.
 QEMU_MARCH := -march=rv32imac_zicsr_zifencei_zba_zbb_zbs_zbkb_zcb_zcmp -mabi=ilp32
-build/qemu-qr.elf: apps/host/qr_bench.c build/qr_frames.h apps/host/qemu-riscv32/start.S $(QUIRC)/identify.c
+build/qemu-qr.elf: tests/host/qr_bench.c build/qr_frames.h tests/host/qemu-riscv32/start.S $(QUIRC)/identify.c
 	$(RISCV_TC)/bin/riscv32-pico-elf-gcc $(QEMU_MARCH) -O2 -DQEMU_BUILD=1 -Wall \
 	  $(QUIRC_DEFS) -I$(QUIRC) -I$(QRGEN) -Ibuild --specs=semihost.specs -Wl,--section-start=.qemu_start=0x80000000 \
 	  -Wl,-Ttext=0x80001000 -Wl,-e,qemu_start -Wl,--gc-sections -o $@ \
-	  apps/host/qr_bench.c $(wildcard $(QUIRC)/*.c) $(QRGEN)/qrcodegen.c apps/host/qemu-riscv32/start.S -lm
+	  tests/host/qr_bench.c $(wildcard $(QUIRC)/*.c) $(QRGEN)/qrcodegen.c tests/host/qemu-riscv32/start.S -lm
 
 check-qemu-qr: build/qemu-qr.elf
 	qemu-system-riscv32 -M virt -cpu $(QEMU_CPU) -m 64M -nographic -bios none -semihosting -icount shift=0 \
@@ -204,8 +204,8 @@ check-qemu-qr: build/qemu-qr.elf
 .PHONY: check-qemu-qr
 
 # Compare quirc and zxing-cpp decoding on macOS; check-qemu-qr measures instruction counts.
-build/qr_bench_mac: apps/host/qr_bench.c build/qr_frames.h $(QUIRC)/identify.c
-	cc -O2 -Wall $(QUIRC_DEFS) -I$(QUIRC) -I$(QRGEN) -Ibuild -o $@ apps/host/qr_bench.c $(QUIRC)/*.c $(QRGEN)/qrcodegen.c
+build/qr_bench_mac: tests/host/qr_bench.c build/qr_frames.h $(QUIRC)/identify.c
+	cc -O2 -Wall $(QUIRC_DEFS) -I$(QUIRC) -I$(QRGEN) -Ibuild -o $@ tests/host/qr_bench.c $(QUIRC)/*.c $(QRGEN)/qrcodegen.c
 
 check-qr-mac: build/qr_bench_mac
 	build/qr_bench_mac | awk '{print $$1, $$4}'
@@ -248,11 +248,11 @@ check-xpub: build/test_xpub
 	build/test_xpub
 .PHONY: check-xpub
 
-build/qemu-test-core.elf: components/parts/signer/tests/test_core.c $(CORE_SRC) components/parts/signer/*.h components/parts/parser/c/include/*.h build/core_vectors.h apps/host/qemu-riscv32/start.S
+build/qemu-test-core.elf: components/parts/signer/tests/test_core.c $(CORE_SRC) components/parts/signer/*.h components/parts/parser/c/include/*.h build/core_vectors.h tests/host/qemu-riscv32/start.S
 	$(RISCV_TC)/bin/riscv32-pico-elf-gcc $(QEMU_MARCH) -O2 -Wall -Wno-unused-function -Icomponents/parts/signer -Icomponents/parts/parser/c/include -Ibuild \
 	  -I$(SECP)/include -I$(SECP)/src $(SECP_DEFS) --specs=semihost.specs -Wl,--section-start=.qemu_start=0x80000000 \
 	  -Wl,-Ttext=0x80001000 -Wl,-e,qemu_start -Wl,--gc-sections -o $@ \
-	  components/parts/signer/tests/test_core.c $(CORE_SRC) components/parts/signer/secp256k1_unity.c apps/host/qemu-riscv32/start.S
+	  components/parts/signer/tests/test_core.c $(CORE_SRC) components/parts/signer/secp256k1_unity.c tests/host/qemu-riscv32/start.S
 
 check-qemu-core: build/qemu-test-core.elf
 	qemu-system-riscv32 -M virt -cpu $(QEMU_CPU) -m 64M -nographic -bios none -semihosting \
@@ -265,10 +265,9 @@ build/parser.wasm: components/parts/parser/c/src/*.c components/parts/parser/c/i
 	$(MAKE) -C components/parts/parser build/parser.wasm LLVM=$(LLVM) WASI=$(WASI) RTLIB=$(RTLIB) WASM_OPT=$(WASM_OPT)
 	cp components/parts/parser/build/parser.wasm $@
 
-# Rebuild four WASM modules with pinned tool versions and compare their hashes with the record.
-# This checks that others can reproduce the artifacts (docs/reproducible-build.md).
+# Rebuild the WASM artifacts used by the device with pinned tools and compare their hashes.
 SDK = $(shell ./tools/toolchain.sh)
-REPRO_WASM := build/address.wasm build/bitcoin-signer.wasm build/parser.wasm build/qr.wasm build/signer.wasm
+REPRO_WASM := build/bitcoin-signer.wasm build/parser.wasm build/signer.wasm
 
 # Check that the distributable WASM modules have the expected shape; requires wasm-tools.
 check-wasm: $(REPRO_WASM)
@@ -308,9 +307,9 @@ build/psbt/own_p2wpkh_1in.psbt: tools/gen_psbt_vectors.py
 build/font8x16.h: tools/gen_font.py
 	mkdir -p build && python3 $< third_party/spleen/spleen-8x16.bdf $@
 
-build/host-classic/psbt_host: build/parser_wasm.h build/signer_wasm.h build/font8x16.h apps/host/psbt_main.c apps/host/CMakeLists.txt \
+build/host-classic/psbt_host: build/parser_wasm.h build/signer_wasm.h build/font8x16.h tests/host/psbt_main.c tests/host/CMakeLists.txt \
   apps/device/runtime/host-abi/parser_host.c apps/device/ui/ui.c $(CORE_SRC) components/parts/parser/c/include/*.h
-	cmake -S apps/host -B build/host-classic -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DWAMR_BUILD_FAST_INTERP=0 \
+	cmake -S tests/host -B build/host-classic -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DWAMR_BUILD_FAST_INTERP=0 \
 	  -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/host-classic psbt_host
 
@@ -392,7 +391,7 @@ check-psbt: build/host-classic/psbt_host build/psbt/own_p2wpkh_1in.psbt build/ps
 .PHONY: check-psbt
 
 check-qemu-psbt: build/parser_wasm.h build/signer_wasm.h build/font8x16.h build/psbt/own_mixed_nwu.ur
-	cmake -S apps/host/qemu-riscv32 -B build/qemu-psbt -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
+	cmake -S tests/host/qemu-riscv32 -B build/qemu-psbt -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
 	  -DCMAKE_C_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc -DCMAKE_ASM_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc \
 	  -DPOOL_KB=64 -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
@@ -441,7 +440,7 @@ build/rp2350/psbt_bench.elf: build/parser_wasm.h build/test_psbt.h apps/device/r
 	  -DWAMR_BUILD_AOT=$(PARSER_AOT) -DPARSER_POOL_KB=$(PARSER_POOL_KB) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/rp2350 psbt_bench
 
-build/rp2350/qr_bench.elf: build/qr_frames.h apps/host/qr_bench.c apps/device/rp2350/CMakeLists.txt build/rp2350/app.elf
+build/rp2350/qr_bench.elf: build/qr_frames.h tests/host/qr_bench.c apps/device/rp2350/CMakeLists.txt build/rp2350/app.elf
 	ninja -C build/rp2350 qr_bench
 
 build/rp2350/pio_loopback_test.elf: apps/device/rp2350/pio_loopback_test.c apps/device/rp2350/dvp_gen.pio \
@@ -470,32 +469,6 @@ flash: $(UF2)
 	  && echo "Copied $(UF2) to $$vol; the drive will disconnect and reboot." \
 	  || (echo "Could not write to $$vol. In macOS Privacy & Security > Files and Folders,"; \
 	      echo "allow Terminal to access removable volumes, or drag $(UF2) in Finder."; false)
-
-# Single-file HTML viewer for PSBTs; embeds the same parser.wasm as the device and works from file://.
-build/address.wasm: components/parts/signer/address.c components/parts/signer/ripemd160.c components/parts/parser/c/src/sha256.c apps/viewer/addr_wasm.c
-	mkdir -p build && $(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs \
-	  -Oz -Wall -Wextra $(LIME_FLAGS) -Icomponents/parts/signer -Icomponents/parts/parser/c/include \
-	  -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all \
-	  --no-wasm-opt -Wl,--keep-section=target_features \
-	  -Wl,--initial-memory=131072 -Wl,--no-growable-memory \
-	  -o $@ apps/viewer/addr_wasm.c components/parts/signer/address.c components/parts/signer/ripemd160.c components/parts/parser/c/src/sha256.c -lc $(RTLIB)/libclang_rt.builtins.a
-	$(WASM_OPT) $@ -Oz -o $@
-
-# Use the same quirc as the device. Keep assertions enabled to avoid WASI stdio imports.
-build/qr.wasm: apps/viewer/qr_wasm.c $(QUIRC)/decode.c $(QUIRC)/identify.c $(QUIRC)/quirc.c $(QUIRC)/version_db.c
-	mkdir -p build && $(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs \
-	  -Oz -Wall -DNDEBUG $(LIME_FLAGS) $(QUIRC_DEFS) -I$(QUIRC) \
-	  -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all \
-	  --no-wasm-opt -Wl,--keep-section=target_features \
-	  -Wl,--initial-memory=4194304 -Wl,--no-growable-memory \
-	  -o $@ apps/viewer/qr_wasm.c $(QUIRC)/decode.c $(QUIRC)/identify.c \
-	  $(QUIRC)/quirc.c $(QUIRC)/version_db.c -lc $(RTLIB)/libclang_rt.builtins.a
-	$(WASM_OPT) $@ -Oz -o $@
-
-viewer: build/parser.wasm build/address.wasm build/qr.wasm apps/viewer/viewer.html tools/build_viewer.py
-	uv run -q tools/build_viewer.py build/viewer.html
-	open build/viewer.html
-.PHONY: viewer
 
 # The concept diagram lives in the submodule because it describes the modules.
 everywhere:

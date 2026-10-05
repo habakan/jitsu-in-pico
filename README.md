@@ -6,27 +6,24 @@
 
 [![CI](https://github.com/habakan/jitsu-in-pico/actions/workflows/ci.yml/badge.svg)](https://github.com/habakan/jitsu-in-pico/actions/workflows/ci.yml)
 
-`jitsu-in-pico` is the RP2350 reference implementation for [jitsu-in](https://github.com/habakan/jitsu-in),
-a set of reusable Bitcoin signing modules. This repository contains the Raspberry Pi Pico 2 firmware,
-a browser PSBT viewer, and the hardware and verification work around them. See jitsu-in for the portable
-modules, host APIs, and their specifications.
+`jitsu-in-pico` is the Raspberry Pi Pico 2 (RP2350) reference implementation for
+[jitsu-in](https://github.com/habakan/jitsu-in). This repository contains the firmware, board-specific
+UI and camera code, hardware documentation, and device integration checks. The reusable modules and
+cross-platform examples live in jitsu-in.
 
-The firmware and viewer use the same parser module from jitsu-in. It reads attacker-controlled PSBT and
-UR data in a WebAssembly module with **zero imports**; the key-handling code stays separate.
+The [browser viewer](https://github.com/habakan/jitsu-in/tree/main/examples/viewer) and the
+[Android sample](https://github.com/habakan/jitsu-in-android) are maintained separately.
 
 <img src="components/parts/docs/everywhere.svg" alt="The same bytes run everywhere" width="940">
 
-The same **15,570 bytes** run on a microcontroller with no OS (RP2350) and in Safari on an iPhone.
-`parser.wasm` is byte-for-byte identical in both, the device shows its SHA-256 on screen, and
-`make check-repro` rebuilds it from source to the same hash — so you can check for yourself that the
-parser inside the device is the one in this repository.
+The device runs `parser.wasm` from jitsu-in. Its `Parser hash` screen shows the module's SHA-256;
+`make check-repro` rebuilds the pinned artifacts and compares them with the recorded hashes.
 
 | | |
 |---|---|
-| The idea, with diagrams | [docs/everywhere.md](docs/everywhere.md) (Japanese) |
-| Project overview and use cases | [docs/positioning.md](docs/positioning.md) (Japanese) |
+| Modules, specifications, and cross-platform examples | [jitsu-in](https://github.com/habakan/jitsu-in) |
+| Pico 2 implementation and use cases | [docs/positioning.md](docs/positioning.md) (Japanese) |
 | Terms and headings used in the docs | [docs/terms.md](docs/terms.md) (Japanese) |
-| Reusable signing modules and module conventions | [jitsu-in](https://github.com/habakan/jitsu-in) |
 | Parser ABI and host examples | [jitsu-in parser documentation](https://github.com/habakan/jitsu-in/tree/main/parser) |
 
 A Japanese version is at [README.ja.md](README.ja.md). The design notes and measurements under
@@ -60,29 +57,11 @@ went through that way ([how](docs/signet.md)).
 | Animated QR output | 95 ms per part | reassembled byte-identical by `@ngraveio/bc-ur` |
 | RAM | ~341KB of 520KB | quirc and the PSBT buffers share the heap |
 
-Actually run and verified on: bare-metal MCU (RP2350), browsers, Android 10, iOS, Linux / macOS, Node.
+Verified in this repository on RP2350 hardware, macOS hosts, and QEMU.
 
 Not supported: multisig, passphrases, PSBT v2. Single-signature P2WPKH and P2TR only.
 
 ## Try it
-
-### Without any hardware
-
-```sh
-git submodule update --init
-make deps          # clone third_party and apply patches
-make viewer        # builds build/viewer.html and opens it
-```
-
-One 189KB HTML file holding three WASM modules (parsing, QR decoding, addresses). It works offline,
-and the camera works straight from `file://` on desktop (Android needs localhost or HTTPS).
-
-### Parser hosts
-
-The Kotlin and Swift host examples live in [jitsu-in](https://github.com/habakan/jitsu-in/tree/main/parser/hosts).
-They use [Chicory](https://github.com/dylibso/chicory) and [WasmKit](https://github.com/swiftwasm/WasmKit),
-respectively. Neither needs JNI or a native build step. C, JavaScript, Kotlin, Swift, and this device
-produce the same plan for the same PSBT.
 
 ### On hardware
 
@@ -103,8 +82,7 @@ What to do differently for real use is in [docs/architecture-b.md](docs/architec
 make check-repro   # rebuild parser.wasm with a pinned toolchain and compare against the record
 ```
 
-The device's `Parser hash` screen, the footer of the viewer page, and this output should all agree.
-When they do, the parser running inside the device is the one built from public sources
+The device's `Parser hash` screen should match the parser hash produced by this build
 ([docs/reproducible-build.md](docs/reproducible-build.md)).
 
 ```sh
@@ -127,8 +105,7 @@ Bitcoin Core. New tests are checked with mutation testing before they are truste
 
 ## What this repository contains
 
-The firmware targets Raspberry Pi Pico 2 (RP2350). The viewer and host checks make it possible to exercise
-and compare the same parser outside the device.
+`apps/` contains the Raspberry Pi Pico 2 firmware. Host and QEMU integration checks live under `tests/`.
 
 | | | TCB |
 |---|---|---|
@@ -137,8 +114,7 @@ and compare the same parser outside the device.
 | `apps/device/rp2350/` | The firmware: display (ST7789), buttons, camera (PIO + DMA) | inside |
 | `apps/device/ui/` | Builds the 240x240 screens, independent of where they are shown | inside |
 | `apps/device/runtime/` | The call boundary into `parser.wasm` (every offset and length is range-checked) and the WAMR platform layer | inside |
-| `apps/viewer/` | The single-file HTML viewer, running the same wasm as the device | - |
-| `apps/host/` | Test hosts for macOS and QEMU | - |
+| `tests/host/` | Integration hosts for macOS and QEMU | - |
 | `tools/` `docs/` | Build and verification tools, wiring diagrams, measurements, and design notes for this implementation |  - |
 
 Dependencies (`third_party/`, gitignored) are cloned by `make deps`: libsecp256k1, WAMR 2.4.3,

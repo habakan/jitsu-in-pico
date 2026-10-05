@@ -5,6 +5,5 @@ The code in this repository is distributed under the MIT License (LICENSE).
 Third-party code included here stays under its own license.
 
 - components/qr/quirc — a fork of quirc (ISC License)
-- apps/viewer/vendor/jsQR.min.js — jsQR (Apache License 2.0, apps/viewer/vendor/jsQR-LICENSE.txt)
 - third_party/ — fetched by `make deps`: libsecp256k1 (MIT), WAMR (Apache-2.0 with LLVM exception),
   pico-sdk (BSD-3-Clause), QR-Code-generator (MIT), the spleen font (BSD-2-Clause)

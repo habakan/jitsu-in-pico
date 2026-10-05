@@ -67,7 +67,7 @@ Not reviewed by a third party. signet only. See [Disclaimer](../README.md#discla
   read a display from across a room; the browser viewer falls back to other decoders for that reason.
 - A QR decoder is not a trust boundary. Whatever it produces is parsed and re-validated.
 
-## The browser viewer
+## The browser viewer ([jitsu-in example](https://github.com/habakan/jitsu-in/tree/main/examples/viewer))
 
 - It holds **no keys** and signs nothing. It is for reading a PSBT and moving data.
 - What it shows is **not authoritative**. The device screen is. The viewer exists so you can

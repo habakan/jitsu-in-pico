@@ -21,7 +21,7 @@ jobs:
         run: make check-deps
       - name: Fetch the toolchain (pinned by version and by hash)
         run: ./tools/toolchain.sh
-      - name: Rebuild all five wasm and compare against the recorded hashes
+      - name: Rebuild three tracked wasm artifacts and compare against the recorded hashes
         run: make check-repro
       - name: Is what we ship the right shape (no imports, fixed memory, no mutable global exported)
         run: |

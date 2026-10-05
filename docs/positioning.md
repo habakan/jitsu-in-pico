@@ -61,9 +61,11 @@ RP2350 + カメラ + 液晶。OS なし、RAM 520KB。解析器だけを WASM �
 （[architecture-b.md](architecture-b.md) の案 B）。**常用で鍵を置くのはここだけ。**
 signet で一巡し、PC に鍵を置かない運用まで確認済み（[signet.md](signet.md)）。
 
-### 2. 単一 HTML のビューア（`make viewer`）
+### 2. 単一 HTML のビューア（jitsu-in の example）
 
-189KB の HTML 1 枚に 3 つの WASM を埋めてある。オフラインで配れて、PSBT の中身を手元で確かめられる。
+189KB の HTML 1 枚に 3 つの WASM を埋めてある。ソースとビルド手順は
+[jitsu-in/examples/viewer](https://github.com/habakan/jitsu-in/tree/main/examples/viewer) に移した。
+オフラインで配れて、PSBT の中身を手元で確かめられる。
 Android の `file://` でも動くことを実機で確認した。**鍵は扱わない。**
 
 ### 3. これから作るもの
@@ -156,16 +158,16 @@ CPU の RTL が公開されている点は補助的な性質として添える�
 
 部品として使ってもらう前提なので、**仕様書が最優先**になる。
 
-1. ~~**ABI の仕様書。**~~ 済（`components/parser/docs/abi.md`）。輸出関数、`plan_t` の offset、エラーコード、
+1. ~~**ABI の仕様書。**~~ 済（`components/parts/parser/docs/abi.md`）。輸出関数、`plan_t` の offset、エラーコード、
    受理する範囲、ホスト側が必ずやること、版の約束を書いた
 2. ~~**ホスト実装の例をもう 1 つ。**~~ 済。Kotlin（Chicory）と Swift（WasmKit）を
-   `components/parser/examples/` に置いた。**C・JS・Kotlin・Swift・実機の 5 つが同じ PSBT に同じ答えを返す**。
+   `components/parts/parser/hosts/` に置いた。**C・JS・Kotlin・Swift・実機の 5 つが同じ PSBT に同じ答えを返す**。
    どちらも JNI もネイティブのビルドも要らない
 3. **ABI の版管理。** 仕様には書いた（`plan_t.version`、知らない版は拒否）。tag を切る運用は未定
 4. ~~**継続ファジング。**~~ 済。CI（`.github/workflows/ci.yml`）で毎コミット回る。コーパスの公開と OSS-Fuzz は未
 5. **英語化。** 解析器は既に英語。本体は公開時に英語で書き直す
-6. ~~再現可能ビルド~~ 済（[reproducible-build.md](reproducible-build.md)）。`address.wasm` と
-   `qr.wasm` と `bitcoin-signer.wasm` も対象に広げる
+6. ~~再現可能ビルド~~ 済（[reproducible-build.md](reproducible-build.md)）。
+   ビューア用 WASM のビルドは jitsu-in 側で管理する
 7. ~~xpub 出力~~ 済。~~デバイスでの解析器ハッシュ表示~~ 済
 
 mainnet を使う前提としては、SWD の切り離しと第三者レビューが残っている

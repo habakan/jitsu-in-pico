@@ -10,15 +10,13 @@ is a claim rather than something you can check.
 make check-repro
 ```
 
-This downloads a toolchain pinned by version and hash into `build/toolchain/`, rebuilds all five
-wasm modules, and compares them against `checksums.txt`.
+This downloads a toolchain pinned by version and hash into `build/toolchain/`, rebuilds the three
+WASM artifacts used by this repository, and compares them against `checksums.txt`.
 
 ```
-21ea6dbc…  build/parser.wasm           the parser; the device and the browser load the same file
+21ea6dbc…  build/parser.wasm           the parser loaded by the device
 6f05069b…  build/signer.wasm           keys, derivation and signing, as a wasm component
 94f92d82…  build/bitcoin-signer.wasm   the signing primitives alone; what the RV32 benchmark exercises
-ba25a15d…  build/address.wasm          scriptPubKey to an address
-c70531df…  build/qr.wasm               the QR decoder (quirc)
 ```
 
 ## What is pinned
@@ -33,8 +31,8 @@ c70531df…  build/qr.wasm               the QR decoder (quirc)
 ## What has been confirmed
 
 **macOS arm64 and Linux x86_64 produce identical hashes.** Checked on a different OS, a different CPU
-and a different machine (2026-10-03, and again on 2026-10-04 after adopting Lime1). CI rebuilds all
-five on Linux for every commit, so the claim does not quietly rot.
+and a different machine (2026-10-03, and again on 2026-10-04 after adopting Lime1). CI rebuilds these
+artifacts on Linux for every commit.
 
 ## The trap: `wasm-opt` merely being on the `PATH` changes the output
 
@@ -82,8 +80,6 @@ Everything got smaller as a side effect.
 |---|---:|---:|
 | `parser.wasm` | 15,603 | **15,570** |
 | `signer.wasm` | 56,508 | **56,475** |
-| `address.wasm` | 3,087 | **3,055** |
-| `qr.wasm` | 16,754 | **16,722** |
 | `bitcoin-signer.wasm` | 34,410 | **34,377** |
 
 What validation demands narrowed too, from full `bulk-memory` to `bulk-memory-opt`.
@@ -93,8 +89,7 @@ What validation demands narrowed too, from full `bulk-memory` to `bulk-memory-op
 features, and `target_features` is the union of the inputs.
 
 **`--no-growable-memory`** is used rather than `--max-memory=N`. The output is identical byte for byte,
-but the number cannot drift out of step with `--initial-memory` — which it did, in `address.wasm`
-and `qr.wasm`.
+and the limit cannot drift out of step with `--initial-memory`.
 
 ## Checking that what we ship has the right shape
 
@@ -114,8 +109,8 @@ too.
 | no start function | loading it does not run anything |
 | no unfamiliar custom sections | nothing extra came along |
 
-Adding this check is what found that **`address.wasm` and `qr.wasm` had no memory maximum** — a missing
-`--max-memory`. They only ever use fixed buffers, so there was never a reason to let them grow.
+The browser example and its auxiliary modules are maintained in
+[jitsu-in](https://github.com/habakan/jitsu-in/tree/main/examples/viewer).
 
 ## Pinning the dependencies too
 

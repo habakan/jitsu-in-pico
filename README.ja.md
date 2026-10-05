@@ -7,25 +7,22 @@
 
 英語版は [README.md](README.md)。
 
-`jitsu-in-pico` は、再利用可能な Bitcoin 署名モジュール
-[jitsu-in](https://github.com/habakan/jitsu-in) を RP2350 / Raspberry Pi Pico 2 で動かす参照実装。
-このリポジトリにはファームウェア、ブラウザの PSBT ビューア、実機の配線と検証手順を置いている。
-再利用モジュール、ホスト API、仕様は jitsu-in を参照。
+`jitsu-in-pico` は [jitsu-in](https://github.com/habakan/jitsu-in) の Raspberry Pi Pico 2（RP2350）参照実装。
+ファームウェア、基板固有の UI・カメラ処理、配線資料、実機連携の検証を置いている。
+再利用モジュールと言語別の利用例は jitsu-in 側で管理する。
 
-ファームウェアとビューアは、jitsu-in の同じ parser モジュールを使う。
-PSBT・UR の解析は import を持たない WASM で行い、鍵を扱う処理とは分けている。
+ブラウザの [PSBT ビューア](https://github.com/habakan/jitsu-in/tree/main/examples/viewer) と
+[Android サンプル](https://github.com/habakan/jitsu-in-android) は別リポジトリに移した。
 
 <img src="components/parts/docs/everywhere.svg" alt="The same bytes run everywhere" width="940">
 
-OS の無いマイコン（RP2350）と iPhone の Safari で、**同じ 15,570 byte** が動く。
-`parser.wasm` はバイト単位で同じものが載り、その SHA-256 をデバイスも画面に出すので、
-手元で `make check-repro` した結果と突き合わせられる。
+デバイスが使う `parser.wasm` は jitsu-in の成果物。画面の `Parser hash` と
+`make check-repro` の記録を突き合わせられる。
 
 | | |
 |---|---|
-| コンセプト（図つき） | [docs/everywhere.md](docs/everywhere.md) |
-| 設計の狙いと利用例 | [docs/positioning.md](docs/positioning.md) |
-| モジュール本体と仕様 | [jitsu-in](https://github.com/habakan/jitsu-in)（英語） |
+| モジュールの仕様と他環境での利用 | [jitsu-in](https://github.com/habakan/jitsu-in) |
+| Pico 2 の設計と利用例 | [docs/positioning.md](docs/positioning.md) |
 | parser の ABI とホスト実装例 | [jitsu-in parser](https://github.com/habakan/jitsu-in/tree/main/parser)（英語） |
 
 ## 安全上の注意
@@ -55,28 +52,11 @@ mainnet の前提は [docs/architecture-b.md](docs/architecture-b.md) §15、
 | アニメーション QR 出力 | 1 パート 95 ms | `@ngraveio/bc-ur` で復元・バイト一致 |
 | RAM | 約 341KB / 520KB | quirc と PSBT バッファはヒープを共有 |
 
-実際に動かして確かめた環境: ベアメタル MCU（RP2350）、ブラウザ、Android 10、iOS、Linux / macOS、Node。
+このリポジトリで確認した環境: RP2350 実機、macOS のホスト、QEMU。
 
 未対応: マルチシグ、パスフレーズ、PSBT v2。単署名の P2WPKH / P2TR だけ。
 
 ## 使い方
-
-### 基板が無くても
-
-```sh
-git submodule update --init
-make deps          # third_party を取得してパッチを当てる
-make viewer        # build/viewer.html を作ってブラウザで開く
-```
-
-189KB の HTML 1 枚に 3 つの WASM（解析・QR・アドレス）が入っている。オフラインで動き、
-`file://` のままカメラも使える（Android は localhost か HTTPS が要る）。
-
-### parser のホスト実装
-
-Kotlin と Swift のホスト実装例は [jitsu-in](https://github.com/habakan/jitsu-in/tree/main/parser/hosts) にある。
-[Chicory](https://github.com/dylibso/chicory) と [WasmKit](https://github.com/swiftwasm/WasmKit) を使い、
-JNI やネイティブのビルドは要らない。C・JavaScript・Kotlin・Swift とこの実機で、同じ PSBT から同じ plan を得られる。
 
 ### 実機
 
@@ -97,7 +77,7 @@ make run TESTNET=1 SECONDS=180    # signet 用
 make check-repro   # 版を固定したツールチェーンで parser.wasm を作り直し、記録と突き合わせる
 ```
 
-デバイスの `Parser hash` 画面、ビューアのページ下部、この出力の 3 つが一致すれば、
+デバイスの `Parser hash` 画面と再現ビルドの結果が一致すれば、
 **デバイスの中で動いている解析器は公開ソースから出たもの**だと言える
 （[docs/reproducible-build.md](docs/reproducible-build.md)）。
 
@@ -121,7 +101,7 @@ make -C components/parts/parser check-fuzz  # 解析器へのファジング
 
 ## このリポジトリの内容
 
-ファームウェアは Raspberry Pi Pico 2（RP2350）向け。ビューアとホスト検査では、同じ parser を実機以外でも動かして比較できる。
+`apps/` には Raspberry Pi Pico 2 のファームウェアだけを置く。ホスト・QEMU の連携検査は `tests/` に置く。
 
 | | | TCB |
 |---|---|---|
@@ -130,8 +110,7 @@ make -C components/parts/parser check-fuzz  # 解析器へのファジング
 | `apps/device/rp2350/` | 実機のファーム。液晶（ST7789）、ボタン、カメラ（PIO + DMA） | 内 |
 | `apps/device/ui/` | 240x240 の画面を組む。表示先に依存しない | 内 |
 | `apps/device/runtime/` | parser.wasm の呼び出し口（線形メモリとの出入りを範囲検証する境界）と WAMR のプラットフォーム層 | 内 |
-| `apps/viewer/` | 実機と同じ wasm で PSBT を表示する単一 HTML | - |
-| `apps/host/` | Mac / QEMU で動かす検査用のホスト | - |
+| `tests/host/` | macOS / QEMU で動かす連携検査用ホスト | - |
 | `tools/` `docs/` | ビルド・検証ツール、配線図、この実装の設計と実測の記録 | - |
 
 依存（`third_party/`、gitignore 済み）は `make deps` で clone する:
