@@ -94,7 +94,7 @@ hardware, and it lets someone else verify the same artifact independently.
 
 ```mermaid
 flowchart LR
-    src["components/parser/src/*.c<br/>wasm-psbt-parser"] --> wasm["parser.wasm<br/>15,570 bytes"]
+    src["components/parser/src/*.c<br/>jitsu-in"] --> wasm["parser.wasm<br/>15,570 bytes"]
     wasm --> mac["native on a Mac<br/>make check-psbt"]
     wasm --> qemu["QEMU RV32<br/>counts instructions"]
     wasm --> dev["RP2350 hardware<br/>WAMR interpreter"]

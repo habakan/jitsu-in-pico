@@ -5,7 +5,7 @@
 **Please do not report security vulnerabilities through public GitHub issues.**
 
 Use GitHub's private vulnerability reporting on this repository
-([Security → Report a vulnerability](https://github.com/habakan/baremetal-wasm-signer/security/advisories/new)),
+([Security → Report a vulnerability](https://github.com/habakan/jitsu-in-pico/security/advisories/new)),
 or email the maintainer. Public key: https://github.com/habakan.gpg
 
 We aim to acknowledge a report within one week and to publish a fix within 90 days.
@@ -29,7 +29,7 @@ reproduce, generate a throwaway one and say so.
 
 This policy covers this repository and the components it pulls in as submodules:
 
-- [wasm-psbt-parser](https://github.com/habakan/wasm-psbt-parser) — the PSBT and UR parser
+- [jitsu-in](https://github.com/habakan/jitsu-in) — the PSBT and UR parser
 - [quirc (`mcu` branch)](https://github.com/habakan/quirc) — our fork of the QR decoder
 
 Report problems in any of them here.

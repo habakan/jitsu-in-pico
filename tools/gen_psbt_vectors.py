@@ -2,7 +2,7 @@
 # dependencies = ["embit"]
 # ///
 """署名までの一巡を検査する PSBT を build/psbt/ に書く。自分の seed 向けの PSBT を embit で組む。
-PSBT の解析器単体の検査（Bitcoin Core の rpc_psbt.json など）は wasm-psbt-parser 側にある。"""
+PSBT の解析器単体の検査（Bitcoin Core の rpc_psbt.json など）は jitsu-in 側にある。"""
 import hashlib, os, sys
 from embit import bip32, script
 from embit.psbt import PSBT, DerivationPath

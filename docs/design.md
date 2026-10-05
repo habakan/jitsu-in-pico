@@ -208,7 +208,7 @@ system would have caught.
 - Requiring two independent implementations to return the same `plan_t` finds bugs in either one. The
   same shape as quirc and zbar reading different frames
 - The fuzzing corpus feeds both as is
-- There is [a specification](../components/parser/docs/abi.md), so the second one can be written from
+- There is [a specification](../components/parts/parser/docs/abi.md), so the second one can be written from
   it independently — which also tests the specification
 - A wallet written in Rust could take it as a crate, with no wasm runtime at all
 
@@ -226,7 +226,7 @@ positioned is in [positioning.md](positioning.md).
 
 ```
 components/            the parts; any of them can sit behind any UI
-  parser/              submodule: wasm-psbt-parser (PSBT and UR parsing, its ABI, host libraries)
+  parser/              submodule: jitsu-in (PSBT and UR parsing, its ABI, host libraries)
   qr/                  submodule: a fork of quirc, made fixed-point
   signer/              keys, BIP32, signing, addresses. Native on the device, wasm in the browser
 apps/                  the things that use them

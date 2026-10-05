@@ -5,8 +5,8 @@ body:
   - type: markdown
     attributes:
       value: |
-        Not for security problems — see [SECURITY.md](https://github.com/habakan/baremetal-wasm-signer/blob/main/SECURITY.md).
-        Check [docs/limitations.md](https://github.com/habakan/baremetal-wasm-signer/blob/main/docs/limitations.md)
+        Not for security problems — see [SECURITY.md](https://github.com/habakan/jitsu-in-pico/blob/main/SECURITY.md).
+        Check [docs/limitations.md](https://github.com/habakan/jitsu-in-pico/blob/main/docs/limitations.md)
         first; a documented boundary is not a bug, though an exploit of one is.
   - type: dropdown
     id: surface

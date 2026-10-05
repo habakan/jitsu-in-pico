@@ -114,7 +114,7 @@ to the PSBT. It only establishes two things:
 1. **`non_witness_utxo` for SegWit v0 inputs:** required for every input when a SegWit v0 input is to
    be signed and there are two or more inputs. With a single input it is unnecessary, since a signature
    made with a false amount is merely invalid. The minimal native tx parser
-   (`components/parser/src/tx.c`, shared with wasm-psbt-parser) checks the txid, vout, amount and script
+   (`components/parser/src/tx.c`, shared with jitsu-in) checks the txid, vout, amount and script
 2. **First targets:** P2WPKH (BIP84) and P2TR (BIP86, no script tree)
 3. **parser.wasm's runtime:** the interpreter. Measured on RV32 after implementation: 2.7M instructions
    to parse a PSBT and 40k to insert the signatures (§10), which is plenty
@@ -168,7 +168,7 @@ typedef struct {
 } plan_t;
 ```
 
-- The settled version is `components/parser/include/plan.h`, on the wasm-psbt-parser side, with
+- The settled version is `components/parser/include/plan.h`, on the jitsu-in side, with
   `_Static_assert` fixing the size and the offsets
 - At 16 inputs and 16 outputs it is 5,016 bytes: 176 per input, 136 per output. Barely a dent in RAM
 - Those limits are provisional, to be settled against SeedSigner's and Krux's limits and against real
@@ -185,7 +185,7 @@ The native core is implemented in `components/signer/` (`make check-core`, `make
 | `components/signer/core.c` | the checks from §6 (`core_review`), the display model (`core_display`) and signing (`core_sign`). It records the SHA-256 of the reviewed plan and refuses to display or sign anything that does not match |
 | `components/signer/address.c` | addresses from a scriptPubKey: base58check for P2PKH and P2SH, bech32 for witness v0, bech32m for v1-v16. Nothing is produced for a non-standard script |
 | `components/signer/sighash.c` | BIP143 (P2WPKH, SIGHASH_ALL) and BIP341 key path, all seven hash types |
-| `components/parser/src/tx.c` | the minimal tx parser, shared with wasm-psbt-parser. Refuses non-minimal varints and trailing bytes; the txid is computed without the witness |
+| `components/parser/src/tx.c` | the minimal tx parser, shared with jitsu-in. Refuses non-minimal varints and trailing bytes; the txid is computed without the witness |
 | `components/signer/bip32.c` | BIP32 derivation, shared with plan A's `signer.c` |
 | `components/parser/src/sha256.c`, `components/signer/ripemd160.c`, `sha512.c` | the hashes. Secrets are cleared through `components/signer/wipe.h`, via a volatile pointer, so the optimiser cannot remove it |
 
@@ -220,7 +220,7 @@ Tests: 71 checks, passing on both the Mac and RV32:
 - Five deliberate breakages — BIP143's hash type, BIP341's spend_type, the fee-attack check, bech32m's
   constant, base58's leading zeros — were each confirmed to make a test fail
 
-### parser.wasm (`components/parser/src/psbt.c`, the [wasm-psbt-parser](https://github.com/habakan/wasm-psbt-parser) submodule)
+### parser.wasm (`components/parser/src/psbt.c`, the [jitsu-in](https://github.com/habakan/jitsu-in) submodule)
 
 - Turns a PSBT v0 (BIP174) into a `plan_t`, and inserts the natively produced signatures just before
   the end of each input map, leaving every other byte as it was
@@ -247,7 +247,7 @@ Verification (`make check-psbt`, `make check-qemu-psbt`):
 - Against Bitcoin Core's `test/functional/data/rpc_psbt.json` — 84 invalid and 48 valid, two of which
   have corrupt base64 and are excluded — there are no traps. Every invalid one is refused except the 15
   with MuSig2 fields. Of the valid ones 31 are accepted; the 14 PSBT v2 cases, two with no utxo and one
-  with no inputs are refused (`make test` in wasm-psbt-parser, `make check-parser` here)
+  with no inputs are refused (`make check-parser` in jitsu-in, `make check-parser` here)
 - A full round on a mixed PSBT under RV32 (QEMU): parse 2.72M, review 17.1M, sign 14.5M, finalize 0.04M
   instructions. The signed PSBT is byte-identical between the Mac and RV32
 
@@ -318,7 +318,7 @@ breaks that (`core.c:93`). The comparison only requires agreement where both des
 
 ### Reassembling a UR, the animated QR
 
-UR (BCR-2020-005) reassembly went into parser.wasm (wasm-psbt-parser). Reassembling a fountain code is
+UR (BCR-2020-005) reassembly went into parser.wasm (in jitsu-in). Reassembling a fountain code is
 also processing of untrusted input, so it belongs inside the sandbox.
 
 - `parser_ur_reset`, `parser_ur_receive(len)`, `parser_ur_progress`. On completion the PSBT sits in the
@@ -342,7 +342,7 @@ also processing of untrusted input, so it belongs inside the sandbox.
 - Encoding to a UR also lives in parser.wasm (`parser_ur_encode_start`, `parser_ur_encode_next`). It is
   formatting output for an untrusted wallet, so it has no bearing on the safety of the signature and can
   sit outside the TCB. Part for part it matches the reference encoder, @ngraveio/bc-ur, and it matches
-  bc-ur's examples character for character (tested in wasm-psbt-parser)
+  bc-ur's examples character for character (tested in jitsu-in)
 - One part is 120 bytes, about 300 characters, which lands around QR v8, shown on the 240 px LCD at
   4 px per module (`ui_qr_render_line`, with a four-module quiet zone). Mixed parts keep coming after
   the pure ones, so a wallet that misses one can still reassemble
@@ -598,7 +598,7 @@ The cost is 2,552 bytes of flash. **Deterministic nonces become unsafe with mult
 8.5 **The companion web page.** An offline-capable page using the same `parser.wasm` to display a PSBT
    and move URs back and forth. It holds no keys. It should let the parser hash the device reports be
    compared against it ([positioning.md](positioning.md))
-9. ~~**Whether to publish wasm-psbt-parser.**~~ Published on 2026-10-04, with v0.1.0 released. The order
+9. ~~**Whether to publish jitsu-in.**~~ Published on 2026-10-04, with v0.1.0 released. The order
    was settled deliberately: the parser first, this repository after
 10. **An upstream PR for the quirc fork.** The unmerged security fixes (#158, #159) and the fixed-point
     version. Now that real camera frames can be captured, a corpus of read rates can back it up

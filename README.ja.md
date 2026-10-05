@@ -1,6 +1,10 @@
-# baremetal-wasm-signer
+# jitsu-in-pico
 
-[![CI](https://github.com/habakan/baremetal-wasm-signer/actions/workflows/ci.yml/badge.svg)](https://github.com/habakan/baremetal-wasm-signer/actions/workflows/ci.yml)
+> **jitsu-in ── 実印。** 署名に拘束力を与える印。**pico** は動作先の RP2350 から。
+> 署名に使うモジュールは [jitsu-in](https://github.com/habakan/jitsu-in) にある。
+
+
+[![CI](https://github.com/habakan/jitsu-in-pico/actions/workflows/ci.yml/badge.svg)](https://github.com/habakan/jitsu-in-pico/actions/workflows/ci.yml)
 
 英語版は [README.md](README.md)。
 
@@ -116,7 +120,7 @@ make -C components/parts/parser check-fuzz  # 解析器へのファジング
 
 | | | TCB |
 |---|---|---|
-| `components/parts/parser/` | PSBT・UR の解析（submodule [wasm-bitcoin-signer](https://github.com/habakan/wasm-bitcoin-signer)）。`parser.wasm` になる。ABI 仕様・ホスト実装例・ファジングもここ | **外** |
+| `components/parts/parser/` | PSBT・UR の解析（submodule [jitsu-in](https://github.com/habakan/jitsu-in)）。`parser.wasm` になる。ABI 仕様・ホスト実装例・ファジングもここ | **外** |
 | `components/qr/` | QR デコーダ（submodule [quirc](https://github.com/habakan/quirc) の `mcu` ブランチ。FPU 無し向けに固定小数点化） | 外 |
 | `components/parts/signer/` | 鍵と署名。BIP32 導出、BIP143/BIP341 sighash、アドレス、plan の検査、SeedQR。実機にはネイティブ、ブラウザには wasm で載る | 内 |
 | `apps/device/rp2350/` | 実機のファーム。液晶（ST7789）、ボタン、カメラ（PIO + DMA） | 内 |

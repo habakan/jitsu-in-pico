@@ -24,8 +24,12 @@
 
 | | 大きさ | import | 役割 |
 |---|---:|---:|---|
-| [wasm-psbt-parser](https://github.com/habakan/wasm-psbt-parser) | 15,570 B | 0 | UR の復元、PSBT の解析、表示モデル（`plan_t`）の生成、署名の差し込み、UR 符号化 |
-| wasm-bitcoin-signer（本リポジトリの `components/signer/` を切り出す） | 34,410 B | 0 | BIP39 シード、BIP32 導出、ECDSA / Schnorr 署名 |
+| `parser.wasm` | 15,570 B | 0 | UR の復元、PSBT の解析、表示モデル（`plan_t`）の生成、署名の差し込み、UR 符号化 |
+| `signer.wasm` | 34,410 B | 0 | BIP39 シード、BIP32 導出、ECDSA / Schnorr 署名 |
+
+どちらも [jitsu-in](https://github.com/habakan/jitsu-in) にあり、`components/parts` として
+submodule で取り込んでいる。解析器は C と Rust の2実装があり、同じ `plan_t` を返すことを
+要求している（実機が C を積む理由は parser/BENCHMARK.md）。
 
 どちらも **import を 1 個も持たない**。時計もメモリ確保もネットワークも触れない。
 受け渡しは固定長 5,016 byte の `plan_t` 1 枚なので、ホスト側の境界が単純になる。

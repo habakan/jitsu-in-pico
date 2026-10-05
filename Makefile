@@ -211,7 +211,7 @@ check-qr-mac: build/qr_bench_mac
 .PHONY: check-qr-mac
 
 # 案 B のネイティブ署名中核（docs/architecture-b.md）
-# tx.c / sha256.c は wasm-psbt-parser（submodule）と共有する
+# tx.c / sha256.c は jitsu-in（submodule）と共有する
 CORE_SRC := components/parts/signer/core.c components/parts/signer/address.c components/parts/signer/bip32.c components/parts/signer/sighash.c components/parts/parser/c/src/tx.c components/parts/parser/c/src/sha256.c components/parts/signer/ripemd160.c components/parts/signer/sha512.c \
             components/parts/signer/secp_callbacks.c
 build/core_vectors.h: tools/gen_core_vectors.py test-vectors/bip341-wallet-test-vectors.json
@@ -244,7 +244,7 @@ check-qemu-core: build/qemu-test-core.elf
 	  -kernel $< </dev/null
 .PHONY: check-qemu-core
 
-# parser.wasm は wasm-psbt-parser（submodule）の Makefile でビルドする
+# parser.wasm は jitsu-in（submodule）の Makefile でビルドする
 build/parser.wasm: components/parts/parser/c/src/*.c components/parts/parser/c/include/*.h
 	mkdir -p build
 	$(MAKE) -C components/parts/parser build/parser.wasm LLVM=$(LLVM) WASI=$(WASI) RTLIB=$(RTLIB) WASM_OPT=$(WASM_OPT)

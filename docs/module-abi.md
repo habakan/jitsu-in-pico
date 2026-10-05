@@ -61,8 +61,8 @@ by accident is how a module starts offering more than it documents.
 
 | module | prefix | what it does | spec | host libraries |
 |---|---|---|---|---|
-| `parser.wasm` | `parser_` | UR reassembly, PSBT parsing, building the Plan, taking signatures back, UR encoding | [abi.md](../components/parser/docs/abi.md) | JS, Kotlin, Swift |
-| `signer.wasm` | `signer_` | keys, derivation, re-checking a Plan, the display model, signing, xpub export | [abi.md](../components/signer/docs/abi.md) | JS, Kotlin, Swift |
+| `parser.wasm` | `parser_` | UR reassembly, PSBT parsing, building the Plan, taking signatures back, UR encoding | [abi.md](../components/parts/parser/docs/abi.md) | JS, Kotlin, Swift |
+| `signer.wasm` | `signer_` | keys, derivation, re-checking a Plan, the display model, signing, xpub export | [abi.md](../components/parts/signer/docs/abi.md) | JS, Kotlin, Swift |
 | `bitcoin-signer.wasm` | `prim_` | the signing primitives on their own; what the RV32 benchmark exercises | none | none |
 | `address.wasm` | `addr_` | a scriptPubKey to an address string | none | none |
 | `qr.wasm` | `qr_` | QR decoding (quirc), for the browser | none | none |

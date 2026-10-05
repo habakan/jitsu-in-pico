@@ -1,6 +1,10 @@
-# baremetal-wasm-signer
+# jitsu-in-pico
 
-[![CI](https://github.com/habakan/baremetal-wasm-signer/actions/workflows/ci.yml/badge.svg)](https://github.com/habakan/baremetal-wasm-signer/actions/workflows/ci.yml)
+> **jitsu-in** — 実印, the seal that makes a signature binding in Japan; **pico** for the RP2350 it
+> runs on. The modules it signs with come from [jitsu-in](https://github.com/habakan/jitsu-in).
+
+
+[![CI](https://github.com/habakan/jitsu-in-pico/actions/workflows/ci.yml/badge.svg)](https://github.com/habakan/jitsu-in-pico/actions/workflows/ci.yml)
 
 **A Bitcoin signer split into parts you can put behind any UI.**
 The code that reads an attacker-controlled transaction (PSBT, UR) and the code that touches keys are
@@ -122,7 +126,7 @@ Bitcoin Core. New tests are checked with mutation testing before they are truste
 
 | | | TCB |
 |---|---|---|
-| `components/parts/parser/` | PSBT and UR parsing (submodule: [wasm-bitcoin-signer](https://github.com/habakan/wasm-bitcoin-signer)). Becomes `parser.wasm`. ABI spec, host examples and fuzzing live here | **outside** |
+| `components/parts/parser/` | PSBT and UR parsing (submodule: [jitsu-in](https://github.com/habakan/jitsu-in)). Becomes `parser.wasm`. ABI spec, host examples and fuzzing live here | **outside** |
 | `components/qr/` | QR decoder (submodule: [quirc](https://github.com/habakan/quirc), `mcu` branch, made fixed-point for CPUs without an FPU) | outside |
 | `components/parts/signer/` | Keys and signing: BIP32 derivation, BIP143/BIP341 sighash, addresses, plan checks, SeedQR. Native on the device, WASM in the browser | inside |
 | `apps/device/rp2350/` | The firmware: display (ST7789), buttons, camera (PIO + DMA) | inside |

@@ -13,7 +13,7 @@ touching the parser or writing a host for it.
 - **Issues, pull requests and code review: English.**
 - This repository's commit messages and `docs/` are **Japanese**; `README.md` and
   `docs/limitations.md` are English. Translations of existing Japanese docs are welcome.
-- The [wasm-bitcoin-signer](https://github.com/habakan/wasm-bitcoin-signer) submodule is **English
+- The [jitsu-in](https://github.com/habakan/jitsu-in) submodule is **English
   throughout**, including its commits.
 
 Write a patch in whichever of the two you are comfortable with; the maintainer will not reject a
