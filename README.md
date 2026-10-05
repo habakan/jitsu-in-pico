@@ -21,7 +21,8 @@ parser inside the device is the one in this repository.
 | | |
 |---|---|
 | The idea, with diagrams | [docs/everywhere.md](docs/everywhere.md) (Japanese) |
-| What this is for, and who it helps | [docs/positioning.md](docs/positioning.md) (Japanese) |
+| Project overview and use cases | [docs/positioning.md](docs/positioning.md) (Japanese) |
+| Terms and headings used in the docs | [docs/terms.md](docs/terms.md) (Japanese) |
 | **The module convention** (prefixes, buffers, what is checked) | [components/parts/docs/module-abi.md](components/parts/docs/module-abi.md) |
 | **How to drive the parser from your language** | [components/parts/parser/docs/abi.md](components/parts/parser/docs/abi.md) |
 

@@ -6,7 +6,7 @@
 
 技術的な中身は [architecture.md](architecture.md)、位置づけは [positioning.md](positioning.md)。
 
-## デバイスとブラウザで何が違うか
+## 実行環境ごとの違い
 
 ```mermaid
 flowchart TB
@@ -66,9 +66,9 @@ flowchart LR
 
 例外として、ブラウザ版には**回復モード**を置く（デバイスが壊れたときの最後の手段）。
 既定では鍵の入力欄すら出さず、明示的に切り替えたときだけ有効にする。
-詳しくは [positioning.md](positioning.md) の「PWA に鍵と署名も載せるか」。
+詳しくは [positioning.md](positioning.md#ビューアでの鍵の扱い)。
 
-## 何が嬉しいか
+## 検証できること
 
 1. **デバイスの表示を手元で再現できる。** 同じ PSBT をブラウザに食わせて、画面と見比べられる
 2. **ランタイム間の差分テストになる。** 食い違えばランタイムのバグだと分かる
@@ -85,7 +85,7 @@ flowchart LR
 | 単一 HTML でカメラから実機の QR を読む | 済。ただし離れて撮ると quirc は読めず、jsQR か内蔵デコーダに落ちる |
 | デバイスから xpub / 出力ディスクリプタを QR で出す | 済。PC 側をウォッチオンリーにできる |
 | PC に鍵を置かない一巡 | 済。[signet の取引](https://mempool.space/signet/tx/de849e8c01a39fcf2aa84aaeeccb2ac8aea128086b2f4252539bcab90a0a432f)（[手順](signet.md)） |
-| デバイスが自分の `parser.wasm` のハッシュを表示 | 未。これが入るとハッシュの突き合わせが閉じる |
+| デバイスが自分の `parser.wasm` のハッシュを表示 | 済。ビューアと `make check-repro` の結果を照合できる |
 | 自分の鍵かどうかの判定（ブラウザ側） | 未。xpub の入力欄が要る |
 | 回復モード（`signer.wasm` を載せる） | 未。wasm 自体は動作確認済み |
 | 再現可能ビルド（第三者が同じハッシュを出せる） | 済（`make check-repro`、[reproducible-build.md](reproducible-build.md)） |

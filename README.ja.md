@@ -21,10 +21,10 @@ OS の無いマイコン（RP2350）と iPhone の Safari で、**同じ 15,570 
 | | |
 |---|---|
 | コンセプト（図つき） | [docs/everywhere.md](docs/everywhere.md) |
-| 何を作っていて誰のどんな問題を解くのか | [docs/positioning.md](docs/positioning.md) |
+| 設計の狙いと利用例 | [docs/positioning.md](docs/positioning.md) |
 | 他の言語から呼ぶための仕様 | [components/parts/parser/docs/abi.md](components/parts/parser/docs/abi.md)（英語） |
 
-## 注意
+## 安全上の注意
 
 **第三者のレビューを受けていない。本番の資金に使わないこと。**
 
@@ -35,10 +35,10 @@ mainnet の前提は [docs/architecture-b.md](docs/architecture-b.md) §15、
 
 セキュリティ上の問題は [SECURITY.md](SECURITY.md) へ。**公開の issue には書かないこと。**
 
-## 何ができるか
+## 機能
 
-カメラから SeedQR で鍵を読み、アニメーション QR（UR）で PSBT を受け取り、確認画面を経て署名し、
-署名済み PSBT を QR で返す。PC 側には鍵も復元句も一度も置かない運用で、
+カメラで SeedQR を読み、アニメーション QR（UR）で PSBT を受け取る。画面で内容を確認して署名し、
+署名済み PSBT を QR で返す。PC 側に鍵やシードフレーズを置かずに、
 [signet の取引](https://mempool.space/signet/tx/de849e8c01a39fcf2aa84aaeeccb2ac8aea128086b2f4252539bcab90a0a432f)
 を通した（手順は [docs/signet.md](docs/signet.md)）。
 
@@ -55,7 +55,7 @@ mainnet の前提は [docs/architecture-b.md](docs/architecture-b.md) §15、
 
 未対応: マルチシグ、パスフレーズ、PSBT v2。単署名の P2WPKH / P2TR だけ。
 
-## 試す
+## 使い方
 
 ### 基板が無くても
 
@@ -86,7 +86,7 @@ make run TESTNET=1 SECONDS=180    # signet 用
 `TEST_SEED=1` でビルドしたものだけ BIP39 のテストベクタを選べる（既定は 0）。資金を扱ってはならない。
 本番で使うときの手順は [docs/architecture-b.md](docs/architecture-b.md) の「本番で使うときの手順」。
 
-## 自分で確かめる
+## 検証
 
 ```sh
 make check-repro   # 版を固定したツールチェーンで parser.wasm を作り直し、記録と突き合わせる
@@ -114,7 +114,7 @@ make -C components/parts/parser check-fuzz  # 解析器へのファジング
 期待値は独立に作る（embit / hashlib / `@ngraveio/bc-ur` / zxing-cpp / Bitcoin Core）。
 テストを足したらミューテーションテストで検出力を確かめる。
 
-## リポジトリの歩き方
+## 構成
 
 **部品が主で、実機とビューアはその用例**という関係になっている。
 
@@ -142,7 +142,7 @@ libsecp256k1、WAMR 2.4.3、pico-sdk 2.3.1、QR-Code-generator、spleen フォ�
 | `psbt_bench` `qr_bench` `signer` | 時間・メモリの計測 |
 | `camera_test` `pio_loopback_test` `button_test` | 配線とカメラの切り分け |
 
-## 設計と実測の記録
+## 設計・検証資料
 
 | 文書 | 内容 |
 |---|---|
@@ -156,17 +156,23 @@ libsecp256k1、WAMR 2.4.3、pico-sdk 2.3.1、QR-Code-generator、spleen フォ�
 | [docs/aot-feasibility.md](docs/aot-feasibility.md) | WAMR AOT。XIP は実機で 7 倍遅い |
 | [docs/qr-feasibility.md](docs/qr-feasibility.md) | QR の読み書き、quirc の固定小数点化、RAM 見積り |
 | [docs/hardware.md](docs/hardware.md) [docs/breadboard.md](docs/breadboard.md) | 配線。`make wiring` `make breadboard` で図を作る |
+| [docs/terms.md](docs/terms.md) | 文書で使う用語と章立て |
 
 失敗もそのまま残してある。AOT の XIP が 7 倍遅いこと、WAMR の非整列 `i64.store`、
 `wasm-opt` が PATH にあるだけで成果物が 2.7KB 変わること、quirc が液晶の遠景を読めないこと。
 
-## 上流への還元
+## 外部プロジェクトへの貢献
 
 - **WAMR**: classic interpreter の `i64.store` が 4 byte 境界を前提にしていたバグを修正
   （[PR #5123](https://github.com/wasm-micro-runtime/wasm-micro-runtime/pull/5123)、2026-09-30 マージ）。
   非整列アクセスを許さない CPU で踏む。QEMU では再現しない
 - **quirc**: 自前フォーク（`mcu` ブランチ）で固定小数点化、未マージのセキュリティ修正の取り込み、
   UBSan とファジング
+
+## 貢献
+
+変更の送り方は [CONTRIBUTING.md](CONTRIBUTING.md) を参照。セキュリティ上の問題は公開 issue ではなく、
+[SECURITY.md](SECURITY.md) に従って報告する。
 
 ## ライセンス
 

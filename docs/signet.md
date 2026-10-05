@@ -1,9 +1,9 @@
-# signet での一巡（bitcoin-cli）
+# signet での送金手順（bitcoin-cli）
 
 PC 側に鍵を一切置かずに、デバイスだけで署名する手順。開発中の確認にもそのまま使う。
 ウォレットソフト（Sparrow など）を介さないので、どこで何が起きているかが全部見える。
 
-## 前提
+## 前提条件
 
 ```sh
 brew install bitcoin
@@ -14,7 +14,7 @@ bitcoind
 signet の同期は 26GB ほど。**剪定すると `timestamp:0` の再走査ができなくなる**ので剪定しない。
 別ホストのノードを使う場合は下の「別ホストのノード」を見る。
 
-## 一巡
+## 送金手順
 
 ```sh
 # 1. デバイスの Show xpub が出すディスクリプタでウォッチオンリーを作る（再走査に数分）
@@ -34,7 +34,7 @@ make run SECONDS=300 2>&1 | tee /tmp/run.log
 tools/watchonly.sh broadcast /tmp/run.log
 ```
 
-## 引っかかる点
+## 注意点
 
 **前トランザクションは落とす。** faucet の入力は出力が 2000 個を超えることがあり、
 `walletcreatefundedpsbt` がそれを丸ごと入れると PSBT が 77KB になって QR 770 枚になる。
@@ -69,10 +69,10 @@ ssh の設定に別のポート転送があると `ExitOnForwardFailure=yes` で
 を書くと `tools/watchonly.sh` がそれを使う。**ウォレットはノード側にある**ので、
 切り替えたら `init` をやり直す。
 
-## 確かめたこと（2026-10-03）
+## 実行結果（2026-10-03）
 
 [`de849e8c...`](https://mempool.space/signet/tx/de849e8c01a39fcf2aa84aaeeccb2ac8aea128086b2f4252539bcab90a0a432f)
-を、**PC に秘密鍵も復元句も一度も置かずに**送信した。141 vB、手数料 141 sat。
+を、**PC に秘密鍵もシードフレーズも置かずに**送信した。141 vB、手数料 141 sat。
 
 | 確かめられたこと | |
 |---|---|
