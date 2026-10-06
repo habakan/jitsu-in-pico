@@ -133,11 +133,11 @@ build/qr_frames.h: tools/gen_qr_frames.py
 
 # Use only standard extensions: -O2 may emit Hazard3-specific Xh3bextm instructions that QEMU cannot run.
 QEMU_MARCH := -march=rv32imac_zicsr_zifencei_zba_zbb_zbs_zbkb_zcb_zcmp -mabi=ilp32
-build/qemu-qr.elf: tests/host/qr_bench.c build/qr_frames.h tests/host/qemu-riscv32/start.S $(QUIRC)/identify.c
+build/qemu-qr.elf: tests/host/qr_bench.c build/qr_frames.h tests/qemu/start.S $(QUIRC)/identify.c
 	$(RISCV_TC)/bin/riscv32-pico-elf-gcc $(QEMU_MARCH) -O2 -DQEMU_BUILD=1 -Wall \
 	  $(QUIRC_DEFS) -I$(QUIRC) -I$(QRGEN) -Ibuild --specs=semihost.specs -Wl,--section-start=.qemu_start=0x80000000 \
 	  -Wl,-Ttext=0x80001000 -Wl,-e,qemu_start -Wl,--gc-sections -o $@ \
-	  tests/host/qr_bench.c $(wildcard $(QUIRC)/*.c) $(QRGEN)/qrcodegen.c tests/host/qemu-riscv32/start.S -lm
+	  tests/host/qr_bench.c $(wildcard $(QUIRC)/*.c) $(QRGEN)/qrcodegen.c tests/qemu/start.S -lm
 
 check-qemu-qr: build/qemu-qr.elf
 	qemu-system-riscv32 -M virt -cpu $(QEMU_CPU) -m 64M -nographic -bios none -semihosting -icount shift=0 \
@@ -189,11 +189,11 @@ check-xpub: build/test_xpub
 	build/test_xpub
 .PHONY: check-xpub
 
-build/qemu-test-core.elf: components/parts/signer/tests/test_core.c $(CORE_SRC) components/parts/signer/*.h components/parts/parser/c/include/*.h build/core_vectors.h tests/host/qemu-riscv32/start.S
+build/qemu-test-core.elf: components/parts/signer/tests/test_core.c $(CORE_SRC) components/parts/signer/*.h components/parts/parser/c/include/*.h build/core_vectors.h tests/qemu/start.S
 	$(RISCV_TC)/bin/riscv32-pico-elf-gcc $(QEMU_MARCH) -O2 -Wall -Wno-unused-function -Icomponents/parts/signer -Icomponents/parts/parser/c/include -Ibuild \
 	  -I$(SECP)/include -I$(SECP)/src $(SECP_DEFS) --specs=semihost.specs -Wl,--section-start=.qemu_start=0x80000000 \
 	  -Wl,-Ttext=0x80001000 -Wl,-e,qemu_start -Wl,--gc-sections -o $@ \
-	  components/parts/signer/tests/test_core.c $(CORE_SRC) components/parts/signer/secp256k1_unity.c tests/host/qemu-riscv32/start.S
+	  components/parts/signer/tests/test_core.c $(CORE_SRC) components/parts/signer/secp256k1_unity.c tests/qemu/start.S
 
 check-qemu-core: build/qemu-test-core.elf
 	qemu-system-riscv32 -M virt -cpu $(QEMU_CPU) -m 64M -nographic -bios none -semihosting \
@@ -249,7 +249,7 @@ build/font8x16.h: tools/gen_font.py
 	mkdir -p build && python3 $< third_party/spleen/spleen-8x16.bdf $@
 
 build/host-classic/psbt_host: build/parser_wasm.h build/font8x16.h tests/host/psbt_main.c tests/host/CMakeLists.txt \
-  apps/device/runtime/host-abi/parser_host.c apps/device/ui/ui.c $(CORE_SRC) components/parts/parser/c/include/*.h
+  src/runtime/parser_host.c src/ui/ui.c $(CORE_SRC) components/parts/parser/c/include/*.h
 	cmake -S tests/host -B build/host-classic -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DWAMR_BUILD_FAST_INTERP=0 \
 	  -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/host-classic psbt_host
@@ -332,7 +332,7 @@ check-psbt: build/host-classic/psbt_host build/psbt/own_p2wpkh_1in.psbt build/ps
 .PHONY: check-psbt
 
 check-qemu-psbt: build/parser_wasm.h build/font8x16.h build/psbt/own_mixed_nwu.ur
-	cmake -S tests/host/qemu-riscv32 -B build/qemu-psbt -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
+	cmake -S tests/qemu -B build/qemu-psbt -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
 	  -DCMAKE_C_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc -DCMAKE_ASM_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc \
 	  -DPOOL_KB=64 -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
@@ -342,8 +342,8 @@ check-qemu-psbt: build/parser_wasm.h build/font8x16.h build/psbt/own_mixed_nwu.u
 	cmp build/psbt/own_mixed_nwu.qemu build/psbt/own_mixed_nwu.signed && echo "qemu output matches host"
 .PHONY: check-qemu-psbt
 
-build/test_ui: apps/device/ui/tests/test_ui.c apps/device/ui/ui.c apps/device/ui/ui.h build/font8x16.h components/parts/signer/core.h
-	cc -O2 -Wall -Wextra -Icomponents/parts/signer -Icomponents/parts/parser/c/include -Iapps/device/ui -Ibuild -I$(QRGEN) -o $@ apps/device/ui/tests/test_ui.c apps/device/ui/ui.c $(QRGEN)/qrcodegen.c $(CORE_SRC) \
+build/test_ui: tests/ui/test_ui.c src/ui/ui.c src/ui/ui.h build/font8x16.h components/parts/signer/core.h
+	cc -O2 -Wall -Wextra -Icomponents/parts/signer -Icomponents/parts/parser/c/include -Isrc/ui -Ibuild -I$(QRGEN) -o $@ tests/ui/test_ui.c src/ui/ui.c $(QRGEN)/qrcodegen.c $(CORE_SRC) \
 	  components/parts/signer/secp256k1_unity.c -I$(SECP)/include -I$(SECP)/src $(SECP_DEFS) -Wno-unused-function
 
 build/bip39_words.h: tools/gen_bip39_words.py
@@ -367,29 +367,29 @@ build/test_psbt.h: build/psbt/own_p2wpkh_1in.psbt
 	  | sed 's/^unsigned char/const unsigned char/' > test_psbt.h
 
 build/rp2350/app.elf: build/parser_wasm.h build/font8x16.h build/test_psbt.h build/bip39_words.h \
-  apps/device/rp2350/app_main.c apps/device/rp2350/st7789.c apps/device/rp2350/buttons.c apps/device/rp2350/CMakeLists.txt \
-  apps/device/runtime/host-abi/parser_host.c apps/device/ui/ui.c $(CORE_SRC) components/parts/parser/c/include/*.h
-	cmake -S apps/device/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
+  src/main.c src/drivers/st7789.c src/drivers/buttons.c CMakeLists.txt \
+  src/runtime/parser_host.c src/ui/ui.c $(CORE_SRC) components/parts/parser/c/include/*.h
+	cmake -S . -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DPICO_SDK_PATH=$(CURDIR)/third_party/pico-sdk -DPICO_TOOLCHAIN_PATH=$(RISCV_TC) \
 	  -DWAMR_BUILD_AOT=0 -DTESTNET=$(TESTNET) -DTEST_SEED=$(TEST_SEED) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/rp2350 app
 
-build/rp2350/psbt_bench.elf: build/parser_wasm.h build/test_psbt.h apps/device/rp2350/psbt_bench.c \
-  apps/device/rp2350/CMakeLists.txt apps/device/runtime/host-abi/parser_host.c apps/device/ui/ui.c $(CORE_SRC) components/parts/parser/c/include/*.h
-	cmake -S apps/device/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
+build/rp2350/psbt_bench.elf: build/parser_wasm.h build/test_psbt.h bringup/psbt_bench.c \
+  CMakeLists.txt src/runtime/parser_host.c src/ui/ui.c $(CORE_SRC) components/parts/parser/c/include/*.h
+	cmake -S . -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DPICO_SDK_PATH=$(CURDIR)/third_party/pico-sdk -DPICO_TOOLCHAIN_PATH=$(RISCV_TC) \
 	  -DWAMR_BUILD_AOT=$(PARSER_AOT) -DPARSER_POOL_KB=$(PARSER_POOL_KB) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
 	ninja -C build/rp2350 psbt_bench
 
-build/rp2350/qr_bench.elf: build/qr_frames.h tests/host/qr_bench.c apps/device/rp2350/CMakeLists.txt build/rp2350/app.elf
+build/rp2350/qr_bench.elf: build/qr_frames.h tests/host/qr_bench.c CMakeLists.txt build/rp2350/app.elf
 	ninja -C build/rp2350 qr_bench
 
-build/rp2350/pio_loopback_test.elf: apps/device/rp2350/pio_loopback_test.c apps/device/rp2350/dvp_gen.pio \
-  apps/device/rp2350/camera.pio apps/device/rp2350/CMakeLists.txt build/rp2350/app.elf
+build/rp2350/pio_loopback_test.elf: bringup/pio_loopback_test.c bringup/dvp_gen.pio \
+  src/drivers/camera.pio CMakeLists.txt build/rp2350/app.elf
 	ninja -C build/rp2350 pio_loopback_test
 
-build/rp2350/camera_test.elf: apps/device/rp2350/camera_test.c apps/device/rp2350/camera.c apps/device/rp2350/camera.pio \
-  apps/device/rp2350/camera_ov7670.c apps/device/rp2350/CMakeLists.txt build/rp2350/app.elf
+build/rp2350/camera_test.elf: bringup/camera_test.c src/drivers/camera.c src/drivers/camera.pio \
+  src/drivers/camera_ov7670.c CMakeLists.txt build/rp2350/app.elf
 	ninja -C build/rp2350 camera_test
 
 # Check camera.pio without hardware by running pioasm-generated instructions in a minimal PIO simulator.

@@ -2,7 +2,7 @@
 
 As of 2026-09-22. Built from parts bought at Akizuki Denshi: a Pico 2 H, a Debug Probe, a 1.54 inch
 ST7789 panel, an OV7670 board, a five-way switch kit and three tactile switches. The pin assignment
-has to match `apps/device/rp2350/board_pins.h`. Always compare the silkscreen on the actual part
+has to match `src/board_pins.h`. Always compare the silkscreen on the actual part
 against its pin numbers before wiring anything.
 
 ## GPIO assignment (Pico 2, using all 26 available pins)
@@ -71,7 +71,7 @@ The wiring of the breadboard as actually built is in [docs/breadboard.md](breadb
 | CS | GND |
 | BLK | 3V3 (on a GPIO this could be dimmed with PWM; for now the QR's white level stands in) |
 
-Because CS is tied off, SPI runs in mode 3 (CPOL=1, CPHA=1) — see `apps/device/rp2350/st7789.c`.
+Because CS is tied off, SPI runs in mode 3 (CPOL=1, CPHA=1) — see `src/drivers/st7789.c`.
 If the image is mirrored or offset, the things to fix are `MADCTL` (0x36) and the window setup.
 
 ### The AE-SKRHAAE010-BO joystick (8 pins, needs soldering)
@@ -174,7 +174,7 @@ sometimes refuse the `cp`, in which case drag it in Finder.
    puts the capture and decode times and whatever was read on the UART. It also prints the PID read
    over SCCB (0x76 for an OV7670), which makes it useful for checking the wiring
 
-## Camera capture (`apps/device/rp2350/camera.*`)
+## Camera capture (`src/drivers/camera.*`)
 
 - PIO (`camera.pio`) picks out only the Y of YUV422 (Y U Y V) and DMA writes QVGA greyscale (76.8KB)
   straight into the buffer. It captures directly into quirc's image buffer, so there is no second
