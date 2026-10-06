@@ -455,8 +455,7 @@ carried its two elements and a node verified the signature and accepted it.
 
 ## 15. What is next
 
-What remains as of the signet round on 2026-10-02, in the order that matters. How this is positioned,
-and what publishing it requires, is in [positioning.md](positioning.md).
+What remains as of the signet round on 2026-10-02, in the order that matters.
 
 ### A. Prerequisites for mainnet — no real key goes in until these are met
 
@@ -567,9 +566,8 @@ ECDSA-only and does not cover taproot), SeedSigner and embit (no aux argument in
 randomness was Coldcard's edge branch.
 
 Being deterministic means **the same PSBT always gives the same signature**, so the browser's
-`bitcoin-signer.wasm` can reproduce the device's output bit for bit (the "verification mode" in
-[positioning.md](positioning.md)). The ECDSA side is already deterministic through low-R grinding, so
-the whole device agrees.
+`bitcoin-signer.wasm` can reproduce the device's output bit for bit. The ECDSA side is already
+deterministic through low-R grinding, so the whole device agrees.
 
 **In its place, the two defences other implementations do use went in.**
 
@@ -597,7 +595,7 @@ The cost is 2,552 bytes of flash. **Deterministic nonces become unsafe with mult
 
 8.5 **The companion web page.** An offline-capable page using the same `parser.wasm` to display a PSBT
    and move URs back and forth. It holds no keys. It should let the parser hash the device reports be
-   compared against it ([positioning.md](positioning.md))
+   compared against it
 9. ~~**Whether to publish jitsu-in.**~~ Published on 2026-10-04, with v0.1.0 released. The order
    was settled deliberately: the parser first, this repository after
 10. **An upstream PR for the quirc fork.** The unmerged security fixes (#158, #159) and the fixed-point

@@ -31,7 +31,6 @@ signet で署名から送信まで一巡しました。ここに載せた数値�
 | | |
 |---|---|
 | モジュールの仕様と他環境での利用 | [jitsu-in](https://github.com/habakan/jitsu-in) |
-| Pico 2 の設計と利用例 | [プロジェクトの概要](../positioning.md) |
 | parser の ABI とホスト実装例 | [jitsu-in parser](https://github.com/habakan/jitsu-in/tree/main/parser)（英語） |
 
 ## Pico 2 の実装

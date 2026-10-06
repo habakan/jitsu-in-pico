@@ -21,7 +21,7 @@ The device runs `parser.wasm` from jitsu-in. Its `Parser hash` screen shows the 
 | | |
 |---|---|
 | Modules, specifications, and cross-platform examples | [jitsu-in](https://github.com/habakan/jitsu-in) |
-| Pico 2 implementation and use cases | [docs/positioning.md](docs/positioning.md) (Japanese) |
+| Pico 2 hardware and wiring | [docs/hardware.md](docs/hardware.md), [docs/breadboard.md](docs/breadboard.md) |
 | Terms and headings used in the docs | [docs/terms.md](docs/terms.md) (Japanese) |
 | Parser ABI and host examples | [jitsu-in parser documentation](https://github.com/habakan/jitsu-in/tree/main/parser) |
 

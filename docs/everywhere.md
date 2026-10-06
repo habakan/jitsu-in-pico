@@ -4,7 +4,7 @@
 [components/parts/docs/everywhere.md](../components/parts/docs/everywhere.md) にある。**
 モジュールの話なので submodule 側が正本。ここには**このデバイス固有の話**だけを置く。
 
-技術的な中身は [architecture.md](architecture.md)、位置づけは [positioning.md](positioning.md)。
+技術的な流れは [architecture.md](architecture.md)。ここにはこのデバイス固有の話だけを置く。
 
 ## 実行環境ごとの違い
 
@@ -66,7 +66,6 @@ flowchart LR
 
 例外として、ブラウザ版には**回復モード**を置く（デバイスが壊れたときの最後の手段）。
 既定では鍵の入力欄すら出さず、明示的に切り替えたときだけ有効にする。
-詳しくは [positioning.md](positioning.md#ビューアでの鍵の扱い)。
 
 ## 検証できること
 
