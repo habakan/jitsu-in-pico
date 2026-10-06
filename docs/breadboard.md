@@ -1,155 +1,149 @@
-# ブレッドボードの実配線
+# Breadboard Wiring
+
+<sup>[日本語](ja/breadboard.md)</sup>
 
 <img src="pico-2-cc0.jpg" alt="Raspberry Pi Pico 2" width="320">
 
-写真: [Profpcde / Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Top_view_of_a_Raspberry_Pi_Pico_2_microcontroller_board.jpg)、CC0 1.0。Raspberry Pi is a trademark of Raspberry Pi Ltd. このプロジェクトは同社の承認を受けたものではありません。実装では Pico 2 H を使用。
+Photo: [Profpcde / Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Top_view_of_a_Raspberry_Pi_Pico_2_microcontroller_board.jpg), CC0 1.0. Raspberry Pi is a trademark of Raspberry Pi Ltd. This project is not endorsed by Raspberry Pi Ltd. The build uses a Pico 2 H.
 
-実際に組んでいる配線。変えたらこのファイルも直す。論理的なピン割り当ては `docs/hardware.md`、
-定義は `src/board_pins.h`。
+This documents the wiring as built. Update this page when the wiring changes. The logical pin assignments are in [hardware.md](hardware.md); the firmware definitions are in [src/board_pins.h](../src/board_pins.h).
 
-機械可読な形でも持たせてある。
+The wiring is also defined in machine-readable files.
 
-| ファイル | 内容 | 作り方 |
+| File | Contents | Generate with |
 |---|---|---|
-| [breadboard.yml](breadboard.yml) | 穴の位置まで（どの穴からどの穴へ） | `make breadboard` でブレッドボードの絵（SVG） |
-| [wiring.yml](wiring.yml) | 信号の対応（WireViz） | `make wiring` で配線図・部品表・HTML |
+| [breadboard.yml](breadboard.yml) | Hole-to-hole connections | `make breadboard` generates the breadboard layout (SVG) |
+| [wiring.yml](wiring.yml) | Signal connections (WireViz) | `make wiring` generates the wiring diagram, bill of materials, and HTML |
 
-配線を変えたら、このファイルと上の 2 つの YAML を直す。
+Update this page and both YAML files when the wiring changes.
 
-## 配線図
+## Diagrams
 
-信号のつながりは [配線図](wiring.svg)、ブレッドボード上の位置は [穴位置図](breadboard.svg) を参照。
+See the [wiring diagram](wiring.svg) for signal connections and the [breadboard layout](breadboard.svg) for physical hole positions.
 
-## 前提
+## Setup
 
-- ブレッドボード EIC-102J。Pico 2 H は **C 列と H 列の行 1〜20** に挿す（USB 側が行 1）
-- **Pico の基板が D〜G 列を覆う**ので、行 1〜20 で使える穴は **A・B 列**（C 列の左）と **I・J 列**（H 列の右）だけ
-- 1 つの穴に挿せる線は 1 本。同じ行なら別の穴を使う（行内は電気的に同一）
+- Breadboard: EIC-102J. Insert the Pico 2 H across columns **C and H**, rows **1–20** (row 1 is at the USB end).
+- The Pico board covers columns D–G, so in rows 1–20 only columns **A and B** (left of C) and **I and J** (right of H) are accessible.
+- Use one wire per hole. Use another hole in the same row if needed; holes in a row are electrically connected.
 
-## 行 ↔ ピンの対応
+## Row and pin mapping
 
-| 行 | C 列（物理ピン = 行番号） | H 列（物理ピン = 41 - 行番号） |
+| Row | Column C (physical pin = row number) | Column H (physical pin = 41 - row number) |
 |---|---|---|
-| 1 | GP0（UART TX → Debug Probe） | VBUS |
+| 1 | GP0 (UART TX → Debug Probe) | VBUS |
 | 2 | GP1 | VSYS |
 | 3 | GND | GND |
-| 4 | GP2（カメラ D0） | 3V3_EN |
-| 5 | GP3（カメラ D1） | **3V3 OUT** |
-| 6 | GP4（カメラ D2） | ADC_VREF |
-| 7 | GP5（カメラ D3） | GP28 |
+| 4 | GP2 (camera D0) | 3V3_EN |
+| 5 | GP3 (camera D1) | **3V3 OUT** |
+| 6 | GP4 (camera D2) | ADC_VREF |
+| 7 | GP5 (camera D3) | GP28 |
 | 8 | GND | AGND |
-| 9 | GP6（カメラ D4） | GP27 |
-| 10 | GP7（カメラ D5） | GP26（承認） |
-| 11 | GP8（カメラ D6） | RUN |
-| 12 | GP9（カメラ D7） | GP22 |
+| 9 | GP6 (camera D4) | GP27 |
+| 10 | GP7 (camera D5) | GP26 (confirm) |
+| 11 | GP8 (camera D6) | RUN |
+| 12 | GP9 (camera D7) | GP22 |
 | 13 | GND | GND |
-| 14 | GP10（カメラ PCLK） | GP21（カメラ XCLK） |
-| 15 | GP11（カメラ HREF） | GP20 |
-| 16 | GP12（カメラ VSYNC） | GP19（液晶 SDA） |
-| 17 | GP13 | GP18（液晶 SCL） |
+| 14 | GP10 (camera PCLK) | GP21 (camera XCLK) |
+| 15 | GP11 (camera HREF) | GP20 |
+| 16 | GP12 (camera VSYNC) | GP19 (LCD SDA) |
+| 17 | GP13 | GP18 (LCD SCL) |
 | 18 | GND | GND |
-| 19 | GP14（カメラ SDA） | GP17（進む） |
-| 20 | GP15（カメラ SCL） | GP16（液晶 DC） |
+| 19 | GP14 (camera SDA) | GP17 (next button) |
+| 20 | GP15 (camera SCL) | GP16 (LCD DC) |
 
-## Debug Probe（ブレッドボード外を含む）
+## Debug Probe (including connections off the breadboard)
 
-| から | へ | 内容 |
+| From | To | Notes |
 |---|---|---|
-| 「D」ポート（SWD） | Pico 2 H のデバッグ端子（基板端の 3 ピン） | 付属の SH-SH ケーブル。書き込みに使う |
-| 「U」ポート RX | **A1**（GP0 = UART TX） | ログの受信。TX は使わない |
-| 「U」ポート GND | **A3** または **B3**（GND） | |
-| Debug Probe の USB | PC | |
-| Pico の USB | PC（給電） | 別ケーブル |
+| D port (SWD) | Pico 2 H debug connector (3-pin connector at board edge) | Included SH-SH cable; used for flashing |
+| U port RX | **A1** (GP0 = UART TX) | Receives logs; do not use TX |
+| U port GND | **A3** or **B3** (GND) | |
+| Debug Probe USB | PC | |
+| Pico USB | PC (power) | Separate cable |
 
-## 電源レール
+## Power rails
 
-| から | へ | 内容 |
+| From | To | Notes |
 |---|---|---|
-| F42（液晶の 3V3 と同じ行の空き穴） | **A 列の外側**の赤レール、行 42 あたり | 3V3 |
-| B13 | **A 列の外側**の青レール、行 13 あたり | GND（Pico 直結） |
+| F42 (free hole on the same row as the LCD 3V3 connection) | Red rail outside column **A**, around row 42 | 3V3 |
+| B13 | Blue rail outside column **A**, around row 13 | GND (directly connected to Pico) |
 
-レールの穴は 5 個ずつの塊で並び、行番号とは 1 対 1 に対応しない。同じレールの同じ半分なら電気的に同一。
-中央で分断されているボードが多いので、3V3 は後ろ半分（引き込み 42、取り出し 45 と 47）、
-GND は前半分（引き込み 13、取り出し 9 と 10）に固めてある。
+Rail holes are grouped in sets of five and do not map one-to-one to breadboard row numbers. Holes in the same half of a rail are electrically connected. Many boards split the rails at the center, so 3V3 uses the rear half (feed at 42, takeoffs at 45 and 47) and GND uses the front half (feed at 13, takeoffs at 9 and 10).
 
-レールは A 列の外側と J 列の外側に 2 組ある。**A 列側を使う**。J 列側の行 36〜43 は液晶の本体が覆っていて挿しにくく、
-カメラの SCL / SDA（B19・B20）も A〜E 側にあるため。レールの線が中央で途切れているボードでは、左右が別の列になる。
+There are two sets of rails, outside columns A and J. **Use the A-side rails.** The LCD covers rows 36–43 on the J side, making those holes hard to reach. The camera's SCL and SDA connections (B19 and B20) are also on the A–E side. On boards with rails split at the center, the two halves are separate.
 
-Pico の 3V3 OUT（物理 36 番 = H5）は行 5 で埋まっているので、液晶へ引いた 3V3 から分岐する。
+Pico 3V3 OUT (physical pin 36 = H5) is already occupied at row 5, so tee off the 3V3 line going to the LCD.
 
-## 液晶 M154-240240-RGB（行 36〜43、J 列。本体はボードの外へはみ出す）
+## LCD M154-240240-RGB (rows 36–43, column J; the display overhangs the board)
 
-| 行 | 液晶のピン | 配線 |
+| Row | LCD pin | Wiring |
 |---|---|---|
-| 36 | BLK | 3V3（行 39 から渡す） |
-| 37 | CS | GND（行 43 から渡す） |
-| 38 | DC | I38 → I20（GP16） |
-| 39 | RES | 3V3（行 42 から渡す） |
-| 40 | SDA | I40 → I16（GP19） |
-| 41 | SCL | I41 → I17（GP18） |
-| 42 | VCC | I42 → I5（3V3 OUT） |
-| 43 | GND | I43 → J18（GND） |
+| 36 | BLK | 3V3 (jumper from row 39) |
+| 37 | CS | GND (jumper from row 43) |
+| 38 | DC | I38 → I20 (GP16) |
+| 39 | RES | 3V3 (jumper from row 42) |
+| 40 | SDA | I40 → I16 (GP19) |
+| 41 | SCL | I41 → I17 (GP18) |
+| 42 | VCC | I42 → I5 (3V3 OUT) |
+| 43 | GND | I43 → J18 (GND) |
 
-3V3 は 42 → 39 → 36、GND は 43 → 37 と数珠つなぎ。使う穴は空いているものでよい（同じ行なら同一）。
+Chain 3V3 from row 42 to 39 to 36, and GND from row 43 to 37. Use any free hole in the same row.
 
-## ボタン（タクトスイッチ、溝をまたぐ）
+## Buttons (tactile switches across the center gap)
 
-脚は行 n と行 n+2 に入り、押すとその 2 行がつながる。
+The switch legs go into rows n and n+2. Pressing a switch connects those two rows.
 
-| スイッチ | 行 | GND 側 | 信号側 | 役割 |
+| Switch | Rows | GND side | Signal side | Action |
 |---|---|---|---|---|
-| SW1 | 24 / 26 | A24 → I18（GND） | J26 → I19（GP17） | 進む |
-| SW2 | 28 / 30 | B24 → A28（GND を渡す） | J30 → I10（GP26） | 承認 |
+| SW1 | 24 / 26 | A24 → I18 (GND) | J26 → I19 (GP17) | Next |
+| SW2 | 28 / 30 | B24 → A28 (GND jumper) | J30 → I10 (GP26) | Confirm |
 
-ジョイスティックを付けたら、UP=GP13（C17）、LEFT=GP20（H15）、RIGHT=GP22（H12）も使う。
+If a joystick is added, it also uses UP=GP13 (C17), LEFT=GP20 (H15), and RIGHT=GP22 (H12).
 
-## カメラ OV7675（Arducam B0070、2×10 の 20 ピン）
+## OV7675 camera (Arducam B0070, 2×10, 20 pins)
 
-基板のシルクどおりの並び。奇数が左列、偶数が右列。
+Pin order follows the silkscreen on the board: odd-numbered pins are on the left, even-numbered pins on the right.
 
-| ピン | 名前 | つなぐ先 | 段階 |
+| Pin | Name | Connect to | Stage |
 |---|---|---|---|
-| 1 | VCC | 赤レール 45 | 1 |
-| 2 | GND | 青レール 9 | 1 |
-| 3 | SCL | B20（GP15） | 1 |
-| 4 | SDA | B19（GP14） | 1 |
-| 5 | VS | B16（GP12） | 2 |
-| 6 | HS | B15（GP11） | 2 |
-| 7 | PCLK | B14（GP10） | 2 |
-| 8 | XCLK | I14（GP21） | 1 |
-| 9 | D7 | B12（GP9） | 2 |
-| 10 | D6 | B11（GP8） | 2 |
-| 11 | D5 | B10（GP7） | 2 |
-| 12 | D4 | B9（GP6） | 2 |
-| 13 | D3 | B7（GP5） | 2 |
-| 14 | D2 | B6（GP4） | 2 |
-| 15 | D1 | B5（GP3） | 2 |
-| 16 | D0 | B4（GP2） | 2 |
+| 1 | VCC | Red rail 45 | 1 |
+| 2 | GND | Blue rail 9 | 1 |
+| 3 | SCL | B20 (GP15) | 1 |
+| 4 | SDA | B19 (GP14) | 1 |
+| 5 | VS | B16 (GP12) | 2 |
+| 6 | HS | B15 (GP11) | 2 |
+| 7 | PCLK | B14 (GP10) | 2 |
+| 8 | XCLK | I14 (GP21) | 1 |
+| 9 | D7 | B12 (GP9) | 2 |
+| 10 | D6 | B11 (GP8) | 2 |
+| 11 | D5 | B10 (GP7) | 2 |
+| 12 | D4 | B9 (GP6) | 2 |
+| 13 | D3 | B7 (GP5) | 2 |
+| 14 | D2 | B6 (GP4) | 2 |
+| 15 | D1 | B5 (GP3) | 2 |
+| 16 | D0 | B4 (GP2) | 2 |
 | 17 | NC | - | - |
 | 18 | NC | - | - |
-| 19 | PEN | 赤レール 47（基板の電源を有効にする） | 1 |
-| 20 | PDN | 青レール 10（パワーダウン解除） | 1 |
+| 19 | PEN | Red rail 47 (enables the board's power) | 1 |
+| 20 | PDN | Blue rail 10 (releases power-down) | 1 |
 
-2 列のヘッダはブレッドボードに直接挿せない（溝をまたげない）ので、オス-メスのジャンパ線で引く。
+The 2-row header cannot plug directly into the breadboard because it cannot straddle the center gap. Use male-to-female jumper wires.
 
-**段階 1**（7 本）で `make run ELF=build/rp2350/camera_test.elf` を実行し、`PID 0x76` が出れば
-電源・I2C・XCLK が正しい。そこまで通ってから段階 2 の 11 本を足す。
+For **stage 1** (7 wires), run `make run ELF=build/rp2350/camera_test.elf`. A `PID 0x76` result confirms power, I2C, and XCLK. Add the 11 stage 2 wires only after this passes.
 
-`camera_test` は起動時に GP2〜GP17 の状態と、PCLK / HREF / VSYNC のエッジ数を出す。
-**エッジの数でどの線が来ているかが分かる**（100ms で PCLK は 10 万回、HREF は約 1300 回、VSYNC は約 2 回）。
-挿し間違いはこれで特定できる。左列（VCC・SCL・VS・PCLK・D7…）と右列（GND・SDA・HS・XCLK・D6…）の
-取り違えが起きやすい。
+At startup, `camera_test` reports GP2–GP17 states and edge counts for PCLK, HREF, and VSYNC. **The edge counts help identify which signals are connected** (in 100 ms: about 100,000 PCLK edges, 1,300 HREF edges, and 2 VSYNC edges). This helps find wiring mistakes. The left column (VCC, SCL, VS, PCLK, D7, …) and right column (GND, SDA, HS, XCLK, D6, …) are easy to swap.
 
-## 本数
+## Wire count
 
-| 区分 | 本数 | 状態 |
-|---|---|---|
-| Debug Probe（UART 2 本 + SWD ケーブル + USB 2 本） | 2 + 3 | 済 |
-| 電源レール（3V3、GND） | 2 | 済 |
-| 液晶 | 8 | 済 |
-| ボタン 2 個 | 4 | 済 |
-| カメラ 段階 1 | 7 | 済（PID 0x76 / VER 0x73 を確認） |
-| カメラ 段階 2 | 11 | 済（取り込み成功） |
-| 合計（完成時） | 34 | |
+| Group | Count | Status |
+|---|---:|---|
+| Debug Probe (2 UART wires + SWD cable + 2 USB cables) | 2 + 3 | Done |
+| Power rails (3V3, GND) | 2 | Done |
+| LCD | 8 | Done |
+| Two buttons | 4 | Done |
+| Camera stage 1 | 7 | Done (PID 0x76 / VER 0x73 confirmed) |
+| Camera stage 2 | 11 | Done (capture succeeds) |
+| **Total (complete build)** | **34** | |
 
-ジョイスティックを足す場合は +8（+V、GND×2、SW、A、B、C、D）で、タクトスイッチ 2 個の 4 本と入れ替わる。
+Adding a joystick takes 8 connections (+V, two GND, SW, A, B, C, D) and replaces the four wires for the two tactile switches.

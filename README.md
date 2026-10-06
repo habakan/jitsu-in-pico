@@ -71,7 +71,7 @@ Prebuilt firmware is on the [Releases](https://github.com/habakan/jitsu-in-pico/
 the Pico 2 over USB and copy the UF2 onto the drive. Building it yourself gives the same bytes
 ([docs/reproducible-build.md](docs/reproducible-build.md)).
 
-Parts and wiring: [docs/hardware.md](docs/hardware.md), [docs/breadboard.md](docs/breadboard.md) (Japanese).
+Parts and wiring: [hardware](docs/hardware.md), [breadboard wiring](docs/breadboard.md). Japanese: [breadboard wiring](docs/ja/breadboard.md).
 
 ```sh
 make deps-openocd                 # once, for SWD flashing (the Raspberry Pi fork of OpenOCD)
