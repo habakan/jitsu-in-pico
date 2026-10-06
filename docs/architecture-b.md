@@ -1,20 +1,18 @@
-# Architecture B: isolate the parser in WASM, keep keys and signing native
+# Signing architecture: isolate parsing in WASM, keep keys and signing native
 
-Version 0.3 | 2026-09-22 | Status: §8 decided; the native core and parser.wasm are implemented (§10)
-
-design.md §3, §7 and §8 are written for plan A, where the whole of the signing logic goes into
-`bitcoin-signer.wasm`. This document defines plan B, which replaces it. Once the open decisions are
-settled they get folded back into design.md.
+This is the current implementation. `parser.wasm` handles UR reassembly and PSBT parsing without
+access to keys. Native code validates the fixed-size `Plan`, derives and checks keys, builds the
+review screens, and signs. QR image decoding also runs natively and remains in the trusted computing
+base.
 
 ## 1. The point
 
-Give WASM one job: when the parser of untrusted input is taken over, it still cannot reach the key.
-Under plan A the PSBT parser and the key sit in the same module, so a bug in the parser leaks the key
-through a nonce or through the output QR.
+Keep the key outside the module that parses untrusted transaction data. If `parser.wasm` is
+compromised, it cannot read the key from its linear memory.
 
 ## 2. What this defends against, and what it does not
 
-| attack | under plan B |
+| attack | current design |
 |---|---|
 | a crafted PSBT or UR takes over the parser and reads the key | defended. The key never enters the WASM linear memory |
 | a compromised parser shows A on screen and signs B | defended. What is displayed and what goes into the sighash are built natively from the same struct (§5) |
@@ -56,9 +54,8 @@ with `wasm_runtime_validate_app_addr` before copying anything.
 
 | what | where | why |
 |---|---|---|
-| decoding the QR image (quirc) | native | over ten seconds per frame in WASM (qr-feasibility.md) |
+| decoding the QR image (quirc) | native | over ten seconds per frame in WASM ([QR feasibility](qr-feasibility.md)) |
 | UR / BBQr reassembly, CBOR, PSBT parsing | parser.wasm | the most complex parsing of untrusted input, and light because no crypto is involved |
-| parsing xpubs and descriptors (multisig) | parser.wasm | untrusted input; the result crosses as a fixed-length record, like the Plan |
 | parsing a SeedQR or typed words | native | the input is the secret itself, so putting it in WASM would defeat the isolation |
 | checking the Plan, deriving keys, confirming ownership, sighash, signing | native | it touches keys |
 | building address strings (bech32 / base58) | native | the Plan carries only the scriptPubKey's bytes, so the parser cannot fake a string |
@@ -93,34 +90,34 @@ to the PSBT. It only establishes two things:
      with a false amount is simply invalid
    - SegWit v0 (BIP143) commits only to the amount of the input being signed. That is what makes the
      2020 fee attack work: get the same input signed twice with different amounts. The countermeasure
-     is decided in §8-1
-6. **sighash type:** only `SIGHASH_ALL` and Taproot's `SIGHASH_DEFAULT` are accepted; anything else
-   would need a future setting
+     is to require `non_witness_utxo` in the multi-input case (§8, item 1)
+6. **sighash type:** only `SIGHASH_ALL` and Taproot's `SIGHASH_DEFAULT` are accepted; all other types
+   are rejected
 7. **Network:** mainnet or testnet is decided by the native configuration, not by the Plan
 
 ## 7. What risk remains
 
-- **quirc remains a parser of untrusted input inside the TCB.** About 3,000 lines including headers.
-  Fuzzing makes up for it; in WASM it is far too slow
+- **quirc remains a parser of untrusted input inside the TCB.** It is fuzzed, but remains part of the
+  trusted computing base because decoding in WASM is too slow
 - **The code that reads the Plan also reads untrusted input natively.** Restricted to fixed-length
   records and kept to around a hundred lines
-- **An input that makes parser.wasm not terminate.** Whether WAMR has an instruction limit needs
-  checking; without one, a UI timeout has to interrupt it
+- **An input that makes parser.wasm run indefinitely.** WAMR runs without an instruction limit, so the
+  call can block the UI until the device is reset
 - **A vulnerability in WAMR itself.** If the linear memory's bounds checks can be broken, the isolation
-  no longer holds. Which of the interpreter and AOT is used changes the TCB (§8-3)
+  no longer holds. The WAMR interpreter remains part of the TCB
 
-## 8. Decided (2026-09-22)
+## 8. Current transaction support and constraints
 
 1. **`non_witness_utxo` for SegWit v0 inputs:** required for every input when a SegWit v0 input is to
    be signed and there are two or more inputs. With a single input it is unnecessary, since a signature
    made with a false amount is merely invalid. The minimal native tx parser
    (`components/parts/parser/src/tx.c`, shared with jitsu-in) checks the txid, vout, amount and script
 2. **First targets:** P2WPKH (BIP84) and P2TR (BIP86, no script tree)
-3. **parser.wasm's runtime:** the interpreter. Measured on RV32 after implementation: 2.7M instructions
+3. **parser.wasm runtime:** the interpreter. Measured on RV32: 2.7M instructions
    to parse a PSBT and 40k to insert the signatures (§10), which is plenty
-4. **multisig:** not in the first version; planned for a later version, with the script formats still to be decided
+4. **Multisig:** not implemented. Script formats and nonce handling remain undecided.
 
-## 9. The Plan's layout (proposed)
+## 9. Plan layout
 
 The C struct is shared as is, with its size and offsets nailed down by `_Static_assert`. wasm32 and
 rv32 are both little-endian ILP32, so the layout agrees. The native side copies it once, then checks it.
@@ -171,12 +168,11 @@ typedef struct {
 - The settled version is `components/parts/parser/include/plan.h`, on the jitsu-in side, with
   `_Static_assert` fixing the size and the offsets
 - At 16 inputs and 16 outputs it is 5,016 bytes: 176 per input, 136 per output. Barely a dent in RAM
-- Those limits are provisional, to be settled against SeedSigner's and Krux's limits and against real
-  PSBTs
+- These limits are part of the current parser ABI.
 - `non_witness_utxo` crosses in a buffer of its own rather than in the Plan, with the same limit as the
   whole PSBT
 
-## 10. Implementation status
+## 10. Current implementation
 
 The native core is implemented in `components/parts/signer/` (`make check-core`, `make check-qemu-core`).
 
@@ -186,7 +182,7 @@ The native core is implemented in `components/parts/signer/` (`make check-core`,
 | `components/parts/signer/address.c` | addresses from a scriptPubKey: base58check for P2PKH and P2SH, bech32 for witness v0, bech32m for v1-v16. Nothing is produced for a non-standard script |
 | `components/parts/signer/sighash.c` | BIP143 (P2WPKH, SIGHASH_ALL) and BIP341 key path, all seven hash types |
 | `components/parts/parser/src/tx.c` | the minimal tx parser, shared with jitsu-in. Refuses non-minimal varints and trailing bytes; the txid is computed without the witness |
-| `components/parts/signer/bip32.c` | BIP32 derivation, shared with plan A's `signer.c` |
+| `components/parts/signer/bip32.c` | BIP32 derivation |
 | `components/parts/parser/src/sha256.c`, `components/parts/signer/ripemd160.c`, `sha512.c` | the hashes. Secrets are cleared through `components/parts/signer/wipe.h`, via a volatile pointer, so the optimiser cannot remove it |
 
 What `core_review` actually does, making §6 concrete:
@@ -224,7 +220,7 @@ Tests: 71 checks, passing on both the Mac and RV32:
 
 - Turns a PSBT v0 (BIP174) into a `plan_t`, and inserts the natively produced signatures just before
   the end of each input map, leaving every other byte as it was
-- At this stage the `.wasm` was 7KB with no imports. It holds the input and output buffers
+- The `.wasm` is 15,570 bytes and has no imports. It holds the input and output buffers
   (`PSBT_MAX` 32KB), so the linear memory is two pages
 - Fields it interprets are checked strictly: duplicate keys, key and value lengths per type,
   v2-only fields, scriptSig and witness in the unsigned tx, the `non_witness_utxo`'s txid against
@@ -383,9 +379,9 @@ columns; only how parser.wasm executes differs.
   interpreter the pool peak matches QEMU exactly
 - **Looking only at the wasm, AOT is twenty times faster**: parsing 26.0 to 1.3 ms, finalize 0.93 to
   0.16 ms
-- **But across the whole round it is 806 ms against 746 ms, a difference of 8%.** Under plan B the
+- **But across the whole round it is 806 ms against 746 ms, a difference of 8%.** In the current design the
   parser is light, and the time goes on the native checking and signing and on the seed
-- So **with plan B the interpreter is enough for parser.wasm**. AOT costs 44KB of RAM and 21KB of flash
+- So **the interpreter is enough for parser.wasm**. AOT costs 44KB of RAM and 21KB of flash
   and puts wamrc and LLVM in the TCB, which that 8% does not justify
 - The native side — 142 to 155 ms checking, 123 to 133 ms signing — came out as the QEMU instruction
   counts predicted, 148 ms and 125 ms. The interpreter build is 9% slower because linking differently
@@ -453,28 +449,7 @@ carried its two elements and a node verified the signature and accepted it.
   PIN. Using this for real needs the SWD detached and a third-party review; the xpub export was
   finished on 2026-10-03
 
-## 15. What is next
-
-What remains as of the signet round on 2026-10-02, in the order that matters. How this is positioned,
-and what publishing it requires, is in [positioning.md](positioning.md).
-
-### A. Prerequisites for mainnet — no real key goes in until these are met
-
-On 2026-10-03 a full signet round ran with no key on the PC at all ([the procedure](signet.md)). What
-remains is detaching the SWD and a third-party review.
-
-1. ~~**Exporting an xpub for watch-only use.**~~ Done (2026-10-03). The menu's `Show xpub` shows the
-   full `m/84'/coin'/0'` xpub and a QR of the output descriptor
-   `wpkh([fp/84h/coin h/0h]xpub/<0;1>/*)`. At 145 characters that is 45 modules, so one still image.
-   Matches BIP84's own vectors (`make check-xpub`). `UR:CRYPTO-ACCOUNT` can be added later if wanted
-2. ~~**Detaching the Debug Probe (SWD).**~~ Partly done (2026-10-03); see "Using this for real" below.
-   What remains is deciding whether to disable SWD permanently
-3. **A third-party review.** `core_review` (the fee attack, deciding what is change),
-   `src/runtime/parser_host.c` (the boundary with WASM) and the UR parsing have only ever been
-   checked by our own tests
-4. ~~**Randomness for Schnorr's aux.**~~ Done (2026-10-03); see "Defences around signing" below
-
-### Using this for real (2026-10-03)
+## 15. Key handling and signing safeguards
 
 **With a Debug Probe attached the RAM can be read, which exposes the seed.** No design choice prevents
 that, so it is handled by how the device is used, and by leaving fewer traces.
@@ -544,11 +519,7 @@ So being safe after the signature has gone out is measured, not assumed. What ma
 SWD. So two things close it: **physically unplugging the Probe** and **pressing `Lock`**. Both are
 backed by measurement.
 
-**Still undecided.** The RP2350 can disable SWD permanently through OTP, but once burned it cannot be
-undone and the device can no longer be reflashed. That decision waits on how this gets distributed:
-as something you build yourself, or as a finished unit.
-
-### Defences around signing (2026-10-03)
+### Defences around signing
 
 This looked at first like one question — whether to put good randomness in aux — but reading what other
 implementations do showed **three independent ones**.
@@ -567,9 +538,8 @@ ECDSA-only and does not cover taproot), SeedSigner and embit (no aux argument in
 randomness was Coldcard's edge branch.
 
 Being deterministic means **the same PSBT always gives the same signature**, so the browser's
-`bitcoin-signer.wasm` can reproduce the device's output bit for bit (the "verification mode" in
-[positioning.md](positioning.md)). The ECDSA side is already deterministic through low-R grinding, so
-the whole device agrees.
+`bitcoin-signer.wasm` can reproduce the device's output bit for bit. The ECDSA side is already
+deterministic through low-R grinding, so the whole device agrees.
 
 **In its place, the two defences other implementations do use went in.**
 
@@ -584,28 +554,3 @@ the whole device agrees.
 
 The cost is 2,552 bytes of flash. **Deterministic nonces become unsafe with multisig** — BIP340 says so
 — which is when aux has to be revisited. There is a comment in the code saying as much.
-
-### B. Usability
-
-5. **Reading speed.** 120ms to capture a frame plus 62ms to decode gives an effective 2.5fps. Running
-   capture and decode on the two cores in parallel would double it
-6. **Entering a BIP39 passphrase.** Planned; the current firmware derives the seed with an empty passphrase
-7. Legibility. Drawing just the amounts and addresses double width would help
-8. Soldering the joystick. Two buttons do suffice, but going back would be easier
-
-### C. Relationships outside this repository
-
-8.5 **The companion web page.** An offline-capable page using the same `parser.wasm` to display a PSBT
-   and move URs back and forth. It holds no keys. It should let the parser hash the device reports be
-   compared against it ([positioning.md](positioning.md))
-9. ~~**Whether to publish jitsu-in.**~~ Published on 2026-10-04, with v0.1.0 released. The order
-   was settled deliberately: the parser first, this repository after
-10. **An upstream PR for the quirc fork.** The unmerged security fixes (#158, #159) and the fixed-point
-    version. Now that real camera frames can be captured, a corpus of read rates can back it up
-11. WAMR's unaligned `i64.store` fix is merged upstream (#5123)
-
-### D. Hardware
-
-12. Run the OV7670 that is already here from a 1.8V LDO; the parts are ordered. Low priority, since the
-    OV7675 works
-13. A case and a real board. A breadboard cannot be carried anywhere

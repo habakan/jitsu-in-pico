@@ -221,8 +221,7 @@ The way to decide is to write a skeleton with `no_std`, fixed buffers and `panic
 
 ## 16. How the repository is laid out
 
-**Split into the parts (`components`) and the things that use them (`apps`).** How these are
-positioned is in [positioning.md](positioning.md).
+**Split into the parts (`components`) and the things that use them (`apps`).**
 
 ```
 components/            the parts; any of them can sit behind any UI

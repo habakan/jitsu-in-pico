@@ -21,8 +21,7 @@ The device runs `parser.wasm` from jitsu-in. Its `Parser hash` screen shows the 
 | | |
 |---|---|
 | Modules, specifications, and cross-platform examples | [jitsu-in](https://github.com/habakan/jitsu-in) |
-| Pico 2 implementation and use cases | [docs/positioning.md](docs/positioning.md) (Japanese) |
-| Terms and headings used in the docs | [docs/terms.md](docs/terms.md) (Japanese) |
+| Pico 2 hardware and wiring | [docs/hardware.md](docs/hardware.md), [docs/breadboard.md](docs/breadboard.md) |
 | Parser ABI and host examples | [jitsu-in parser documentation](https://github.com/habakan/jitsu-in/tree/main/parser) |
 
 Most design notes and measurements under `docs/` are in Japanese. English pages are linked from the
@@ -33,10 +32,8 @@ Japanese index at [docs/ja/README.md](docs/ja/README.md).
 **This software has not been reviewed by a third party. Do not put real funds through it.**
 
 It completes a signing round on signet. The measurements on this page come from this repository;
-they do not show that anyone besides the author has tried to break it.
-What mainnet would require is listed in [docs/architecture-b.md](docs/architecture-b.md) §15; what
-the signer accepts, refuses and deliberately does not do is in
-[docs/limitations.md](docs/limitations.md).
+they do not show that anyone besides the author has tried to break it. Mainnet readiness, supported
+transactions, and known limitations are listed in [docs/limitations.md](docs/limitations.md).
 
 Found a security problem? [SECURITY.md](SECURITY.md) — **not** a public issue.
 
@@ -45,7 +42,7 @@ Found a security problem? [SECURITY.md](SECURITY.md) — **not** a public issue.
 Read a seed from a SeedQR with the camera, receive a PSBT as an animated QR (UR), show it for review,
 sign, and hand the signed PSBT back as a QR. The PC never holds a key or a recovery phrase — a
 [signet transaction](https://mempool.space/signet/tx/de849e8c01a39fcf2aa84aaeeccb2ac8aea128086b2f4252539bcab90a0a432f)
-went through that way ([how](docs/signet.md)).
+went through that way ([verification procedure](docs/verification.md#signet-transaction)).
 
 | Stage | Measured | |
 |---|---|---|
@@ -80,7 +77,7 @@ make run TESTNET=1 SECONDS=180    # signet
 ```
 
 Only a build with `TEST_SEED=1` can select the BIP39 test vector seed (the default is 0). Never put funds on it.
-What to do differently for real use is in [docs/architecture-b.md](docs/architecture-b.md) (Japanese).
+Known limitations and operational constraints are in [docs/limitations.md](docs/limitations.md).
 
 ## Check it yourself
 
@@ -138,7 +135,7 @@ merely by being on `PATH`, quirc failing to read a display from a distance.
 [design](docs/design.md) ·
 [isolating the parser](docs/architecture-b.md) ·
 [reproducible build](docs/reproducible-build.md) ·
-[signet workflow](docs/signet.md) ·
+[verification](docs/verification.md) ·
 [fit on RP2350](docs/feasibility.md) ·
 [BIP39/BIP32 speed](docs/kdf-feasibility.md) ·
 [AOT](docs/aot-feasibility.md) ·

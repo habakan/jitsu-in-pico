@@ -1,13 +1,13 @@
 # How the system is put together
 
-What actually runs on the hardware, as of 2026-10-03. The reasoning behind the design is in
-[design.md](design.md); why the parser is isolated is in [architecture-b.md](architecture-b.md).
+The current device architecture. Detailed checks and the reason for the parser boundary are in
+[architecture-b.md](architecture-b.md).
 
 ## 1. The trust boundary
 
-Data an attacker controls — the QR, the PSBT — is **only ever touched inside a WASM module that holds
-no keys**. The keys and the signing live on the native side, and everything between the two passes
-through a single fixed-length record.
+UR and PSBT data are parsed inside a WASM module that holds no keys. Camera frames are decoded by
+native quirc, which remains in the trusted computing base. The keys and signing stay native, and the
+parser and signer communicate through a fixed-length record.
 
 ```mermaid
 flowchart TB
