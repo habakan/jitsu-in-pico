@@ -1,7 +1,7 @@
 # ブレッドボードの実配線
 
 実際に組んでいる配線。変えたらこのファイルも直す。論理的なピン割り当ては `docs/hardware.md`、
-定義は `apps/device/rp2350/board_pins.h`。
+定義は `src/board_pins.h`。
 
 機械可読な形でも持たせてある。
 

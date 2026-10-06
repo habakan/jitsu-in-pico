@@ -229,12 +229,12 @@ components/            the parts; any of them can sit behind any UI
   parser/              submodule: jitsu-in (PSBT and UR parsing, its ABI, host libraries)
   qr/                  submodule: a fork of quirc, made fixed-point
   signer/              keys, BIP32, signing, addresses. Native on the device, wasm in the browser
-apps/                  the things that use them
-  device/              the RP2350 reference implementation
-    rp2350/            the board: panel, camera, buttons, the application itself
-    ui/                building the screens
-    runtime/           the boundary with WAMR (host-abi) and the platform layer
-tests/host/             native and QEMU integration hosts
+src/                   the firmware shipped as the UF2: main.c and the pin assignment
+  drivers/             panel, camera, buttons; only these need the board
+  ui/                  building the screens
+  runtime/             the boundary with WAMR (parser_host) and the platform layer
+bringup/               wiring checks and benchmarks for the board
+tests/                 host, QEMU and screen checks
 tools/                 scripts for generating, measuring and drawing
 docs/                  the design notes and the measurements
 test-vectors/ third_party/ patches/

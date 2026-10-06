@@ -109,7 +109,7 @@ OV7675（Arducam B0070）を Pico 2 に繋ぎ、`camera_test` で実際の QR �
 
 - **センサーのスケーラは当てにしない。** OV7675 では縦の縮小（SCALING_DCWCTR）が効かず 1 フレーム 480 行のままだった。
   VGA の YUV422 をそのまま出させ、PIO 側で `Y U Y V` の先頭の Y だけを拾い、1 行取り込むごとに 1 行読み飛ばして
-  320x240 にしている（`apps/device/rp2350/camera.pio`）。センサーの素性に依存しない
+  320x240 にしている（`src/drivers/camera.pio`）。センサーの素性に依存しない
 - 同じフレームでも成功と `ECC failure` が混ざる。手ぶれと露出の影響で、照明が十分なら成功率が上がる
 - `camera_test` は起動時に GP2〜GP17 の状態と PCLK / HREF / VSYNC のエッジ数を出す。
   **エッジの数で配線の間違いを特定できる**（100ms で PCLK 10 万回以上、HREF 約 1800 回、VSYNC 約 4 回）

@@ -108,16 +108,19 @@ Bitcoin Core. New tests are checked with mutation testing before they are truste
 
 ## What this repository contains
 
-`apps/` contains the Raspberry Pi Pico 2 firmware. Host and QEMU integration checks live under `tests/`.
+`src/` is the firmware that ships as the UF2; `bringup/` holds the other programs for the board.
+Host and QEMU checks live under `tests/`.
 
 | | | TCB |
 |---|---|---|
 | `components/parts/` | Pinned [jitsu-in](https://github.com/habakan/jitsu-in) submodule: reusable parser and signer modules. Their specifications and host examples are maintained in jitsu-in | **outside** |
 | `components/qr/` | QR decoder (submodule: [quirc](https://github.com/habakan/quirc), `mcu` branch, made fixed-point for CPUs without an FPU) | outside |
-| `apps/device/rp2350/` | The firmware: display (ST7789), buttons, camera (PIO + DMA) | inside |
-| `apps/device/ui/` | Builds the 240x240 screens, independent of where they are shown | inside |
-| `apps/device/runtime/` | The call boundary into `parser.wasm` (every offset and length is range-checked) and the WAMR platform layer | inside |
-| `tests/host/` | Integration hosts for macOS and QEMU | - |
+| `src/` | The firmware's entry point (`main.c`) and the pin assignment (`board_pins.h`) | inside |
+| `src/drivers/` | Display (ST7789), buttons, camera (PIO + DMA). Runs only on the board | inside |
+| `src/ui/` | Builds the 240x240 screens, independent of where they are shown | inside |
+| `src/runtime/` | The call boundary into `parser.wasm` (every offset and length is range-checked) and the WAMR platform layer | inside |
+| `bringup/` | Wiring checks and benchmarks: buttons, camera, PIO loopback, a PSBT round without UI | - |
+| `tests/` | Host (`host/`), QEMU (`qemu/`) and screen (`ui/`) checks | - |
 | `tools/` `docs/` | Build and verification tools, wiring diagrams, measurements, and design notes for this implementation |  - |
 
 Dependencies (`third_party/`, gitignored) are cloned by `make deps`: libsecp256k1, WAMR 2.4.3,

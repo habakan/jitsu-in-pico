@@ -104,16 +104,19 @@ make -C components/parts/parser check-fuzz  # 解析器へのファジング
 
 ## このリポジトリの内容
 
-`apps/` には Raspberry Pi Pico 2 のファームウェアだけを置く。ホスト・QEMU の連携検査は `tests/` に置く。
+`src/` が UF2 として配布するファーム本体、`bringup/` がそれ以外の実機用プログラム。
+ホスト・QEMU の検査は `tests/` に置く。
 
 | | | TCB |
 |---|---|---|
 | `components/parts/` | [jitsu-in](https://github.com/habakan/jitsu-in) の固定 submodule。再利用する parser / signer モジュールを含む。仕様とホスト実装例の管理先は jitsu-in | **外** |
 | `components/qr/` | QR デコーダ（submodule [quirc](https://github.com/habakan/quirc) の `mcu` ブランチ。FPU 無し向けに固定小数点化） | 外 |
-| `apps/device/rp2350/` | 実機のファーム。液晶（ST7789）、ボタン、カメラ（PIO + DMA） | 内 |
-| `apps/device/ui/` | 240x240 の画面を組む。表示先に依存しない | 内 |
-| `apps/device/runtime/` | parser.wasm の呼び出し口（線形メモリとの出入りを範囲検証する境界）と WAMR のプラットフォーム層 | 内 |
-| `tests/host/` | macOS / QEMU で動かす連携検査用ホスト | - |
+| `src/` | ファームの入口（`main.c`）とピン割り当て（`board_pins.h`） | 内 |
+| `src/drivers/` | 液晶（ST7789）、ボタン、カメラ（PIO + DMA）。実機でしか動かない | 内 |
+| `src/ui/` | 240x240 の画面を組む。表示先に依存しない | 内 |
+| `src/runtime/` | parser.wasm の呼び出し口（線形メモリとの出入りを範囲検証する境界）と WAMR のプラットフォーム層 | 内 |
+| `bringup/` | 配線確認と計測。ボタン、カメラ、PIO ループバック、UI なしの PSBT 一巡 | - |
+| `tests/` | ホスト（`host/`）、QEMU（`qemu/`）、画面（`ui/`）の検査 | - |
 | `tools/` `docs/` | ビルド・検証ツール、配線図、この実装の設計と実測の記録 | - |
 
 依存（`third_party/`、gitignore 済み）は `make deps` で clone する:

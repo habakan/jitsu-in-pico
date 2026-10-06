@@ -1,7 +1,9 @@
 cmake_minimum_required(VERSION 3.13)
 set(PICO_PLATFORM rp2350-riscv)
 set(PICO_BOARD pico2)
-set(ROOT ${CMAKE_CURRENT_LIST_DIR}/../../..)
+set(ROOT ${CMAKE_CURRENT_LIST_DIR})
+set(SRC ${ROOT}/src)
+set(BRINGUP ${ROOT}/bringup)
 
 # Only a build that asks for it can select the test seed
 set(TEST_SEED 0 CACHE STRING "allow selecting the BIP39 test vector seed")
@@ -11,7 +13,7 @@ project(signer_rp2350 C CXX ASM)
 pico_sdk_init()
 
 set(WAMR_ROOT_DIR ${ROOT}/third_party/wasm-micro-runtime)
-set(SHARED_PLATFORM_CONFIG ${ROOT}/apps/device/runtime/wamr-platform/rp2350/shared_platform.cmake)
+set(SHARED_PLATFORM_CONFIG ${SRC}/runtime/wamr-platform/shared_platform.cmake)
 set(WAMR_BUILD_PLATFORM rp2350)
 set(WAMR_BUILD_TARGET RISCV32_ILP32)
 if(NOT DEFINED WAMR_BUILD_AOT)
@@ -40,15 +42,15 @@ if(NOT DEFINED TESTNET)
 endif()
 set(QUIRC ${ROOT}/components/qr/quirc/lib)
 set(QUIRC_SRC ${QUIRC}/decode.c ${QUIRC}/identify.c ${QUIRC}/quirc.c ${QUIRC}/version_db.c)
-set(APP_SRC ${CMAKE_CURRENT_LIST_DIR}/app_main.c ${CMAKE_CURRENT_LIST_DIR}/st7789.c
-  ${CMAKE_CURRENT_LIST_DIR}/buttons.c ${ROOT}/apps/device/runtime/host-abi/parser_host.c ${ROOT}/apps/device/ui/ui.c ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c
+set(APP_SRC ${SRC}/main.c ${SRC}/drivers/st7789.c
+  ${SRC}/drivers/buttons.c ${SRC}/runtime/parser_host.c ${SRC}/ui/ui.c ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c
   ${ROOT}/components/parts/signer/core.c ${ROOT}/components/parts/signer/address.c ${ROOT}/components/parts/signer/bip32.c ${ROOT}/components/parts/signer/sighash.c ${ROOT}/components/parts/parser/c/src/tx.c
   ${ROOT}/components/parts/parser/c/src/sha256.c ${ROOT}/components/parts/signer/ripemd160.c ${ROOT}/components/parts/signer/sha512.c ${ROOT}/components/parts/signer/secp_callbacks.c ${ROOT}/components/parts/signer/seedqr.c
-  ${ROOT}/components/parts/signer/secp256k1_unity.c ${CMAKE_CURRENT_LIST_DIR}/camera.c ${CMAKE_CURRENT_LIST_DIR}/camera_ov7670.c
+  ${ROOT}/components/parts/signer/secp256k1_unity.c ${SRC}/drivers/camera.c ${SRC}/drivers/camera_ov7670.c
   ${QUIRC_SRC} ${WAMR_RUNTIME_LIB_SOURCE})
 foreach(t app app_nolcd)
   add_executable(${t} ${APP_SRC})
-  pico_generate_pio_header(${t} ${CMAKE_CURRENT_LIST_DIR}/camera.pio)
+  pico_generate_pio_header(${t} ${SRC}/drivers/camera.pio)
   target_compile_definitions(${t} PRIVATE PICO_BUILD=1 ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1
     ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1 COMB_BLOCKS=2 COMB_TEETH=5 PICO_STACK_SIZE=0x8000
     NO_LCD=$<STREQUAL:${t},app_nolcd> TEST_SEED=${TEST_SEED} TESTNET=${TESTNET}
@@ -56,8 +58,8 @@ foreach(t app app_nolcd)
     # __DATE__ in the binary info would make every UF2 differ from the released one
     PICO_NO_BI_PROGRAM_BUILD_DATE=1)
   target_compile_options(${t} PRIVATE -Wno-unused-function)
-  target_include_directories(${t} PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/components/parts/signer
-    ${ROOT}/apps/device/runtime/host-abi ${ROOT}/components/parts/parser/c/include ${ROOT}/apps/device/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include ${SECP}/src
+  target_include_directories(${t} PRIVATE ${SIGNER_WASM_H_DIR} ${SRC} ${SRC}/drivers ${ROOT}/components/parts/signer
+    ${SRC}/runtime ${ROOT}/components/parts/parser/c/include ${SRC}/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include ${SECP}/src
     ${QUIRC})
   target_link_libraries(${t} pico_stdlib pico_rand hardware_spi hardware_pio hardware_dma hardware_i2c hardware_clocks)
   pico_enable_stdio_uart(${t} 1)
@@ -80,24 +82,24 @@ target_link_options(qr_bench PRIVATE -Wl,--print-memory-usage)
 pico_add_extra_outputs(qr_bench)
 
 # Checks camera.pio's capture with no camera attached (make build/rp2350/pio_loopback_test.elf)
-add_executable(pio_loopback_test ${CMAKE_CURRENT_LIST_DIR}/pio_loopback_test.c)
-pico_generate_pio_header(pio_loopback_test ${CMAKE_CURRENT_LIST_DIR}/camera.pio)
-pico_generate_pio_header(pio_loopback_test ${CMAKE_CURRENT_LIST_DIR}/dvp_gen.pio)
-target_include_directories(pio_loopback_test PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+add_executable(pio_loopback_test ${BRINGUP}/pio_loopback_test.c)
+pico_generate_pio_header(pio_loopback_test ${SRC}/drivers/camera.pio)
+pico_generate_pio_header(pio_loopback_test ${BRINGUP}/dvp_gen.pio)
+target_include_directories(pio_loopback_test PRIVATE ${SRC} ${SRC}/drivers)
 target_link_libraries(pio_loopback_test pico_stdlib hardware_pio hardware_dma hardware_clocks)
 pico_enable_stdio_uart(pio_loopback_test 1)
 pico_enable_stdio_usb(pio_loopback_test 0)
 pico_add_extra_outputs(pio_loopback_test)
 
 # Checks the wiring (make build/rp2350/button_test.elf)
-add_executable(button_test ${CMAKE_CURRENT_LIST_DIR}/button_test.c)
+add_executable(button_test ${BRINGUP}/button_test.c)
 target_link_libraries(button_test pico_stdlib)
 pico_enable_stdio_uart(button_test 1)
 pico_enable_stdio_usb(button_test 0)
 pico_add_extra_outputs(button_test)
 
 # Times a full PSBT round on the hardware (make build/rp2350/psbt_bench.elf), with no screen or buttons
-add_executable(psbt_bench ${CMAKE_CURRENT_LIST_DIR}/psbt_bench.c ${ROOT}/apps/device/runtime/host-abi/parser_host.c ${ROOT}/apps/device/ui/ui.c
+add_executable(psbt_bench ${BRINGUP}/psbt_bench.c ${SRC}/runtime/parser_host.c ${SRC}/ui/ui.c
   ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c ${ROOT}/components/parts/signer/core.c ${ROOT}/components/parts/signer/address.c ${ROOT}/components/parts/signer/bip32.c
   ${ROOT}/components/parts/signer/sighash.c ${ROOT}/components/parts/parser/c/src/tx.c ${ROOT}/components/parts/parser/c/src/sha256.c ${ROOT}/components/parts/signer/ripemd160.c
   ${ROOT}/components/parts/signer/sha512.c ${ROOT}/components/parts/signer/secp_callbacks.c ${ROOT}/components/parts/signer/secp256k1_unity.c ${QUIRC_SRC}
@@ -110,8 +112,8 @@ target_compile_definitions(psbt_bench PRIVATE PICO_BUILD=1 POOL_KB=${PARSER_POOL
   ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1 ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1
   COMB_BLOCKS=2 COMB_TEETH=5)
 target_compile_options(psbt_bench PRIVATE -Wno-unused-function)
-target_include_directories(psbt_bench PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/components/parts/signer ${QUIRC}
-  ${ROOT}/apps/device/runtime/host-abi ${ROOT}/components/parts/parser/c/include ${ROOT}/apps/device/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include ${SECP}/src)
+target_include_directories(psbt_bench PRIVATE ${SIGNER_WASM_H_DIR} ${SRC} ${SRC}/drivers ${ROOT}/components/parts/signer ${QUIRC}
+  ${SRC}/runtime ${ROOT}/components/parts/parser/c/include ${SRC}/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include ${SECP}/src)
 target_link_libraries(psbt_bench pico_stdlib)
 pico_enable_stdio_uart(psbt_bench 1)
 pico_enable_stdio_usb(psbt_bench 0)
@@ -119,13 +121,13 @@ target_link_options(psbt_bench PRIVATE -Wl,--print-memory-usage)
 pico_add_extra_outputs(psbt_bench)
 
 # Camera bring-up (make build/rp2350/camera_test.elf): PIO picks out the Y and our quirc fork reads it
-add_executable(camera_test ${CMAKE_CURRENT_LIST_DIR}/camera_test.c ${CMAKE_CURRENT_LIST_DIR}/camera.c
-  ${CMAKE_CURRENT_LIST_DIR}/camera_ov7670.c ${CMAKE_CURRENT_LIST_DIR}/st7789.c
+add_executable(camera_test ${BRINGUP}/camera_test.c ${SRC}/drivers/camera.c
+  ${SRC}/drivers/camera_ov7670.c ${SRC}/drivers/st7789.c
   ${QUIRC_SRC})
-pico_generate_pio_header(camera_test ${CMAKE_CURRENT_LIST_DIR}/camera.pio)
+pico_generate_pio_header(camera_test ${SRC}/drivers/camera.pio)
 target_compile_definitions(camera_test PRIVATE QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH
   PICO_STACK_SIZE=0x8000)
-target_include_directories(camera_test PRIVATE ${CMAKE_CURRENT_LIST_DIR} ${QUIRC})
+target_include_directories(camera_test PRIVATE ${SRC} ${SRC}/drivers ${QUIRC})
 target_link_libraries(camera_test pico_stdlib hardware_pio hardware_dma hardware_i2c hardware_spi hardware_clocks)
 pico_enable_stdio_uart(camera_test 1)
 pico_enable_stdio_usb(camera_test 0)

@@ -363,7 +363,7 @@ also processing of untrusted input, so it belongs inside the sandbox.
 
 ## 11. Measured on the hardware (Pico 2 H, 150MHz, 2026-09-25)
 
-`apps/device/rp2350/psbt_bench.c`, with no screen and no buttons, runs a built-in test PSBT — two
+`bringup/psbt_bench.c`, with no screen and no buttons, runs a built-in test PSBT — two
 inputs, three outputs, P2WPKH and P2TR mixed — through a full round. The core is native in both
 columns; only how parser.wasm executes differs.
 
@@ -470,7 +470,7 @@ remains is detaching the SWD and a third-party review.
 2. ~~**Detaching the Debug Probe (SWD).**~~ Partly done (2026-10-03); see "Using this for real" below.
    What remains is deciding whether to disable SWD permanently
 3. **A third-party review.** `core_review` (the fee attack, deciding what is change),
-   `apps/device/runtime/host-abi` (the boundary with WASM) and the UR parsing have only ever been
+   `src/runtime/parser_host.c` (the boundary with WASM) and the UR parsing have only ever been
    checked by our own tests
 4. ~~**Randomness for Schnorr's aux.**~~ Done (2026-10-03); see "Defences around signing" below
 
