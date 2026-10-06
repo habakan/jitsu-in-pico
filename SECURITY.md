@@ -44,4 +44,5 @@ findings — but a concrete exploit of one of them still is:
 
 - An attached debug probe (SWD) can read the master key out of RAM while a seed is loaded.
   Measured and documented in [docs/architecture-b.md](docs/architecture-b.md).
-- Multisig, passphrases and PSBT v2 are not implemented. Unsupported input is rejected, not handled.
+- Multisig and BIP39 passphrase input are planned but not supported by the current firmware. PSBT v2
+  is also unsupported. The firmware rejects unsupported input rather than handling it.

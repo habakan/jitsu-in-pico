@@ -1,5 +1,7 @@
 # jitsu-in-pico
 
+<sup>[日本語](docs/ja/README.md)</sup>
+
 > **jitsu-in** — 実印, the seal that makes a signature binding in Japan; **pico** for the RP2350 it
 > runs on.
 
@@ -25,15 +27,15 @@ The device runs `parser.wasm` from jitsu-in. Its `Parser hash` screen shows the 
 | Terms and headings used in the docs | [docs/terms.md](docs/terms.md) (Japanese) |
 | Parser ABI and host examples | [jitsu-in parser documentation](https://github.com/habakan/jitsu-in/tree/main/parser) |
 
-A Japanese version is at [README.ja.md](README.ja.md). The design notes and measurements under
-`docs/` are still Japanese only.
+Most design notes and measurements under `docs/` are in Japanese. English pages are linked from the
+Japanese index at [docs/ja/README.md](docs/ja/README.md).
 
 ## Disclaimer
 
 **This software has not been reviewed by a third party. Do not put real funds through it.**
 
-It completes a signing round on signet, and every claim on this page is backed by a measurement in
-this repository — but that is not the same as having been attacked by someone other than its author.
+It completes a signing round on signet. The measurements on this page come from this repository;
+they do not show that anyone besides the author has tried to break it.
 What mainnet would require is listed in [docs/architecture-b.md](docs/architecture-b.md) §15; what
 the signer accepts, refuses and deliberately does not do is in
 [docs/limitations.md](docs/limitations.md).
@@ -58,7 +60,9 @@ went through that way ([how](docs/signet.md)).
 
 Verified in this repository on RP2350 hardware, macOS hosts, and QEMU.
 
-Not supported: multisig, passphrases, PSBT v2. Single-signature P2WPKH and P2TR only.
+The firmware currently supports single-signature P2WPKH and P2TR only. BIP39 passphrase input and
+multisig are planned, but are not available yet. The multisig script formats have not been decided.
+PSBT v2 is not supported.
 
 ## Try it
 
