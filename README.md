@@ -11,8 +11,7 @@
 UI and camera code, hardware documentation, and device integration checks. The reusable modules and
 cross-platform examples live in jitsu-in.
 
-The [browser viewer](https://github.com/habakan/jitsu-in/tree/main/examples/viewer) and the
-[Android sample](https://github.com/habakan/jitsu-in-android) are maintained separately.
+The [browser viewer](https://github.com/habakan/jitsu-in/tree/main/examples/viewer) is maintained in jitsu-in.
 
 <img src="components/parts/docs/everywhere.svg" alt="The same bytes run everywhere" width="940">
 
@@ -65,6 +64,11 @@ Not supported: multisig, passphrases, PSBT v2. Single-signature P2WPKH and P2TR 
 
 ### On hardware
 
+Prebuilt firmware is on the [Releases](https://github.com/habakan/jitsu-in-pico/releases) page:
+`jitsu-in-pico.uf2` for mainnet, `jitsu-in-pico-signet.uf2` for signet. Hold BOOTSEL while connecting
+the Pico 2 over USB and copy the UF2 onto the drive. Building it yourself gives the same bytes
+([docs/reproducible-build.md](docs/reproducible-build.md)).
+
 Parts and wiring: [docs/hardware.md](docs/hardware.md), [docs/breadboard.md](docs/breadboard.md) (Japanese).
 
 ```sh
@@ -91,7 +95,6 @@ make check-xpub        # account xpub and descriptor (official BIP84 vectors)
 make check-psbt        # a full PSBT round, UR round-trip, signatures verified with embit
 make check-ui          # screen construction
 make check-seedqr      # SeedQR reading, with ASan
-make check-host        # macOS: native / WAMR classic / fast
 make check-qemu-psbt   # the same round on RV32, output compared with the host
 make check-qemu-qr     # quirc instruction counts
 make check-qr-mac      # quirc vs zxing-cpp on the same images

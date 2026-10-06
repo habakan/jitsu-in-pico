@@ -8,6 +8,8 @@ Use GitHub's private vulnerability reporting on this repository
 ([Security → Report a vulnerability](https://github.com/habakan/jitsu-in-pico/security/advisories/new)),
 or email the maintainer. Public key: https://github.com/habakan.gpg
 
+Fingerprint: `8BD4 8DD6 70AF 9B34 7EA0  41CF 36D4 93A2 8A8B EB79`
+
 We aim to acknowledge a report within one week and to publish a fix within 90 days.
 If you do not hear back within a week, please escalate by opening a public issue that says only
 that you are waiting for a response — with no details of the problem.
@@ -18,7 +20,7 @@ that you are waiting for a response — with no details of the problem.
 - its potential impact (for example: theft of funds, leaking a key or an xpub, wrong information
   shown on the review screen, denial of service)
 - steps, an input, or code that reproduces it — a PSBT or a QR payload is ideal
-- which surface it affects: the device firmware, `parser.wasm`, the browser viewer, or the host tools
+- which surface it affects: the device firmware, its UI and camera code, or the host tools
 - a proposed patch, if you have one
 
 **Never include private keys, recovery phrases, or personally identifiable information** in a report.
@@ -27,12 +29,12 @@ reproduce, generate a throwaway one and say so.
 
 ## Scope
 
-This policy covers this repository and the components it pulls in as submodules:
+This policy covers this repository and our quirc fork
+([`mcu` branch](https://github.com/habakan/quirc)), which the firmware uses to read QR codes.
 
-- [jitsu-in](https://github.com/habakan/jitsu-in) — the PSBT and UR parser
-- [quirc (`mcu` branch)](https://github.com/habakan/quirc) — our fork of the QR decoder
-
-Report problems in any of them here.
+Problems in `parser.wasm`, `signer.wasm`, their host libraries or the browser viewer belong to
+[jitsu-in](https://github.com/habakan/jitsu-in/security/policy). If you are not sure which one is
+affected, report it here.
 
 ## What is already known
 
@@ -43,5 +45,3 @@ findings — but a concrete exploit of one of them still is:
 - An attached debug probe (SWD) can read the master key out of RAM while a seed is loaded.
   Measured and documented in [docs/architecture-b.md](docs/architecture-b.md).
 - Multisig, passphrases and PSBT v2 are not implemented. Unsupported input is rejected, not handled.
-- The browser viewer is a display and transport tool. It holds no keys, and what it shows is not
-  authoritative — the device screen is.

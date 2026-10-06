@@ -61,6 +61,9 @@
 
 ## 再現手順
 
+旧 `bitcoin-signer.wasm`（jitsu-in v0.1.0 で削除）を対象にした手順で、今のツリーでは動かない。
+再実行するときは `f2f61c6` を checkout する。
+
 ```
 make build/wamrc/wamrc                       # llvm@18（Homebrew）で wamrc をビルド
 rm -f build/signer_wasm.h && make check-qemu AOT=1 POOL_KB=64

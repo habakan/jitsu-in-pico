@@ -24,14 +24,6 @@ set(WAMR_BUILD_SIMD 0)
 set(WAMR_BUILD_REF_TYPES 0)
 include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
 
-add_executable(signer_wamr wamr_main.c ../../components/parts/signer/sha512.c ${WAMR_RUNTIME_LIB_SOURCE})
-target_include_directories(signer_wamr PRIVATE ${SIGNER_WASM_H_DIR} ../../components/parts/signer)
-target_compile_definitions(signer_wamr PRIVATE POOL_KB=256)
-# WAMR's interpreter uses ceilf, sqrt and friends. They are in libc on macOS but separate on Linux
-if(NOT APPLE)
-  target_link_libraries(signer_wamr m)
-endif()
-
 # A full round of parser.wasm plus the native core (make check-psbt)
 set(ROOT ${CMAKE_CURRENT_LIST_DIR}/../..)
 set(SECP ${ROOT}/third_party/secp256k1)

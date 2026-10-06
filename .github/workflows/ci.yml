@@ -5,23 +5,25 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 jobs:
   # That the artifacts can be rebuilt from public source. It is the basis of everything this project
   # claims, so it goes first
   reproducible-build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { submodules: recursive }
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v10.2.0
+        with: { enable-cache: false }
       - name: Dependencies (only what building the wasm needs)
         run: make deps-host
       - name: Are the dependencies at their pinned commits
         run: make check-deps
       - name: Fetch the toolchain (pinned by version and by hash)
         run: ./tools/toolchain.sh
-      - name: Rebuild three tracked wasm artifacts and compare against the recorded hashes
+      - name: Rebuild the two tracked wasm artifacts and compare against the recorded hashes
         run: make check-repro
       - name: Is what we ship the right shape (no imports, fixed memory, no mutable global exported)
         run: |
@@ -35,11 +37,12 @@ jobs:
 
   # The checks that run on a host
   tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with: { submodules: recursive }
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v10.2.0
+        with: { enable-cache: false }
       - name: Dependencies
         run: |
           sudo apt-get update -qq
@@ -75,4 +78,3 @@ jobs:
       - name: Compare against Core (the parse, and the signatures byte for byte)
         run: make check-core-diff
 
-  # The parser. It is a part in a repository of its own, so it runs as a job of its own

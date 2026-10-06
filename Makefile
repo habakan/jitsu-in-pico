@@ -15,19 +15,6 @@ WASM_OPT ?= wasm-opt
 # Passing it to the linker rejects dependencies that require SIMD or threads.
 LIME1 := mutable-globals,multivalue,sign-ext,nontrapping-fptoint,bulk-memory-opt,extended-const,call-indirect-overlong
 LIME_FLAGS := -mcpu=lime1 -Xlinker --features=$(LIME1)
-# SHA512_HOST=1 imports the SHA-512 compression function from the host
-SHA512_HOST ?= 0
-CFLAGS  := -Oz -Wall -Wno-unused-function -Icomponents/parts/signer -I$(SECP)/include -I$(SECP)/src $(SECP_DEFS) $(if $(filter 1,$(SHA512_HOST)),-DSHA512_HOST_COMPRESS)
-STACK   ?= 16384
-
-build/bitcoin-signer.wasm: components/parts/signer/signer.c components/parts/signer/sha512.c components/parts/signer/bip32.c components/parts/signer/secp_callbacks.c components/parts/signer/secp256k1_unity.c
-	mkdir -p build
-	$(LLVM)/clang --target=wasm32-wasip1 --sysroot=$(WASI) -nostartfiles -nodefaultlibs $(CFLAGS) $(LIME_FLAGS) \
-	  -Wl,--no-entry -Wl,--gc-sections -Wl,--strip-all -Wl,-z,stack-size=$(STACK) \
-	  -Wl,--export=__heap_base -Wl,--export=__data_end -Wl,--initial-memory=65536 -Wl,--no-growable-memory \
-	  --no-wasm-opt -Wl,--keep-section=target_features \
-	  -o $@ components/parts/signer/signer.c components/parts/signer/sha512.c components/parts/signer/bip32.c components/parts/signer/secp_callbacks.c components/parts/signer/secp256k1_unity.c -lc $(RTLIB)/libclang_rt.builtins.a
-	$(WASM_OPT) $@ -Oz -o $@
 
 # The signer module validates, displays, and signs a plan_t; it pairs with parser.wasm.
 # The device runs the same core.c natively so keys stay on the native side.
@@ -53,7 +40,15 @@ clean:
 	rm -rf build
 .PHONY: clean
 
-RISCV_TC_URL := https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.3.1-0/riscv-toolchain-16-mac.zip
+RISCV_TC_REL := https://github.com/raspberrypi/pico-sdk-tools/releases/download/v2.3.1-0
+ifeq ($(shell uname -s),Darwin)
+RISCV_TC_PKG := riscv-toolchain-16-mac.zip
+RISCV_TC_SUM := 186538414857e31012aaa41f5f7ecfdee5bbd42fe3f4ec047232ac06d35a24c1
+else
+RISCV_TC_PKG := riscv-toolchain-16-x86_64-lin.tar.gz
+RISCV_TC_SUM := fc36f1b37f99de54a358115443638023de34e15fe199e718e50cca4d212e7e9f
+endif
+
 # Pin every dependency to a commit, especially code that handles keys; never track the tip of a branch.
 # Review the diff before updating a pin.
 SECP_REV   := 46db787112beabdb5e17e0dc35680716f1057e7b
@@ -78,7 +73,11 @@ deps:
 	$(call clone_at,QR-Code-generator,https://github.com/nayuki/QR-Code-generator.git,$(QRGEN_REV))
 	$(call clone_at,spleen,https://github.com/fcambus/spleen.git,$(SPLEEN_REV))
 	cd third_party/pico-sdk && git submodule update --init --depth 1 lib/tinyusb 2>/dev/null || true
-	curl -sL -o third_party/rv.zip $(RISCV_TC_URL) && unzip -q third_party/rv.zip -d third_party/riscv-toolchain && rm third_party/rv.zip
+	curl -sL -o third_party/$(RISCV_TC_PKG) $(RISCV_TC_REL)/$(RISCV_TC_PKG)
+	cd third_party && echo "$(RISCV_TC_SUM)  $(RISCV_TC_PKG)" | (shasum -a 256 -c 2>/dev/null || sha256sum -c)
+	mkdir -p third_party/riscv-toolchain && cd third_party && case $(RISCV_TC_PKG) in \
+	  *.zip) unzip -q $(RISCV_TC_PKG) -d riscv-toolchain ;; *) tar xzf $(RISCV_TC_PKG) -C riscv-toolchain ;; esac
+	rm third_party/$(RISCV_TC_PKG)
 	$(MAKE) patch-deps
 
 # Dependencies for CI host checks; excludes hardware and QEMU requirements
@@ -110,77 +109,19 @@ patch-deps:
 	  else git apply $$p && echo "wamr: パッチ適用"; fi
 .PHONY: deps patch-deps
 
-# AOT=1 compiles an RV32 .aot with wamrc and executes it from flash via XIP; --bounds-checks=1 protects linear memory without an MMU.
-# Limit XIP helper calls to division and remainder; RV32 handles i64 multiply and shifts directly.
-AOT     ?= 0
 WAMRC   := build/wamrc/wamrc
-WAMRC_FLAGS ?= --target=riscv32 --target-abi=ilp32 --cpu=generic-rv32 --cpu-features=+m,+a,+c,+zba,+zbb,+zbs \
-  --bounds-checks=1 --xip --enable-builtin-intrinsics=i64.div_s,i64.div_u,i64.rem_s,i64.rem_u,i32.const,f32.common,f64.common
-SIGNER_BIN := build/bitcoin-signer.$(if $(filter 1,$(AOT)),aot,wasm)
-
 $(WAMRC):
 	cmake -S third_party/wasm-micro-runtime/wamr-compiler -B build/wamrc -G Ninja -DCMAKE_BUILD_TYPE=Release \
 	  -DWAMR_BUILD_WITH_CUSTOM_LLVM=1 -DLLVM_DIR=/opt/homebrew/opt/llvm@18/lib/cmake/llvm >/dev/null
 	ninja -C build/wamrc >/dev/null
 
-build/bitcoin-signer.aot: build/bitcoin-signer.wasm $(WAMRC)
-	$(WAMRC) $(WAMRC_FLAGS) -o $@ $< >/dev/null
-
-build/signer_wasm.h: $(SIGNER_BIN)
-	xxd -i -n signer_wasm $< $(if $(filter 1,$(AOT)),| sed 's/^unsigned char/const unsigned char/') > $@
-
-build/native: tests/host/native.c components/parts/signer/signer.c components/parts/signer/sha512.c components/parts/signer/bip32.c components/parts/signer/secp_callbacks.c components/parts/signer/secp256k1_unity.c
-	mkdir -p build && cc -O2 -Wall -Wno-unused-function -Icomponents/parts/signer -I$(SECP)/include -I$(SECP)/src $(SECP_DEFS) -o $@ $^
-
-build/host-%/signer_wamr: build/signer_wasm.h tests/host/wamr_main.c tests/host/CMakeLists.txt
-	cmake -S tests/host -B build/host-$* -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
-	  -DWAMR_BUILD_FAST_INTERP=$(if $(filter fast,$*),1,0) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
-	ninja -C build/host-$*
-
-check-host: build/native build/host-classic/signer_wamr build/host-fast/signer_wamr
-	build/native
-	build/host-classic/signer_wamr
-	build/host-fast/signer_wamr
-.PHONY: check-host
-
 RISCV_TC ?= $(CURDIR)/third_party/riscv-toolchain
-build/rp2350/signer.elf: build/signer_wasm.h tests/host/wamr_main.c apps/device/rp2350/CMakeLists.txt runtime/wamr-platform/rp2350/rp2350_platform.c
-	cmake -S apps/device/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
-	  -DPICO_SDK_PATH=$(CURDIR)/third_party/pico-sdk -DPICO_TOOLCHAIN_PATH=$(RISCV_TC) \
-	  -DWAMR_BUILD_AOT=$(AOT) -DPOOL_KB=$(RP2350_POOL_KB) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
-	ninja -C build/rp2350
 
-POOL_KB ?= 128
-RP2350_POOL_KB ?= 48
 PARSER_POOL_KB ?= 256
 TESTNET ?= 0
 # Allow selecting the test seed; keep this at 0 for production builds.
 TEST_SEED ?= 0
-FAST    ?= 0
-QEMU_DIR := build/qemu-fast$(FAST)-aot$(AOT)-$(POOL_KB)
-$(QEMU_DIR)/signer.elf: build/signer_wasm.h tests/host/wamr_main.c tests/host/qemu-riscv32/CMakeLists.txt runtime/wamr-platform/rp2350/rp2350_platform.c
-	cmake -S tests/host/qemu-riscv32 -B $(QEMU_DIR) -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
-	  -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
-	  -DCMAKE_C_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc -DCMAKE_ASM_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc \
-	  -DPOOL_KB=$(POOL_KB) -DWAMR_BUILD_FAST_INTERP=$(FAST) -DWAMR_BUILD_AOT=$(AOT) -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
-	ninja -C $(QEMU_DIR) >/dev/null
-
 QEMU_CPU := rv32,f=off,d=off,zfa=off,zba=on,zbb=on,zbs=on,zbkb=on,zcb=on,zcmp=on,zcmt=off
-check-qemu: $(QEMU_DIR)/signer.elf
-	qemu-system-riscv32 -M virt -cpu $(QEMU_CPU) -m 64M -nographic -bios none -semihosting -icount shift=0 \
-	  -kernel $< </dev/null
-.PHONY: check-qemu
-
-# For comparison: run the same signer natively on RV32 without WASM.
-build/qemu-native.elf: tests/host/native.c components/parts/signer/signer.c components/parts/signer/sha512.c components/parts/signer/bip32.c components/parts/signer/secp_callbacks.c components/parts/signer/secp256k1_unity.c tests/host/qemu-riscv32/start.S
-	$(RISCV_TC)/bin/riscv32-pico-elf-gcc -mcpu=hazard3-rp2350 -Os -DQEMU_BUILD=1 -Wall -Wno-unused-function \
-	  -Icomponents/parts/signer -I$(SECP)/include -I$(SECP)/src $(SECP_DEFS) --specs=semihost.specs -Wl,--section-start=.qemu_start=0x80000000 \
-	  -Wl,-Ttext=0x80001000 -Wl,-e,qemu_start -Wl,--gc-sections -o $@ $^
-
-check-qemu-native: build/qemu-native.elf
-	qemu-system-riscv32 -M virt -cpu $(QEMU_CPU) -m 64M -nographic -bios none -semihosting -icount shift=0 \
-	  -kernel $< </dev/null
-.PHONY: check-qemu-native
 
 # Default to the fixed-point fork on the mcu submodule branch.
 # To compare with upstream, pass QUIRC=third_party/quirc/lib QUIRC_DEFS=.
@@ -267,7 +208,7 @@ build/parser.wasm: components/parts/parser/c/src/*.c components/parts/parser/c/i
 
 # Rebuild the WASM artifacts used by the device with pinned tools and compare their hashes.
 SDK = $(shell ./tools/toolchain.sh)
-REPRO_WASM := build/bitcoin-signer.wasm build/parser.wasm build/signer.wasm
+REPRO_WASM := build/parser.wasm build/signer.wasm
 
 # Check that the distributable WASM modules have the expected shape; requires wasm-tools.
 check-wasm: $(REPRO_WASM)
@@ -307,7 +248,7 @@ build/psbt/own_p2wpkh_1in.psbt: tools/gen_psbt_vectors.py
 build/font8x16.h: tools/gen_font.py
 	mkdir -p build && python3 $< third_party/spleen/spleen-8x16.bdf $@
 
-build/host-classic/psbt_host: build/parser_wasm.h build/signer_wasm.h build/font8x16.h tests/host/psbt_main.c tests/host/CMakeLists.txt \
+build/host-classic/psbt_host: build/parser_wasm.h build/font8x16.h tests/host/psbt_main.c tests/host/CMakeLists.txt \
   apps/device/runtime/host-abi/parser_host.c apps/device/ui/ui.c $(CORE_SRC) components/parts/parser/c/include/*.h
 	cmake -S tests/host -B build/host-classic -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel -DWAMR_BUILD_FAST_INTERP=0 \
 	  -DSIGNER_WASM_H_DIR=$(CURDIR)/build >/dev/null
@@ -390,7 +331,7 @@ check-psbt: build/host-classic/psbt_host build/psbt/own_p2wpkh_1in.psbt build/ps
 	uv run -q tools/check_signed_psbt.py build/psbt
 .PHONY: check-psbt
 
-check-qemu-psbt: build/parser_wasm.h build/signer_wasm.h build/font8x16.h build/psbt/own_mixed_nwu.ur
+check-qemu-psbt: build/parser_wasm.h build/font8x16.h build/psbt/own_mixed_nwu.ur
 	cmake -S tests/host/qemu-riscv32 -B build/qemu-psbt -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
 	  -DCMAKE_SYSTEM_NAME=Generic -DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
 	  -DCMAKE_C_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc -DCMAKE_ASM_COMPILER=$(RISCV_TC)/bin/riscv32-pico-elf-gcc \
@@ -425,7 +366,7 @@ build/test_psbt.h: build/psbt/own_p2wpkh_1in.psbt
 	cp build/psbt/own_mixed_nwu.psbt build/test_psbt.bin && cd build && xxd -i -n test_psbt test_psbt.bin \
 	  | sed 's/^unsigned char/const unsigned char/' > test_psbt.h
 
-build/rp2350/app.elf: build/parser_wasm.h build/signer_wasm.h build/font8x16.h build/test_psbt.h build/bip39_words.h \
+build/rp2350/app.elf: build/parser_wasm.h build/font8x16.h build/test_psbt.h build/bip39_words.h \
   apps/device/rp2350/app_main.c apps/device/rp2350/st7789.c apps/device/rp2350/buttons.c apps/device/rp2350/CMakeLists.txt \
   apps/device/runtime/host-abi/parser_host.c apps/device/ui/ui.c $(CORE_SRC) components/parts/parser/c/include/*.h
 	cmake -S apps/device/rp2350 -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \

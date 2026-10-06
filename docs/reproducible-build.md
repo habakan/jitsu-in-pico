@@ -10,13 +10,12 @@ is a claim rather than something you can check.
 make check-repro
 ```
 
-This downloads a toolchain pinned by version and hash into `build/toolchain/`, rebuilds the three
+This downloads a toolchain pinned by version and hash into `build/toolchain/`, rebuilds the two
 WASM artifacts used by this repository, and compares them against `checksums.txt`.
 
 ```
-21ea6dbc…  build/parser.wasm           the parser loaded by the device
-6f05069b…  build/signer.wasm           keys, derivation and signing, as a wasm component
-94f92d82…  build/bitcoin-signer.wasm   the signing primitives alone; what the RV32 benchmark exercises
+7c89bf15…  build/parser.wasm   the parser loaded by the device
+96b78cd6…  build/signer.wasm   keys, derivation and signing, as a wasm component
 ```
 
 ## What is pinned
@@ -126,8 +125,21 @@ mean the library holding the keys varies by the day it was fetched.
 
 Moving one means reading the diff, then changing the matching `*_REV` in the `Makefile`.
 
+## The firmware
+
+The released UF2s are built the same way, with the RISC-V toolchain pinned by hash in `make deps`:
+
+```sh
+make deps && ./tools/toolchain.sh && make check-repro
+make build/rp2350/app.elf               # build/rp2350/app.uf2, mainnet
+rm -rf build/rp2350 && make build/rp2350/app.elf TESTNET=1   # signet
+```
+
+macOS arm64 and Linux x86_64 give the same UF2, from different directories (2026-10-06). The one thing
+that differed was the build date pico-sdk writes into the binary info, so the firmware turns it off
+(`PICO_NO_BI_PROGRAM_BUILD_DATE=1`).
+
 ## Not done yet
 
 - The toolchain comes from GitHub releases. Whether those tarballs are themselves reproducible is
   upstream's business
-- A reproducible build of the whole device firmware, pico-sdk and WAMR included, has not been started

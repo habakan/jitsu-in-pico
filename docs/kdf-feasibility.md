@@ -63,6 +63,9 @@
 
 ## 再現手順
 
+旧 `bitcoin-signer.wasm`（jitsu-in v0.1.0 で削除）を対象にした手順で、今のツリーでは動かない。
+再実行するときは `f2f61c6` を checkout する。
+
 ```
 make check-host                              # Mac: ネイティブ / WAMR classic / fast
 make check-qemu-native                       # RV32 ネイティブ
