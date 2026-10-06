@@ -9,13 +9,13 @@
 ## 取引
 
 - **PSBT v0 のみ**（BIP174）に対応しています。v2 は拒否します。
-- **単署名のみ**に対応しています。P2WPKH（BIP84）と P2TR key-path（BIP86）を扱います。マルチシグは未実装です。未検証という意味ではありません。
-- **パスフレーズ**（BIP39 の追加語）には対応していません。
+- **単署名のみ**に対応しています。P2WPKH（BIP84）と P2TR key-path（BIP86）を扱います。マルチシグ対応を予定していますが、対応するスクリプト形式は未定です。
+- **[BIP39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) パスフレーズ入力**は今後対応予定ですが、現行ファームウェアでは使えません。共通 `signer.wasm` の ABI はパスフレーズを受け取れますが、Pico のファームウェアは空のパスフレーズで seed を導出します。
 - 入力と出力はそれぞれ最大 **16 件**、PSBT は最大 **32,768 byte** です。
 - scriptPubKey は最大 **83 byte** です（標準の OP_RETURN 上限です。P2TR と P2WSH は 34 byte です）。
 - Taproot の script-path 支払い、miniscript、nLockTime の引き継ぎを超えるタイムロックには対応していません。
 - 各入力には `witness_utxo` または `non_witness_utxo` が必要です。両方ある場合は、前トランザクションのハッシュが指定 txid と一致し、その出力が `witness_utxo` と一致することを確認します。
-- 署名は**決定的**で、同じ PSBT から同じバイト列を生成します。BIP340 の `aux_rand` は Bitcoin Core、Trezor、Jade、BDK と同じくゼロです。BIP340 に明記されている通り、マルチシグを追加すると安全でなくなるため、その際は必ず見直してください。
+- 署名は**決定的**で、同じ PSBT から同じバイト列を生成します。[BIP340](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki) の `aux_rand` は Bitcoin Core、Trezor、Jade、BDK と同じくゼロです。マルチシグの署名では決定的 nonce を使えないため、対応前に nonce 生成方式を見直す必要があります。
 
 ## 署名前にデバイスが確認すること
 

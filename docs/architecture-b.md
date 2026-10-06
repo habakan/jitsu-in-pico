@@ -118,7 +118,7 @@ to the PSBT. It only establishes two things:
 2. **First targets:** P2WPKH (BIP84) and P2TR (BIP86, no script tree)
 3. **parser.wasm's runtime:** the interpreter. Measured on RV32 after implementation: 2.7M instructions
    to parse a PSBT and 40k to insert the signatures (§10), which is plenty
-4. **multisig:** not in the first version
+4. **multisig:** not in the first version; planned for a later version, with the script formats still to be decided
 
 ## 9. The Plan's layout (proposed)
 
@@ -589,7 +589,7 @@ The cost is 2,552 bytes of flash. **Deterministic nonces become unsafe with mult
 
 5. **Reading speed.** 120ms to capture a frame plus 62ms to decode gives an effective 2.5fps. Running
    capture and decode on the two cores in parallel would double it
-6. **Entering a passphrase**, BIP39's 25th word. Only empty is supported now
+6. **Entering a BIP39 passphrase.** Planned; the current firmware derives the seed with an empty passphrase
 7. Legibility. Drawing just the amounts and addresses double width would help
 8. Soldering the joystick. Two buttons do suffice, but going back would be easier
 

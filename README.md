@@ -60,7 +60,9 @@ went through that way ([how](docs/signet.md)).
 
 Verified in this repository on RP2350 hardware, macOS hosts, and QEMU.
 
-Not supported: multisig, passphrases, PSBT v2. Single-signature P2WPKH and P2TR only.
+The firmware currently supports single-signature P2WPKH and P2TR only. BIP39 passphrase input and
+multisig are planned, but are not available yet. The multisig script formats have not been decided.
+PSBT v2 is not supported.
 
 ## Try it
 

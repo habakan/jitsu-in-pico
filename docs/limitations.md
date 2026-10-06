@@ -11,17 +11,18 @@ Not reviewed by a third party. signet only. See [Disclaimer](../README.md#discla
 ## Transactions
 
 - **PSBT v0 only** (BIP174). v2 is rejected.
-- **Single-signature only.** P2WPKH (BIP84) and P2TR key-path (BIP86). Multisig is not implemented —
-  not "untested", not present.
-- **No passphrase** (BIP39 25th word).
+- **Single-signature only.** The firmware supports P2WPKH (BIP84) and P2TR key-path (BIP86).
+  Multisig support is planned, but the script formats have not been decided.
+- **[BIP39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) passphrase input is planned but not available in the firmware yet.** The shared `signer.wasm`
+  interface accepts a passphrase; the Pico firmware currently derives the seed with an empty passphrase.
 - At most **16 inputs and 16 outputs**, and a PSBT of at most **32,768 bytes**.
 - scriptPubKey at most **83 bytes** (the standard OP_RETURN limit; P2TR and P2WSH are 34).
 - Script-path taproot spends, miniscript, and time locks beyond nLockTime passthrough are not handled.
 - Every input must carry `witness_utxo` or `non_witness_utxo`. When both are present, the previous
   transaction must hash to the stated txid and its output must match the `witness_utxo`.
 - Signatures are **deterministic**: the same PSBT always produces the same bytes. BIP340 `aux_rand`
-  is zero, as in Bitcoin Core, Trezor, Jade and BDK. **This becomes unsafe if multisig is ever added**
-  (BIP340 says so explicitly), so that change must revisit it.
+  is zero, as in Bitcoin Core, Trezor, Jade and BDK. Before adding multisig, the nonce strategy must
+  change: [BIP340](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki) says multisignature schemes are insecure with deterministic nonce generation.
 
 ## What the device checks before it signs
 
