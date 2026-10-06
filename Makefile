@@ -420,11 +420,12 @@ everywhere:
 # Generate diagrams from the wiring data. wiring shows signal connections (WireViz and Graphviz); breadboard shows hole positions.
 wiring: docs/wiring.yml
 	uv run -q --with wireviz wireviz $< -o build/wiring
+	cp build/wiring/wiring.svg docs/wiring.svg
 	open build/wiring/wiring.html
 
 breadboard: docs/breadboard.yml tools/draw_breadboard.py
-	uv run -q tools/draw_breadboard.py $< build/breadboard.svg
-	open build/breadboard.svg
+	uv run -q tools/draw_breadboard.py $< docs/breadboard.svg
+	open docs/breadboard.svg
 .PHONY: wiring breadboard
 
 # Read the Debug Probe UART at 115200bps; set a duration with SECONDS=10.

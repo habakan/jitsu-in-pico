@@ -25,8 +25,6 @@ signet で署名から送信まで一巡しました。ここに載せた数値�
 
 ブラウザの [PSBT ビューア](https://github.com/habakan/jitsu-in/tree/main/examples/viewer) は jitsu-in 側で管理しています。
 
-<img src="../../components/parts/docs/everywhere.svg" alt="The same bytes run everywhere" width="940">
-
 デバイスが使う `parser.wasm` は jitsu-in の成果物です。画面の `Parser hash` と
 `make check-repro` の記録を突き合わせられます。
 
@@ -63,7 +61,7 @@ signet で署名から送信まで一巡しました。ここに載せた数値�
 つなぎ、表示されたドライブに UF2 をコピーしてください。自分でビルドした場合も同じバイト列になります
 （[再現可能ビルド](reproducible-build.md)をご覧ください）。
 
-部品と配線は [hardware.md](../hardware.md)（英語）、実配線は [breadboard.md](../breadboard.md) をご覧ください。
+部品と論理的なピン割り当ては [hardware.md](../hardware.md)（英語）、実配線は [breadboard.md](breadboard.md)（日本語）をご覧ください。
 
 ```sh
 make deps-openocd                 # 一度だけ。SWD 書き込み用（Raspberry Pi のフォーク）
@@ -144,7 +142,7 @@ pico-sdk 2.3.1、QR-Code-generator、spleen フォント、RISC-V ツールチ�
 | [再現可能ビルド](reproducible-build.md) | ビルド成果物の再現方法 |
 | [signet での送金手順](../signet.md) | bitcoin-cli によるウォッチオンリー運用 |
 | [feasibility](../feasibility.md) ほか（日本語） | RP2350 のサイズ・速度、BIP39 / BIP32、AOT、QR の計測 |
-| [hardware](../hardware.md)（英語）・[breadboard](../breadboard.md)（日本語） | 部品と配線、実配線図 |
+| [hardware](../hardware.md)（英語）・[breadboard](../breadboard.md)（英語）・[breadboard](breadboard.md)（日本語） | 部品と配線、実配線図 |
 | [用語と文書の書き方](../terms.md) | 文書で使う用語と章立て |
 
 AOT の XIP が 7 倍遅いこと、WAMR の非整列 `i64.store`、`wasm-opt` が PATH にあるだけで成果物が
