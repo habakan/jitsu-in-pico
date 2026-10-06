@@ -1,33 +1,45 @@
-# The prototype hardware and its wiring
+# Current hardware and wiring
 
-As of 2026-09-22. Built from parts bought at Akizuki Denshi: a Pico 2 H, a Debug Probe, a 1.54 inch
-ST7789 panel, an OV7670 board, a five-way switch kit and three tactile switches. The pin assignment
-has to match `src/board_pins.h`. Always compare the silkscreen on the actual part
-against its pin numbers before wiring anything.
+## Parts for the current build
 
-## GPIO assignment (Pico 2, using all 26 available pins)
+| Part | Model / type | Qty. | Notes |
+|---|---|---:|---|
+| Microcontroller board | Raspberry Pi Pico 2 H (RP2350) | 1 | Main board |
+| Breadboard | EIC-102J | 1 | Pico 2 H, display, switches, and wiring |
+| Display | M154-240240-RGB (ST7789V, 1.54 inch) | 1 | Header fitted; no soldering needed |
+| Camera | OV7675 board, Arducam B0070 | 1 | 3.3V supply; connected with male-to-female jumper wires |
+| Tactile switches | TVDP01-G73BB | 2 | Next and approve; a third switch is spare |
+| Debug probe | Raspberry Pi Debug Probe | 1 | SWD flashing and UART logs; includes the SH-SH SWD cable |
+| USB cables | Data cables for the Pico and Debug Probe | 2 | One for each board |
+| Jumper wires | Male-to-male and male-to-female | As needed | For signal and power connections |
+
+The pin assignment must match `src/board_pins.h`. Always compare the silkscreen on the actual part
+against its pin numbers before wiring anything. The OV7670 and OV2640 boards and the joystick below
+are alternatives or earlier experiments; they are not part of this build.
+
+## GPIO assignment in the current build
 
 | GPIO | pin | what | goes to |
 |---|---|---|---|
 | GP0 | 1 | UART0 TX | the Debug Probe's UART "RX" |
-| GP1 | 2 | button C | tactile switch to GND (UART RX is unused) |
+| GP1 | 2 | unused | spare |
 | GP2-GP9 | 4-7, 9-12 | camera D0-D7 | consecutive, because PIO reads all eight as a run |
 | GP10 | 14 | camera PCLK | |
 | GP11 | 15 | camera HREF | |
 | GP12 | 16 | camera VSYNC | |
-| GP13 | 17 | joystick UP (A) | |
+| GP13 | 17 | unused | spare |
 | GP14 | 19 | camera SIO-D (I2C1 SDA) | |
 | GP15 | 20 | camera SIO-C (I2C1 SCL) | |
 | GP16 | 21 | panel DC | |
-| GP17 | 22 | joystick DOWN (D) | |
+| GP17 | 22 | next button | tactile switch to GND |
 | GP18 | 24 | panel SCL (SPI0 SCK) | |
 | GP19 | 25 | panel SDA (SPI0 TX) | |
-| GP20 | 26 | joystick LEFT (C) | |
+| GP20 | 26 | unused | spare |
 | GP21 | 27 | camera XCLK (CLOCK GPOUT0) | OV7670 / OV7675 only; spare on an OV2640 board with a crystal |
-| GP22 | 29 | joystick RIGHT (B) | |
-| GP26 | 31 | joystick SW (press in) | |
-| GP27 | 32 | button A (cancel) | tactile switch to GND |
-| GP28 | 34 | button B | tactile switch to GND |
+| GP22 | 29 | unused | spare |
+| GP26 | 31 | approve button | tactile switch to GND |
+| GP27 | 32 | unused | spare |
+| GP28 | 34 | unused | spare |
 
 Things to watch when building this on a breadboard:
 
@@ -40,7 +52,7 @@ Things to watch when building this on a breadboard:
 - On the TVDP01-G73BB tactile switches, the two pins that straddle the channel turned out to be the
   connected pair: pressing joins row n to row n+2. Take GND from row n and the signal from row n+2.
   If one does not respond, `button_test.uf2` shows which GPIO actually goes low
-- Just stepping through the review screens needs only two: "next" (GP17) and "approve" (GP26)
+- The current build uses two buttons to step through the review screens: "next" (GP17) and "approve" (GP26)
 
 - GP23 (power control), GP24 (VBUS sense), GP25 (LED) and GP29 (VSYS monitor) are used by the board
   itself and not brought out
@@ -48,11 +60,8 @@ Things to watch when building this on a breadboard:
   against the FUNCSEL tables in pico-sdk's `io_bank0.h`
 - Signals that are tied off: panel CS to GND, panel RES to 3V3, panel BLK to 3V3, camera RESET to the
   camera's I/O supply, camera PWDN to GND
-- 3V3(OUT) (pin 36) feeds the panel, the joystick and the camera. GND is on pins 3, 8, 13, 18, 23, 28,
+- 3V3(OUT) (pin 36) feeds the panel and the camera. GND is on pins 3, 8, 13, 18, 23, 28,
   33 and 38
-
-If the pins run out, the first thing to give up is button C: move the panel's CS to GP1. That is also
-the way out if tying CS low turns out to break SPI synchronisation.
 
 The wiring of the breadboard as actually built is in [docs/breadboard.md](breadboard.md).
 
@@ -74,7 +83,7 @@ The wiring of the breadboard as actually built is in [docs/breadboard.md](breadb
 Because CS is tied off, SPI runs in mode 3 (CPOL=1, CPHA=1) — see `src/drivers/st7789.c`.
 If the image is mirrored or offset, the things to fix are `MADCTL` (0x36) and the window setup.
 
-### The AE-SKRHAAE010-BO joystick (8 pins, needs soldering)
+### Optional: the AE-SKRHAAE010-BO joystick (8 pins, needs soldering)
 
 Checked against Akizuki's schematic (`AE-SKRHAAE010-BO.pdf`). Every direction and the press are
 already pulled up to +V through 10k and go to GND when pressed.
@@ -89,13 +98,14 @@ already pulled up to +V through 10k and go to GND when pressed.
 | C (LEFT) | GP20 |
 | D (DOWN) | GP17 |
 
-### Three tactile switches
+### Tactile switches (two used)
 
-One side to a GPIO (GP27, GP28 or GP1), the other to GND. The pull-ups are the RP2350's internal ones.
+The current build uses two TVDP01-G73BB switches: next on GP17 and approve on GP26. One side goes to
+the GPIO and the other to GND; the RP2350's internal pull-ups are enabled.
 
 ### The camera
 
-#### The OV7670 board, ST-HL-08-V1 (bought, 24-pin DIP)
+#### Alternative: the OV7670 board, ST-HL-08-V1 (24-pin DIP)
 
 Pin assignment per Akizuki's reference document: 1 AVDD, 2 AGND, 3 DOGND, 4 DVDD, 5 DOVDD, 6 PWDN,
 7 RESET, 8 STROBE, 9 VSYNC, 10 PCLK, 11 SIO-C, 12 SIO-D, 13 XCLK, 14 HREF, 15 VREF1, 16 VREF2,
@@ -118,13 +128,13 @@ Akizuki's document says needs extra parts:
 Akizuki has no TO-92 part for the 3.0V LDO, so that one means soldering a surface-mount package. The
 lens is fixed focus, and the datasheet's depth of field is about 20cm.
 
-#### An alternative: the OV7675 board, Arducam B0070 (Akizuki, single 3.3V supply)
+#### Current camera: the OV7675 board, Arducam B0070 (single 3.3V supply)
 
-https://akizukidenshi.com/catalog/g/g113201/ (¥1,080). The signals are the same 8-bit parallel as the
-OV7670 (VSYNC / HREF / PCLK / XCLK / SCL / SDA) and work with the GPIO assignment above. It needs no
-added power supply, so it is the one to try first.
+https://akizukidenshi.com/catalog/g/g113201/. The signals are the same 8-bit parallel set as the
+OV7670 (VSYNC / HREF / PCLK / XCLK / SCL / SDA) and work with the GPIO assignment above. This is the
+camera used in the current build; it needs no added power supply.
 
-#### The one actually wanted: an OV2640 board (Nissho Technology, 18 pins, 3.3V)
+#### Alternative: an OV2640 board (Nissho Technology, 18 pins, 3.3V)
 
 https://www.csun.co.jp/SHOP/2022031501.html (¥1,045, low stock). It carries a 12MHz crystal, so XCLK
 (GP21) is not needed. The M12 mount lens should focus by turning, though the page does not say so
@@ -188,8 +198,8 @@ sometimes refuse the `cp`, in which case drag it in Finder.
   and 25MHz, including starting mid-frame, and every captured pixel matched the Y that was generated.
   25MHz is the same rate as the XCLK given to an OV7670; a 64x8 frame's theoretical 61µs measured 65µs
 - XCLK is the clock output on GP21 (150MHz / 6 = 25MHz). SCCB is I2C1 at 100kHz
-- The only sensor configuration is `camera_ov7670.c`, the usual QVGA YUV set. Settings for the OV7675
-  and OV2640 get added once the part is settled; both will need tuning on the hardware
+- `camera_ov7670.c` provides the current QVGA YUV configuration, which has been verified with the
+  OV7675 board. The OV2640 needs a separate configuration and has not been tested
 - Verification without hardware: `make check-camera-sim` runs pioasm's output through a minimal PIO
   simulator. Against a synthesised DVP waveform (VSYNC, HREF, blanking, HREF arriving late, starting
   mid-frame) the captured pixels match the Y. A version with the end-of-row HREF wait removed fails on
