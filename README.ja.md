@@ -11,8 +11,7 @@
 ファームウェア、基板固有の UI・カメラ処理、配線資料、実機連携の検証を置いている。
 再利用モジュールと言語別の利用例は jitsu-in 側で管理する。
 
-ブラウザの [PSBT ビューア](https://github.com/habakan/jitsu-in/tree/main/examples/viewer) と
-[Android サンプル](https://github.com/habakan/jitsu-in-android) は別リポジトリに移した。
+ブラウザの [PSBT ビューア](https://github.com/habakan/jitsu-in/tree/main/examples/viewer) は jitsu-in 側で管理する。
 
 <img src="components/parts/docs/everywhere.svg" alt="The same bytes run everywhere" width="940">
 
@@ -60,6 +59,11 @@ mainnet の前提は [docs/architecture-b.md](docs/architecture-b.md) §15、
 
 ### 実機
 
+ビルド済みのファームは [Releases](https://github.com/habakan/jitsu-in-pico/releases) にある
+（`jitsu-in-pico.uf2` が mainnet、`jitsu-in-pico-signet.uf2` が signet）。BOOTSEL を押しながら USB で
+つなぎ、出てきたドライブに UF2 をコピーする。自分でビルドすると同じバイト列になる
+（[docs/reproducible-build.md](docs/reproducible-build.md)）。
+
 部品と配線は [docs/hardware.md](docs/hardware.md)、実配線は [docs/breadboard.md](docs/breadboard.md)。
 
 ```sh
@@ -87,7 +91,6 @@ make check-xpub        # 口座 xpub とディスクリプタ（BIP84 の公式�
 make check-psbt        # PSBT 一巡 + UR の往復 + 署名を embit で独立検証
 make check-ui          # 画面の組み立て
 make check-seedqr      # SeedQR の読み取り（ASan 付き）
-make check-host        # Mac: ネイティブ / WAMR classic / fast
 make check-qemu-psbt   # RV32 で PSBT 一巡（ホストの出力と一致するか）
 make check-qemu-qr     # quirc の命令数
 make check-qr-mac      # quirc と zxing-cpp の読取可否を比べる
@@ -122,7 +125,7 @@ libsecp256k1、WAMR 2.4.3、pico-sdk 2.3.1、QR-Code-generator、spleen フォ�
 |---|---|
 | `app` | 本体。PSBT 署名の一巡、xpub 表示、解析器ハッシュ表示 |
 | `app_nolcd` | 同じ内容を UART に文字で出す（液晶なしでの回帰） |
-| `psbt_bench` `qr_bench` `signer` | 時間・メモリの計測 |
+| `psbt_bench` `qr_bench` | 時間・メモリの計測 |
 | `camera_test` `pio_loopback_test` `button_test` | 配線とカメラの切り分け |
 
 ## 設計・検証資料

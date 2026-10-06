@@ -32,20 +32,6 @@ include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
 # runtime_lib.cmake adds -std=gnu99, but pico-sdk needs C11 for static_assert
 string(REPLACE "-std=gnu99" "-std=gnu11" CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 
-add_executable(signer ${ROOT}/tests/host/wamr_main.c ${ROOT}/components/parts/signer/sha512.c ${WAMR_RUNTIME_LIB_SOURCE})
-# The pool is the highmark measured under QEMU with room to spare. Pass -DPOOL_KB=320 when expanding
-# AOT into RAM
-if(NOT DEFINED POOL_KB)
-  set(POOL_KB 48)
-endif()
-target_compile_definitions(signer PRIVATE PICO_BUILD=1 POOL_KB=${POOL_KB} PICO_STACK_SIZE=0x4000)
-target_include_directories(signer PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/components/parts/signer)
-target_link_libraries(signer pico_stdlib)
-pico_enable_stdio_uart(signer 1)
-pico_enable_stdio_usb(signer 0)
-target_link_options(signer PRIVATE -Wl,--print-memory-usage)
-pico_add_extra_outputs(signer)
-
 # The bring-up application (make build/rp2350/app.elf), running parser.wasm on the interpreter.
 # app_nolcd sends the screens' text to the UART instead of the panel, for checking before soldering
 set(SECP ${ROOT}/third_party/secp256k1)
@@ -66,7 +52,9 @@ foreach(t app app_nolcd)
   target_compile_definitions(${t} PRIVATE PICO_BUILD=1 ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1
     ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1 COMB_BLOCKS=2 COMB_TEETH=5 PICO_STACK_SIZE=0x8000
     NO_LCD=$<STREQUAL:${t},app_nolcd> TEST_SEED=${TEST_SEED} TESTNET=${TESTNET}
-    QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH)
+    QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH
+    # __DATE__ in the binary info would make every UF2 differ from the released one
+    PICO_NO_BI_PROGRAM_BUILD_DATE=1)
   target_compile_options(${t} PRIVATE -Wno-unused-function)
   target_include_directories(${t} PRIVATE ${SIGNER_WASM_H_DIR} ${CMAKE_CURRENT_LIST_DIR} ${ROOT}/components/parts/signer
     ${ROOT}/apps/device/runtime/host-abi ${ROOT}/components/parts/parser/c/include ${ROOT}/apps/device/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include ${SECP}/src

@@ -1,7 +1,7 @@
 [submodule "parts"]
 	path = components/parts
-	url = git@github.com:habakan/jitsu-in.git
+	url = https://github.com/habakan/jitsu-in.git
 [submodule "qr/quirc"]
 	path = components/qr/quirc
-	url = git@github.com:habakan/quirc.git
+	url = https://github.com/habakan/quirc.git
 	branch = mcu

@@ -241,9 +241,8 @@ test-vectors/ third_party/ patches/
 ```
 
 The browser viewer is maintained in [jitsu-in](https://github.com/habakan/jitsu-in/tree/main/examples/viewer).
-The Android sample has its own repository at [jitsu-in-android](https://github.com/habakan/jitsu-in-android).
 
-`components/parts/signer/` is both the device's signing code and the source of `bitcoin-signer.wasm`.
+`components/parts/signer/` is both the device's signing code and the source of `signer.wasm`.
 Giving it a repository of its own is on the table, but not yet: what makes the parser usable as a part
 is its specification, its host libraries and its tests, and the signer has none of those yet. Moving
 the files first would only produce an empty repository. The conditions for splitting it are that
