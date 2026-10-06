@@ -25,8 +25,6 @@ signet で署名から送信まで一巡しました。ここに載せた数値�
 
 ブラウザの [PSBT ビューア](https://github.com/habakan/jitsu-in/tree/main/examples/viewer) は jitsu-in 側で管理しています。
 
-<img src="../../components/parts/docs/everywhere.svg" alt="The same bytes run everywhere" width="940">
-
 デバイスが使う `parser.wasm` は jitsu-in の成果物です。画面の `Parser hash` と
 `make check-repro` の記録を突き合わせられます。
 

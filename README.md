@@ -15,8 +15,6 @@ cross-platform examples live in jitsu-in.
 
 The [browser viewer](https://github.com/habakan/jitsu-in/tree/main/examples/viewer) is maintained in jitsu-in.
 
-<img src="components/parts/docs/everywhere.svg" alt="The same bytes run everywhere" width="940">
-
 The device runs `parser.wasm` from jitsu-in. Its `Parser hash` screen shows the module's SHA-256;
 `make check-repro` rebuilds the pinned artifacts and compares them with the recorded hashes.
 

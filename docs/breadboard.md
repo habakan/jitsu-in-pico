@@ -1,5 +1,9 @@
 # ブレッドボードの実配線
 
+<img src="pico-2-cc0.jpg" alt="Raspberry Pi Pico 2" width="320">
+
+写真: [Profpcde / Wikimedia Commons](https://commons.wikimedia.org/wiki/File:Top_view_of_a_Raspberry_Pi_Pico_2_microcontroller_board.jpg)、CC0 1.0。Raspberry Pi is a trademark of Raspberry Pi Ltd. このプロジェクトは同社の承認を受けたものではありません。実装では Pico 2 H を使用。
+
 実際に組んでいる配線。変えたらこのファイルも直す。論理的なピン割り当ては `docs/hardware.md`、
 定義は `src/board_pins.h`。
 
@@ -11,6 +15,10 @@
 | [wiring.yml](wiring.yml) | 信号の対応（WireViz） | `make wiring` で配線図・部品表・HTML |
 
 配線を変えたら、このファイルと上の 2 つの YAML を直す。
+
+## 配線図
+
+信号のつながりは [配線図](wiring.svg)、ブレッドボード上の位置は [穴位置図](breadboard.svg) を参照。
 
 ## 前提
 
