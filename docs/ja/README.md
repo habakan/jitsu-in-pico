@@ -7,18 +7,28 @@
 
 [![CI](https://github.com/habakan/jitsu-in-pico/actions/workflows/ci.yml/badge.svg)](https://github.com/habakan/jitsu-in-pico/actions/workflows/ci.yml)
 
-英語版は [README.md](../../README.md)。
+英語版は [README.md](../../README.md) です。
 
-`jitsu-in-pico` は [jitsu-in](https://github.com/habakan/jitsu-in) の Raspberry Pi Pico 2（RP2350）参照実装。
-ファームウェア、基板固有の UI・カメラ処理、配線資料、実機連携の検証を置いている。
-再利用モジュールと言語別の利用例は jitsu-in 側で管理する。
+`jitsu-in-pico` は [jitsu-in](https://github.com/habakan/jitsu-in) の Raspberry Pi Pico 2（RP2350）参照実装です。
+ファームウェア、基板固有の UI・カメラ処理、配線資料、実機連携の検証を置いています。
+再利用モジュールと言語別の利用例は jitsu-in 側で管理しています。
 
-ブラウザの [PSBT ビューア](https://github.com/habakan/jitsu-in/tree/main/examples/viewer) は jitsu-in 側で管理する。
+## 安全上の注意
+
+> **状態: 第三者のレビューを受けていません。本番の資金には使わないでください。**
+
+signet で署名から送信まで一巡しました。ここに載せた数値はこのリポジトリで測ったものですが、
+作者以外が攻撃を試みたことを示すものではありません。mainnet の前提は
+[設計 B](../architecture-b.md) §15（英語）、対応範囲と制約は[制約一覧](limitations.md)をご覧ください。
+
+セキュリティ上の問題は [SECURITY.md](../../SECURITY.md)（英語）に従って報告してください。**公開 issue には書かないでください。**
+
+ブラウザの [PSBT ビューア](https://github.com/habakan/jitsu-in/tree/main/examples/viewer) は jitsu-in 側で管理しています。
 
 <img src="../../components/parts/docs/everywhere.svg" alt="The same bytes run everywhere" width="940">
 
-デバイスが使う `parser.wasm` は jitsu-in の成果物。画面の `Parser hash` と
-`make check-repro` の記録を突き合わせられる。
+デバイスが使う `parser.wasm` は jitsu-in の成果物です。画面の `Parser hash` と
+`make check-repro` の記録を突き合わせられます。
 
 | | |
 |---|---|
@@ -26,23 +36,12 @@
 | Pico 2 の設計と利用例 | [プロジェクトの概要](../positioning.md) |
 | parser の ABI とホスト実装例 | [jitsu-in parser](https://github.com/habakan/jitsu-in/tree/main/parser)（英語） |
 
-## 安全上の注意
-
-**第三者のレビューを受けていない。本番の資金に使わないこと。**
-
-signet で署名から送信まで一巡した。ここに載せた数値はこのリポジトリで測ったものだが、
-作者以外が攻撃を試みたことを示すものではない。
-mainnet の前提は [設計 B](../architecture-b.md) §15（英語）、対応範囲と制約は
-[制約一覧](limitations.md) を参照。
-
-セキュリティ上の問題は [SECURITY.md](../../SECURITY.md) へ。**公開の issue には書かないこと。**
-
 ## Pico 2 の実装
 
-カメラで SeedQR を読み、アニメーション QR（UR）で PSBT を受け取る。画面で内容を確認して署名し、
-署名済み PSBT を QR で返す。PC 側に鍵やシードフレーズを置かずに、
+カメラで SeedQR を読み、アニメーション QR（UR）で PSBT を受け取ります。画面で内容を確認して署名し、
+署名済み PSBT を QR で返します。PC 側に鍵やシードフレーズを置かず、
 [signet の取引](https://mempool.space/signet/tx/de849e8c01a39fcf2aa84aaeeccb2ac8aea128086b2f4252539bcab90a0a432f)
-を通した（手順は [signet での送金手順](../signet.md)）。
+を送信しました（手順は [signet での送金手順](../signet.md)をご覧ください）。
 
 | 段 | 実測 | |
 |---|---|---|
@@ -53,20 +52,18 @@ mainnet の前提は [設計 B](../architecture-b.md) §15（英語）、対応�
 | アニメーション QR 出力 | 1 パート 95 ms | `@ngraveio/bc-ur` で復元・バイト一致 |
 | RAM | 約 341KB / 520KB | quirc と PSBT バッファはヒープを共有 |
 
-このリポジトリで確認した環境: RP2350 実機、macOS のホスト、QEMU。
+このリポジトリでは、RP2350 実機、macOS のホスト、QEMU で確認しています。
 
-未対応: マルチシグ、パスフレーズ、PSBT v2。単署名の P2WPKH / P2TR だけ。
-
-## 使い方
+## 利用方法
 
 ### 実機
 
-ビルド済みのファームは [Releases](https://github.com/habakan/jitsu-in-pico/releases) にある
+ビルド済みのファームは [Releases](https://github.com/habakan/jitsu-in-pico/releases) にあります
 （`jitsu-in-pico.uf2` が mainnet、`jitsu-in-pico-signet.uf2` が signet）。BOOTSEL を押しながら USB で
-つなぎ、出てきたドライブに UF2 をコピーする。自分でビルドすると同じバイト列になる
-（[再現可能ビルド](reproducible-build.md)）。
+つなぎ、表示されたドライブに UF2 をコピーしてください。自分でビルドした場合も同じバイト列になります
+（[再現可能ビルド](reproducible-build.md)をご覧ください）。
 
-部品と配線は [hardware.md](../hardware.md)（英語）、実配線は [breadboard.md](../breadboard.md) を参照。
+部品と配線は [hardware.md](../hardware.md)（英語）、実配線は [breadboard.md](../breadboard.md) をご覧ください。
 
 ```sh
 make deps-openocd                 # 一度だけ。SWD 書き込み用（Raspberry Pi のフォーク）
@@ -74,18 +71,18 @@ make run SECONDS=180              # 書き込み → 受信開始 → リセッ�
 make run TESTNET=1 SECONDS=180    # signet 用
 ```
 
-`TEST_SEED=1` でビルドしたものだけ BIP39 のテストベクタを選べる（既定は 0）。資金を扱ってはならない。
-本番で使うときの手順は [設計 B](../architecture-b.md)（英語）の §15 を参照。
+`TEST_SEED=1` でビルドした場合だけ BIP39 のテストベクタを選べます（既定は 0）。このビルドでは資金を扱わないでください。
+本番で使うときの手順は [設計 B](../architecture-b.md)（英語）の §15 をご覧ください。
 
-## 検証
+## ビルドと検証
 
 ```sh
 make check-repro   # 版を固定したツールチェーンで parser.wasm を作り直し、記録と突き合わせる
 ```
 
 デバイスの `Parser hash` 画面と再現ビルドの結果が一致すれば、
-**デバイスの中で動いている解析器は公開ソースから出たもの**だと言える
-（[再現可能ビルド](reproducible-build.md)）。
+**デバイス上の解析器が公開ソースからビルドされたこと**を確認できます
+（[再現可能ビルド](reproducible-build.md)をご覧ください）。
 
 ```sh
 make check-core        # 中核のベクタ（71 項目）
@@ -101,13 +98,17 @@ make -C components/parts/parser test        # 解析器のベクタ（529 項目
 make -C components/parts/parser check-fuzz  # 解析器へのファジング
 ```
 
-期待値は独立に作る（embit / hashlib / `@ngraveio/bc-ur` / zxing-cpp / Bitcoin Core）。
-テストを足したらミューテーションテストで検出力を確かめる。
+期待値は embit / hashlib / `@ngraveio/bc-ur` / zxing-cpp / Bitcoin Core で独立に作成しています。
+テストを追加した場合は、ミューテーションテストで検出力を確かめています。
+
+## 対応範囲
+
+単署名の P2WPKH / P2TR に対応しています。マルチシグ、パスフレーズ、PSBT v2 は未対応です。詳しくは[制約一覧](limitations.md)をご覧ください。
 
 ## このリポジトリの内容
 
-`src/` が UF2 として配布するファーム本体、`bringup/` がそれ以外の実機用プログラム。
-ホスト・QEMU の検査は `tests/` に置く。
+`src/` に UF2 として配布するファームウェア本体、`bringup/` にそれ以外の実機用プログラムがあります。
+ホストと QEMU の検査は `tests/` にあります。
 
 | | | TCB |
 |---|---|---|
@@ -121,8 +122,8 @@ make -C components/parts/parser check-fuzz  # 解析器へのファジング
 | `tests/` | ホスト（`host/`）、QEMU（`qemu/`）、画面（`ui/`）の検査 | - |
 | `tools/` `docs/` | ビルド・検証ツール、配線図、この実装の設計と実測の記録 | - |
 
-依存（`third_party/`、gitignore 済み）は `make deps` で clone する:
-libsecp256k1、WAMR 2.4.3、pico-sdk 2.3.1、QR-Code-generator、spleen フォント、RISC-V ツールチェーン。
+`third_party/`（gitignore 済み）の依存は `make deps` で clone します。libsecp256k1、WAMR 2.4.3、
+pico-sdk 2.3.1、QR-Code-generator、spleen フォント、RISC-V ツールチェーンを取得します。
 
 ### 実機のファームの種類
 
@@ -146,22 +147,22 @@ libsecp256k1、WAMR 2.4.3、pico-sdk 2.3.1、QR-Code-generator、spleen フォ�
 | [hardware](../hardware.md)（英語）・[breadboard](../breadboard.md)（日本語） | 部品と配線、実配線図 |
 | [用語と文書の書き方](../terms.md) | 文書で使う用語と章立て |
 
-失敗もそのまま残してある。AOT の XIP が 7 倍遅いこと、WAMR の非整列 `i64.store`、
-`wasm-opt` が PATH にあるだけで成果物が 2.7KB 変わること、quirc が液晶の遠景を読めないこと。
+AOT の XIP が 7 倍遅いこと、WAMR の非整列 `i64.store`、`wasm-opt` が PATH にあるだけで成果物が
+2.7KB 変わること、quirc が液晶の遠景を読めないことも、その経緯とともに記録しています。
 
 ## 外部プロジェクトへの貢献
 
 - **WAMR**: classic interpreter の `i64.store` が 4 byte 境界を前提にしていたバグを修正
-  （[PR #5123](https://github.com/wasm-micro-runtime/wasm-micro-runtime/pull/5123)、2026-09-30 マージ）。
-  非整列アクセスを許さない CPU で踏む。QEMU では再現しない
-- **quirc**: 自前フォーク（`mcu` ブランチ）で固定小数点化、未マージのセキュリティ修正の取り込み、
-  UBSan とファジング
+  しました（[PR #5123](https://github.com/wasm-micro-runtime/wasm-micro-runtime/pull/5123)、2026-09-30 マージ）。
+  非整列アクセスを許さない CPU で発生します。QEMU では再現しません。
+- **quirc**: 自前フォーク（`mcu` ブランチ）で固定小数点化と未マージのセキュリティ修正の取り込みを行い、
+  UBSan とファジングを実施しています。
 
 ## 貢献
 
-変更の送り方は [CONTRIBUTING.md](../../CONTRIBUTING.md)（英語）を参照。セキュリティ上の問題は公開 issue ではなく、
-[SECURITY.md](../../SECURITY.md)（英語）に従って報告する。
+変更の送り方は [CONTRIBUTING.md](../../CONTRIBUTING.md)（英語）をご覧ください。セキュリティ上の問題は公開 issue ではなく、
+[SECURITY.md](../../SECURITY.md)（英語）に従って報告してください。
 
 ## ライセンス
 
-MIT（[LICENSE](../../LICENSE)）。取り込んでいる第三者のコードは [NOTICE](../../NOTICE) を見る。
+ライセンスは MIT です（[LICENSE](../../LICENSE)）。取り込んでいる第三者のコードは [NOTICE](../../NOTICE) をご覧ください。
