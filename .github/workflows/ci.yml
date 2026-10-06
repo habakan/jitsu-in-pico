@@ -15,7 +15,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with: { submodules: recursive }
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
         with: { enable-cache: false }
       - name: Dependencies (only what building the wasm needs)
         run: make deps-host
@@ -41,7 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with: { submodules: recursive }
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
         with: { enable-cache: false }
       - name: Dependencies
         run: |
