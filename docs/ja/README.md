@@ -18,8 +18,8 @@
 > **状態: 第三者のレビューを受けていません。本番の資金には使わないでください。**
 
 signet で署名から送信まで一巡しました。ここに載せた数値はこのリポジトリで測ったものですが、
-作者以外が攻撃を試みたことを示すものではありません。mainnet の前提は
-[設計 B](../architecture-b.md) §15（英語）、対応範囲と制約は[制約一覧](limitations.md)をご覧ください。
+作者以外が攻撃を試みたことを示すものではありません。mainnet の前提や対応範囲は
+[制約一覧](limitations.md)をご覧ください。
 
 セキュリティ上の問題は [SECURITY.md](../../SECURITY.md)（英語）に従って報告してください。**公開 issue には書かないでください。**
 
@@ -38,7 +38,7 @@ signet で署名から送信まで一巡しました。ここに載せた数値�
 カメラで SeedQR を読み、アニメーション QR（UR）で PSBT を受け取ります。画面で内容を確認して署名し、
 署名済み PSBT を QR で返します。PC 側に鍵やシードフレーズを置かず、
 [signet の取引](https://mempool.space/signet/tx/de849e8c01a39fcf2aa84aaeeccb2ac8aea128086b2f4252539bcab90a0a432f)
-を送信しました（手順は [signet での送金手順](../signet.md)をご覧ください）。
+を送信しました（手順は [検証手順](../verification.md#signet-transaction)をご覧ください）。
 
 | 段 | 実測 | |
 |---|---|---|
@@ -69,7 +69,7 @@ make run TESTNET=1 SECONDS=180    # signet 用
 ```
 
 `TEST_SEED=1` でビルドした場合だけ BIP39 のテストベクタを選べます（既定は 0）。このビルドでは資金を扱わないでください。
-本番で使うときの手順は [設計 B](../architecture-b.md)（英語）の §15 をご覧ください。
+実機の運用上の制約は[制約一覧](limitations.md)をご覧ください。
 
 ## ビルドと検証
 
@@ -137,12 +137,11 @@ pico-sdk 2.3.1、QR-Code-generator、spleen フォント、RISC-V ツールチ�
 |---|---|
 | [system architecture](../architecture.md)（英語） | 信頼境界・一巡・メモリ構成 |
 | [design notes](../design.md)（英語） | 設計と、何を信頼しないかの線引き |
-| [architecture B](../architecture-b.md)（英語） | 解析器を WASM に隔離する構成、plan の形式、残作業 |
+| [signing architecture](../architecture-b.md)（英語） | 現在の解析・署名構成と信頼境界 |
 | [再現可能ビルド](reproducible-build.md) | ビルド成果物の再現方法 |
-| [signet での送金手順](../signet.md) | bitcoin-cli によるウォッチオンリー運用 |
+| [verification](../verification.md)（英語） | signet での送金とビルド・検証手順 |
 | [feasibility](../feasibility.md) ほか（日本語） | RP2350 のサイズ・速度、BIP39 / BIP32、AOT、QR の計測 |
 | [hardware](../hardware.md)（英語）・[breadboard](../breadboard.md)（英語）・[breadboard](breadboard.md)（日本語） | 部品と配線、実配線図 |
-| [用語と文書の書き方](../terms.md) | 文書で使う用語と章立て |
 
 AOT の XIP が 7 倍遅いこと、WAMR の非整列 `i64.store`、`wasm-opt` が PATH にあるだけで成果物が
 2.7KB 変わること、quirc が液晶の遠景を読めないことも、その経緯とともに記録しています。
