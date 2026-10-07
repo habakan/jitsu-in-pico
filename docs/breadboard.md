@@ -19,7 +19,13 @@ Update this page and both YAML files when the wiring changes.
 
 ## Diagrams
 
-See the [wiring diagram](wiring.svg) for signal connections and the [breadboard layout](breadboard.svg) for physical hole positions.
+### Signal connections
+
+![Wiring diagram](wiring.svg)
+
+### Physical layout
+
+![Breadboard hole layout](breadboard.svg)
 
 ## Setup
 
