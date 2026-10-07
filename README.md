@@ -120,7 +120,7 @@ Host and QEMU checks live under `tests/`.
 | `src/runtime/` | The call boundary into `parser.wasm` (every offset and length is range-checked) and the WAMR platform layer | inside |
 | `bringup/` | Wiring checks and benchmarks: buttons, camera, PIO loopback, a PSBT round without UI | - |
 | `tests/` | Host (`host/`), QEMU (`qemu/`) and screen (`ui/`) checks | - |
-| `tools/` `docs/` | Build and verification tools, wiring diagrams, measurements, and design notes for this implementation |  - |
+| `tools/` `docs/` | Build and verification tools, wiring diagrams, measurements, and implementation documentation |  - |
 
 Dependencies (`third_party/`, gitignored) are cloned by `make deps`: libsecp256k1, WAMR 2.4.3,
 pico-sdk 2.3.1, QR-Code-generator, the spleen font, and a RISC-V toolchain.
@@ -136,7 +136,6 @@ pico-sdk 2.3.1, QR-Code-generator, the spleen font, and a RISC-V toolchain.
 | Repeat the signet transaction procedure | [Verification](docs/verification.md) |
 | See performance and feasibility measurements | [Feasibility and performance](docs/feasibility.md) |
 | Identify parts and wire the device | [Hardware](docs/hardware.md), [breadboard](docs/breadboard.md) |
-| Read the design history | [Design notes](docs/design.md) |
 
 ## Contributing
 
