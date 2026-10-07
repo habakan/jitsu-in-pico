@@ -134,7 +134,7 @@ pico-sdk 2.3.1, QR-Code-generator, the spleen font, and a RISC-V toolchain.
 | Check supported transactions and known risks | [Limitations](docs/limitations.md) |
 | Rebuild and verify the published artifacts | [Reproducible build](docs/reproducible-build.md) |
 | Repeat the signet transaction procedure | [Verification](docs/verification.md) |
-| See performance and feasibility measurements | [Feasibility and performance](docs/feasibility.md) (English) |
+| See performance and feasibility measurements | [Feasibility and performance](docs/feasibility.md) |
 | Identify parts and wire the device | [Hardware](docs/hardware.md), [breadboard](docs/breadboard.md) |
 | Read the design history | [Design notes](docs/design.md) |
 
