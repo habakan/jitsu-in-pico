@@ -137,7 +137,7 @@ pico-sdk 2.3.1、QR-Code-generator、spleen フォント、RISC-V ツールチ�
 |---|---|
 | [system architecture](../architecture.md)（英語） | 信頼境界・一巡・メモリ構成 |
 | [design notes](../design.md)（英語） | 設計と、何を信頼しないかの線引き |
-| [signing architecture](../architecture-b.md)（英語） | 現在の解析・署名構成と信頼境界 |
+| [signing architecture](../signing-architecture.md)（英語） | 現在の解析・署名構成と信頼境界 |
 | [再現可能ビルド](reproducible-build.md) | ビルド成果物の再現方法 |
 | [verification](../verification.md)（英語） | signet での送金とビルド・検証手順 |
 | [Feasibility and performance measurements](../feasibility.md)（英語） | RP2350 のメモリ・速度、QR、BIP39 / BIP32、WASM / AOT の計測 |

@@ -34,7 +34,7 @@
 ## 鍵とメモリ
 
 - シードは RAM のみに保持し、フラッシュには書きません。電源を入れ直した後は SeedQR を再度読み込む必要があります。
-- ロック解除中は、署名に必要なマスター鍵と chain code も RAM にあります。**接続したデバッグプローブ（SWD）から読み取れる**ことを実測しています。[architecture-b.md](../architecture-b.md) をご覧ください。実際に使うときはプローブを外してください。
+- ロック解除中は、署名に必要なマスター鍵と chain code も RAM にあります。**接続したデバッグプローブ（SWD）から読み取れる**ことを実測しています。[signing-architecture.md](../signing-architecture.md)（英語）をご覧ください。実際に使うときはプローブを外してください。
 - `Lock (wipe seed)` は鍵をゼロ化します。前後の RAM ダンプで確認しています。
 - mnemonic、BIP39 seed、SeedQR のペイロード、カメラ画像、導出した子鍵は使用後に消去します。署名 nonce も残りません。`tools/ram_keys.py` で確認しています。
 - USB ブートローダー（BOOTSEL）に入ると SRAM 全体が消去されるため、残った鍵を読み出す経路にはなりません。

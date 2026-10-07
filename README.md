@@ -130,7 +130,7 @@ pico-sdk 2.3.1, QR-Code-generator, the spleen font, and a RISC-V toolchain.
 | If you want to... | Read |
 |---|---|
 | Understand how the device works | [System architecture](docs/architecture.md) |
-| Review the parser boundary and signing path | [Signing architecture](docs/architecture-b.md) |
+| Review the parser boundary and signing path | [Signing architecture](docs/signing-architecture.md) |
 | Check supported transactions and known risks | [Limitations](docs/limitations.md) |
 | Rebuild and verify the published artifacts | [Reproducible build](docs/reproducible-build.md) |
 | Repeat the signet transaction procedure | [Verification](docs/verification.md) |
