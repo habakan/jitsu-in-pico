@@ -64,19 +64,9 @@ Not reviewed by a third party. signet only. See [Disclaimer](../README.md#discla
 - A PSBT whose previous transactions are large may not fit. Strip `non_witness_utxo` for segwit
   inputs (`tools/strip_psbt.py`); a faucet transaction with 2,323 outputs made a PSBT of 77KB,
   which is 770 QR frames.
-- The QR decoder on the device is quirc, which needs the code to fill most of the frame. It does not
-  read a display from across a room; the browser viewer falls back to other decoders for that reason.
+- The device's quirc decoder needs the code to fill most of the frame and cannot read a display from
+  across a room.
 - A QR decoder is not a trust boundary. Whatever it produces is parsed and re-validated.
-
-## The browser viewer ([jitsu-in example](https://github.com/habakan/jitsu-in/tree/main/examples/viewer))
-
-- It holds **no keys** and signs nothing. It is for reading a PSBT and moving data.
-- What it shows is **not authoritative**. The device screen is. The viewer exists so you can
-  reproduce what the device shows, not replace it.
-- It runs the same `parser.wasm` as the device, but in a browser you did not build and on an
-  operating system that may be compromised.
-- The camera needs a secure context. `file://` works on desktop browsers but not on Android Chrome;
-  a LAN `http://` address does not work anywhere.
 
 ## Hardware
 
