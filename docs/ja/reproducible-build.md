@@ -94,7 +94,8 @@ make check-wasm     # wasm-tools が必要です（brew install wasm-tools）
 | | 固定方法 |
 |---|---|
 | libsecp256k1 | コミット |
-| WAMR / pico-sdk | タグに対応するコミット |
+| WAMR | upstream の固定コミット（[PR #5123](https://github.com/wasm-micro-runtime/wasm-micro-runtime/pull/5123) を含む） |
+| pico-sdk | タグに対応するコミット |
 | quirc / QR-Code-generator / spleen | コミット |
 
 依存を更新するときは差分を確認し、`Makefile` の対応する `*_REV` も更新してください。

@@ -52,7 +52,7 @@ endif
 # Pin every dependency to a commit, especially code that handles keys; never track the tip of a branch.
 # Review the diff before updating a pin.
 SECP_REV   := 46db787112beabdb5e17e0dc35680716f1057e7b
-WAMR_REV   := b70d708d46be750bfcf008218b42c7b98c49368a
+WAMR_REV   := f5f57c09aee623436f5fb87a90798fdd2cdf39fd
 PICO_REV   := 079c6f39023649b154152db30f1d781e884879bc
 QUIRC_REV  := 927d680904dc95fdff4cd9d022eb374b438ff8f2
 QRGEN_REV  := 3c6d0b3cefb4e049dc337e82237c9644399716a8
@@ -78,7 +78,6 @@ deps:
 	mkdir -p third_party/riscv-toolchain && cd third_party && case $(RISCV_TC_PKG) in \
 	  *.zip) unzip -q $(RISCV_TC_PKG) -d riscv-toolchain ;; *) tar xzf $(RISCV_TC_PKG) -C riscv-toolchain ;; esac
 	rm third_party/$(RISCV_TC_PKG)
-	$(MAKE) patch-deps
 
 # Dependencies for CI host checks; excludes hardware and QEMU requirements
 deps-host:
@@ -87,7 +86,6 @@ deps-host:
 	$(call clone_at,wasm-micro-runtime,https://github.com/bytecodealliance/wasm-micro-runtime.git,$(WAMR_REV))
 	$(call clone_at,QR-Code-generator,https://github.com/nayuki/QR-Code-generator.git,$(QRGEN_REV))
 	$(call clone_at,spleen,https://github.com/fcambus/spleen.git,$(SPLEEN_REV))
-	$(MAKE) patch-deps
 .PHONY: deps-host
 
 # Check that each available third_party dependency matches its pinned commit
@@ -101,13 +99,7 @@ check-deps:
 	@echo "取得済みの third_party はすべて固定した commit"
 .PHONY: check-deps
 
-# WAMR 2.4.3's classic interpreter assumes i64.store is 4-byte aligned; unaligned stores trap on Hazard3.
-# Upstream fixed this in PR #5123 (merged 2026-09-30); keep the patch only while using 2.4.3.
-patch-deps:
-	@cd third_party/wasm-micro-runtime && p=$(CURDIR)/patches/wamr-classic-interp-unaligned-i64-store.patch; \
-	  if git apply --reverse --check $$p 2>/dev/null; then echo "wamr: 既に修正済み（パッチ不要）"; \
-	  else git apply $$p && echo "wamr: パッチ適用"; fi
-.PHONY: deps patch-deps
+.PHONY: deps
 
 WAMRC   := build/wamrc/wamrc
 $(WAMRC):

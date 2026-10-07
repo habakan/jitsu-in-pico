@@ -120,7 +120,8 @@ mean the library holding the keys varies by the day it was fetched.
 | | |
 |---|---|
 | libsecp256k1 | pinned commit |
-| WAMR / pico-sdk | commit matching a tag |
+| WAMR | pinned upstream commit, including [PR #5123](https://github.com/wasm-micro-runtime/wasm-micro-runtime/pull/5123) |
+| pico-sdk | commit matching a tag |
 | quirc / QR-Code-generator / spleen | pinned commit |
 
 Moving one means reading the diff, then changing the matching `*_REV` in the `Makefile`.
