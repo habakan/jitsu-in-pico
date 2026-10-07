@@ -54,7 +54,7 @@ with `wasm_runtime_validate_app_addr` before copying anything.
 
 | what | where | why |
 |---|---|---|
-| decoding the QR image (quirc) | native | over ten seconds per frame in WASM ([QR feasibility](qr-feasibility.md)) |
+| decoding the QR image (quirc) | native | over ten seconds per frame in WASM ([QR feasibility measurements](feasibility.md#qr-decoding-on-the-rp2350)) |
 | UR / BBQr reassembly, CBOR, PSBT parsing | parser.wasm | the most complex parsing of untrusted input, and light because no crypto is involved |
 | parsing a SeedQR or typed words | native | the input is the secret itself, so putting it in WASM would defeat the isolation |
 | checking the Plan, deriving keys, confirming ownership, sighash, signing | native | it touches keys |
