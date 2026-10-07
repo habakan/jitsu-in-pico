@@ -113,7 +113,7 @@ Host and QEMU checks live under `tests/`.
 | | | TCB |
 |---|---|---|
 | `components/parts/` | Pinned [jitsu-in](https://github.com/habakan/jitsu-in) submodule: reusable parser and signer modules. Their specifications and host examples are maintained in jitsu-in | **outside** |
-| `components/qr/` | QR decoder (submodule: [quirc](https://github.com/habakan/quirc), `mcu` branch, made fixed-point for CPUs without an FPU) | outside |
+| `components/qr/` | QR decoder ([quirc](https://github.com/habakan/quirc) submodule) | outside |
 | `src/` | The firmware's entry point (`main.c`) and the pin assignment (`board_pins.h`) | inside |
 | `src/drivers/` | Display (ST7789), buttons, camera (PIO + DMA). Runs only on the board | inside |
 | `src/ui/` | Builds the 240x240 screens, independent of where they are shown | inside |
@@ -141,13 +141,6 @@ merely by being on `PATH`, quirc failing to read a display from a distance.
 [AOT](docs/aot-feasibility.md) ·
 [QR](docs/qr-feasibility.md) ·
 [hardware](docs/hardware.md)
-
-## Upstream
-
-- **WAMR**: fixed the classic interpreter assuming 4-byte alignment for `i64.store`
-  ([PR #5123](https://github.com/wasm-micro-runtime/wasm-micro-runtime/pull/5123), merged 2026-09-30).
-  It bites on CPUs that disallow unaligned access, and does not reproduce under QEMU
-- **quirc**: the `mcu` fork carries the fixed-point work, unmerged security fixes, UBSan and fuzzing
 
 ## Contributing
 
