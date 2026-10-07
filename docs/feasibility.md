@@ -207,10 +207,10 @@ boundary informed the current architecture.
   `__heap_base` / `__data_end` are exported.
 - On RV32, libsecp256k1's 10x26 field arithmetic uses many 64-bit operations, which WAMR handles in
   software.
-- WAMR classic interpreter 2.4.3 assumed 4-byte alignment for `i64.store`; Hazard3 faults on some
-  unaligned stores while QEMU does not. The fix was merged upstream in
-  [WAMR PR #5123](https://github.com/wasm-micro-runtime/wasm-micro-runtime/pull/5123) on 2026-09-30.
-  `make deps` applies the compatibility patch while version 2.4.3 is used.
+- WAMR classic interpreter's `i64.store` implementation assumed 4-byte alignment; Hazard3 faults on
+  some unaligned stores while QEMU does not. The fix from
+  [WAMR PR #5123](https://github.com/wasm-micro-runtime/wasm-micro-runtime/pull/5123) is included in
+  the pinned revision.
 - The RP2350's default 2KB stack was too small; the firmware used a 16KB stack.
 - WAMR links libm functions such as `ceil` and `sqrt` even when the signer itself does not use floating
   point, adding them to the trusted computing base.

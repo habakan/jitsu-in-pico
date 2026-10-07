@@ -146,9 +146,9 @@ pico-sdk 2.3.1、QR-Code-generator、spleen フォント、RISC-V ツールチ�
 
 ## 外部プロジェクトへの貢献
 
-- **WAMR**: classic interpreter の `i64.store` が 4 byte 境界を前提にしていたバグを修正
-  しました（[PR #5123](https://github.com/wasm-micro-runtime/wasm-micro-runtime/pull/5123)、2026-09-30 マージ）。
-  非整列アクセスを許さない CPU で発生します。QEMU では再現しません。
+- **WAMR**: classic interpreter の `i64.store` が 4 byte 境界を前提にしていた問題の修正を、固定した upstream commit に含めています
+  （[PR #5123](https://github.com/wasm-micro-runtime/wasm-micro-runtime/pull/5123)、2026-09-30 マージ）。
+  非整列アクセスを許さない CPU で発生し、QEMU では再現しません。
 - **quirc**: 自前フォーク（`mcu` ブランチ）で固定小数点化と未マージのセキュリティ修正の取り込みを行い、
   UBSan とファジングを実施しています。
 
