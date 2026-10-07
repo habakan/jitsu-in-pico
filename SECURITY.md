@@ -43,6 +43,6 @@ This project has **not been reviewed by a third party** and is not ready for rea
 findings — but a concrete exploit of one of them still is:
 
 - An attached debug probe (SWD) can read the master key out of RAM while a seed is loaded.
-  Measured and documented in [docs/architecture-b.md](docs/architecture-b.md).
+  Measured and documented in [docs/signing-architecture.md](docs/signing-architecture.md).
 - Multisig and BIP39 passphrase input are planned but not supported by the current firmware. PSBT v2
   is also unsupported. The firmware rejects unsupported input rather than handling it.

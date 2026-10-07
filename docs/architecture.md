@@ -1,7 +1,7 @@
 # How the system is put together
 
 The current device architecture. Detailed checks and the reason for the parser boundary are in
-[architecture-b.md](architecture-b.md).
+[signing-architecture.md](signing-architecture.md).
 
 ## 1. The trust boundary
 

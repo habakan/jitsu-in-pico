@@ -169,7 +169,7 @@ sometimes refuse the `cp`, in which case drag it in Finder.
 
 1. With nothing but the Pico 2 H and the Debug Probe, flash `build/rp2350/signer.uf2` and confirm the
    measured signing times appear on the UART at 115200. `psbt_bench.uf2` times a full PSBT round
-   (done; `docs/architecture-b.md` §11)
+   (done; `docs/signing-architecture.md` §11)
 2. **Before soldering anything**: put three tactile switches in the breadboard (GP17 next, GP26
    approve, GP27 reject, each to GND) and flash `build/rp2350/app_nolcd.uf2`. The review screens' text
    comes out on the UART instead of the panel, so the buttons, the screen flow, approving and signing,

@@ -133,7 +133,7 @@ merely by being on `PATH`, quirc failing to read a display from a distance.
 
 [architecture](docs/architecture.md) ·
 [design](docs/design.md) ·
-[isolating the parser](docs/architecture-b.md) ·
+[signing architecture](docs/signing-architecture.md) ·
 [reproducible build](docs/reproducible-build.md) ·
 [verification](docs/verification.md) ·
 [fit on RP2350](docs/feasibility.md) ·
