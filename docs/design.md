@@ -219,6 +219,37 @@ already caps the damage at "the display is wrong" is another reason not to rush 
 The way to decide is to write a skeleton with `no_std`, fixed buffers and `panic=abort`, then
 **measure its size and its import count**.
 
+### SeedSigner's feature set in 520KB (estimated, 2026-10-07)
+
+Read from `app.elf` rather than measured: `.data` + `.bss` is 243KB (the WAMR pool alone is 160KB),
+the stack 32KB and the heap peaks at 94KB, which leaves **about 143KB of the 512KB main SRAM free**.
+Flash holds about 209KB of 4MB, so code, fonts and images are not the constraint.
+
+| Feature | Extra RAM |
+|---|---:|
+| PSBT v2 (parser code and its RAM copy; `plan_t` unchanged) | 5–8KB |
+| Multisig up to 15 keys, key paths only in `plan_t` (held twice: host and wasm) | about 35KB |
+| The same with the witness script in `plan_t` | about 70KB |
+| A few registered wallet descriptors | about 8KB |
+| Passphrase, seed generation, several seeds, BIP85, message signing | under 10KB |
+
+**No full framebuffer.** A 240x240 RGB565 buffer would take 115KB, most of what is left. The UI keeps
+generating each line and streaming it, redraws only the rows that change, and builds a review screen
+when it is shown instead of keeping all of them (`review_ui` is already 9KB for 18 screens).
+
+What else follows from the budget:
+
+- Keep `plan_t` free of scripts: the signer rebuilds them from the registered descriptor, which also
+  makes it check them. Double-buffering the camera preview (77KB) fits during scanning only if this holds
+- `PSBT_MAX` stays at 32KB; 64KB would add about 160KB across the parser's buffers and the heap
+- Descriptors arrive from a QR, so they are parsed in `parser.wasm`; the pool has about 11KB to spare
+- A multisig descriptor exceeds QR v12, so it can only go out as an animated UR
+- Before this costs memory it costs time: 32KB is over 330 frames at 2.4fps, and checking change
+  derives n public keys per output, which has not been measured yet
+
+How the parser and signer change (`plan_t`, `MAX_KV`, descriptor parsing) is decided in jitsu-in's
+multisig design, not here.
+
 ## 16. How the repository is laid out
 
 **Split into the parts (`components`) and the things that use them (`apps`).**
