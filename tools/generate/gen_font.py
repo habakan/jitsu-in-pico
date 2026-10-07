@@ -28,7 +28,7 @@ for line in open(sys.argv[1], encoding="latin-1"):
 
 missing = [c for c in range(0x20, 0x7F) if c not in glyphs]
 assert not missing, missing
-out = [f"/* tools/gen_font.py が {sys.argv[1].split('/')[-1]} から生成（Spleen, BSD-2-Clause） */",
+out = [f"/* tools/generate/gen_font.py が {sys.argv[1].split('/')[-1]} から生成（Spleen, BSD-2-Clause） */",
        f"#define FONT_W {W}", f"#define FONT_H {H}", "static const unsigned char font8x16[95][16] = {"]
 for c in range(0x20, 0x7F):
     out.append("    {" + ",".join(f"0x{r:02x}" for r in glyphs[c]) + "},")

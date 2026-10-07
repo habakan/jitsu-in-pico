@@ -2,7 +2,7 @@
 # dependencies = ["pyyaml"]
 # ///
 """docs/breadboard.yml から、ブレッドボードの配線図（SVG）を描く。
-使い方: uv run tools/draw_breadboard.py docs/breadboard.yml build/breadboard.svg
+使い方: uv run tools/generate/draw_breadboard.py docs/breadboard.yml build/breadboard.svg
 
 穴の位置をそのまま絵にするので、組むときに見ながら挿せる。信号の対応は docs/wiring.yml（WireViz）。"""
 import re

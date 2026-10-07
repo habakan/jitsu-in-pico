@@ -1,6 +1,6 @@
 /* Checks camera.pio's capture on real silicon with no camera attached: another state machine in the
  * same PIO generates the DVP waveform and the capture side reads those same pins, which needs no
- * wiring because PIO inputs read the pads. The same thing tools/sim_dvp_pio.py checks in simulation.
+ * wiring because PIO inputs read the pads. The same thing tests/host/sim_dvp_pio.py checks in simulation.
  *
  * **Do not run this with the camera connected.** It drives the same pins, so the two outputs fight
  * and what gets read is neither waveform. Unplug all eleven of D0-D7, PCLK, HREF and VSYNC first */

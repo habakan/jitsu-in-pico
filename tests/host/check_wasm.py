@@ -4,7 +4,7 @@
 """配る .wasm が、公開して差し支えない形になっているかを検査する。
 利用者が「中身を信じなくても確かめられる」性質を、こちらでも常に確かめておくため。
 
-使い方: uv run tools/check_wasm.py build/parser.wasm ...
+使い方: uv run tests/host/check_wasm.py build/parser.wasm ...
 
 見るもの:
   import が無い           ホスト関数を呼べない。時計もネットワークも触れない

@@ -7,8 +7,8 @@
 こちらは 32 byte の窓を総当たりで秘密鍵とみなし、導出した公開鍵が既知のものと一致するかを見る。
 **値を知らなくても見つかる**ので、導出の途中の子鍵や、署名の nonce のような想定外の残骸を拾える。
 
-    uv run tools/ram_keys.py build/ram_swd.bin                    # 鍵の残骸を探す
-    uv run tools/ram_keys.py build/ram_sign.bin --sig <R の 32 byte を 16 進で>   # nonce を探す
+    uv run tools/security/ram_keys.py build/ram_swd.bin                    # 鍵の残骸を探す
+    uv run tools/security/ram_keys.py build/ram_sign.bin --sig <R の 32 byte を 16 進で>   # nonce を探す
 
 nonce が残っていると、公開された署名と組にして秘密鍵が復元できる。最も危ない残骸。"""
 import re

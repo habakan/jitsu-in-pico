@@ -1,13 +1,13 @@
 // parser.wasm と signer.wasm だけで署名まで通す。ホストが C でやっていることを JS でなぞる例。
 // 出てくる署名は実機のものとビット単位で一致する（署名は決定論的なので）。
-//   node tools/e2e_wasm.mjs
+//   node tests/host/e2e_wasm.mjs
 import { readFileSync } from "fs";
 const load = p => new WebAssembly.Instance(new WebAssembly.Module(readFileSync(p)), {}).exports;
 const P = load("build/parser.wasm"), S = load("build/signer.wasm");
 const MN = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
 // 1. parser.wasm で PSBT を plan_t にする
-const psbt = readFileSync("components/parts/parser/build/vectors/own_mixed_nwu.psbt");
+const psbt = readFileSync("build/psbt/own_mixed_nwu.psbt");
 new Uint8Array(P.memory.buffer).set(psbt, P.parser_input());
 const rc = P.parser_parse(psbt.length, 0x73c5da0a);
 if (rc) throw new Error("parse rc=" + rc);

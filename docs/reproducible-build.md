@@ -25,7 +25,7 @@ WASM artifacts used by this repository, and compares them against `checksums.txt
 | wasi-sdk | 34.0 | arm64-macos `9c593981…` / x86_64-linux `b761e3a0…` |
 | binaryen (`wasm-opt`) | 132 | arm64-macos `98aad827…` / x86_64-linux `195ddc94…` |
 
-`tools/toolchain.sh` fetches and verifies them. To add another platform, put its hash in the same place.
+`tools/build/toolchain.sh` fetches and verifies them. To add another platform, put its hash in the same place.
 
 ## What has been confirmed
 
@@ -130,7 +130,7 @@ Moving one means reading the diff, then changing the matching `*_REV` in the `Ma
 The released UF2s are built the same way, with the RISC-V toolchain pinned by hash in `make deps`:
 
 ```sh
-make deps && ./tools/toolchain.sh && make check-repro
+make deps && ./tools/build/toolchain.sh && make check-repro
 make build/rp2350/app.elf               # build/rp2350/app.uf2, mainnet
 rm -rf build/rp2350 && make build/rp2350/app.elf TESTNET=1   # signet
 ```

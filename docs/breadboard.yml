@@ -1,4 +1,4 @@
-# ブレッドボードの実配線（穴の位置まで）。tools/draw_breadboard.py が SVG にする: make breadboard
+# ブレッドボードの実配線（穴の位置まで）。tools/generate/draw_breadboard.py が SVG にする: make breadboard
 #
 # 穴の書き方: A1〜J63 が普通の穴、"+42" が赤レール、"-9" が青レール（数字は目安の行）。
 # 繋ぎ先が穴でない文字列なら、基板の外にぶら下がる部品として右端に書き出す。

@@ -22,7 +22,7 @@ make check-repro
 | wasi-sdk | 34.0 | arm64-macos `9c593981…` / x86_64-linux `b761e3a0…` |
 | binaryen（`wasm-opt`） | 132 | arm64-macos `98aad827…` / x86_64-linux `195ddc94…` |
 
-取得と検証は `tools/toolchain.sh` が行います。別のプラットフォームを追加するときは、同じスクリプトにハッシュを追加してください。
+取得と検証は `tools/build/toolchain.sh` が行います。別のプラットフォームを追加するときは、同じスクリプトにハッシュを追加してください。
 
 ## 確認済みの環境
 
@@ -104,7 +104,7 @@ make check-wasm     # wasm-tools が必要です（brew install wasm-tools）
 リリース用 UF2 も同じ手順でビルドします。RISC-V ツールチェーンは `make deps` でハッシュを固定して取得します。
 
 ```sh
-make deps && ./tools/toolchain.sh && make check-repro
+make deps && ./tools/build/toolchain.sh && make check-repro
 make build/rp2350/app.elf               # build/rp2350/app.uf2、mainnet
 rm -rf build/rp2350 && make build/rp2350/app.elf TESTNET=1   # signet
 ```

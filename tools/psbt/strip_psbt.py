@@ -2,7 +2,7 @@
 # dependencies = ["embit"]
 # ///
 """segwit 入力の前トランザクション（non-witness UTXO）を落とす。QR で渡せる大きさにするため。
-使い方: uv run tools/strip_psbt.py in.psbt out.psbt
+使い方: uv run tools/psbt/strip_psbt.py in.psbt out.psbt
 
 単署名の P2WPKH では、入力額を偽られると署名が無効になるだけなので落として差し支えない
 （同じ入力に違う額で二度署名させられるマルチシグとは事情が違う）。"""

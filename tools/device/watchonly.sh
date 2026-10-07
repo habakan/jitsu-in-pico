@@ -2,12 +2,12 @@
 # デバイスが出したディスクリプタから、bitcoind にウォッチオンリーのウォレットを作って一巡する。
 # PC 側に鍵は一切置かない。署名はデバイスだけが行う。
 #
-#   tools/watchonly.sh init 'wpkh([fp/84h/1h/0h]tpub.../<0;1>/*)'
-#   tools/watchonly.sh addr                       受取アドレスを出す
-#   tools/watchonly.sh balance
-#   tools/watchonly.sh send <宛先> <BTC> [sat/vB] PSBT を作り、実機に見せる QR を書き出す
-#   tools/watchonly.sh broadcast <署名済み.ur>     finalize して送信する
-#   tools/watchonly.sh tunnel                     gpu1 のノードへ SSH トンネルを張る
+#   tools/device/watchonly.sh init 'wpkh([fp/84h/1h/0h]tpub.../<0;1>/*)'
+#   tools/device/watchonly.sh addr                       受取アドレスを出す
+#   tools/device/watchonly.sh balance
+#   tools/device/watchonly.sh send <宛先> <BTC> [sat/vB] PSBT を作り、実機に見せる QR を書き出す
+#   tools/device/watchonly.sh broadcast <署名済み.ur>     finalize して送信する
+#   tools/device/watchonly.sh tunnel                     gpu1 のノードへ SSH トンネルを張る
 set -e
 
 CLI="bitcoin-cli -signet"
@@ -52,9 +52,9 @@ send)
     [ -n "$psbt" ] || { echo "PSBT を作れなかった"; exit 1; }
     printf '%s' "$psbt" | base64 -d > $OUT/spend.full.psbt
     # faucet の入力は出力 2000 個超で 77KB になる。前トランザクションを落とさないと QR に載らない
-    uv run -q tools/strip_psbt.py $OUT/spend.full.psbt $OUT/spend.psbt
+    uv run -q tools/psbt/strip_psbt.py $OUT/spend.full.psbt $OUT/spend.psbt
     $HOST bin2ur $OUT/spend.psbt $OUT/spend
-    uv run -q tools/show_ur.py $OUT/spend.ur $OUT/spend.gif 400
+    uv run -q tools/psbt/show_ur.py $OUT/spend.ur $OUT/spend.gif 400
     echo "$OUT/spend.gif を実機に見せる（$(wc -c < $OUT/spend.psbt) byte）"
     $CLI decodepsbt "$psbt" | sed -n 's/.*"fee"/  fee/p'
     ;;

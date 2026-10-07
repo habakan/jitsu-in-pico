@@ -2,7 +2,7 @@
 # dependencies = ["segno", "embit"]
 # ///
 """ニーモニックから SeedQR（SeedSigner 互換）を作る。実機の読み取り試験用。
-使い方: uv run tools/gen_seedqr.py "word1 word2 ... word12" [出力.png]
+使い方: uv run tools/generate/gen_seedqr.py "word1 word2 ... word12" [出力.png]
 
 標準 SeedQR（単語番号を 4 桁ずつ並べた数字列）を出す。BIP39 のチェックサムも確かめる。
 **ここで作った QR は秘密そのもの。画面に出した履歴やファイルの扱いに注意する。**"""

@@ -4,7 +4,7 @@
 """BOOTSEL で再起動した実機から SRAM を吸い出し、鍵の痕跡が残っていないか探す。
 SWD を外しても BOOTSEL は生きているので、物理的に触れる相手はこの経路で RAM を読める。
 
-使い方: uv run tools/ram_scan.py [探す値を書いたファイル] [--dump 吸い出し済みの.bin]
+使い方: uv run tools/security/ram_scan.py [探す値を書いたファイル] [--dump 吸い出し済みの.bin]
 
 --dump を渡すと picotool を使わず、そのファイルを調べる（SWD で読んだものなど）。
 

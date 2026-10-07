@@ -22,7 +22,7 @@ jobs:
       - name: Are the dependencies at their pinned commits
         run: make check-deps
       - name: Fetch the toolchain (pinned by version and by hash)
-        run: ./tools/toolchain.sh
+        run: ./tools/build/toolchain.sh
       - name: Rebuild the two tracked wasm artifacts and compare against the recorded hashes
         run: make check-repro
       - name: Is what we ship the right shape (no imports, fixed memory, no mutable global exported)
@@ -48,19 +48,19 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y -qq cmake ninja-build clang lld
           make deps-host
-          ./tools/toolchain.sh          # needed to build parser.wasm
+          ./tools/build/toolchain.sh   # needed to build parser.wasm
       - name: C formatting and static analysis
         run: |
-          SDK=$(./tools/toolchain.sh)
+          SDK=$(./tools/build/toolchain.sh)
           make check-c-format check-c-tidy LLVM=$PWD/$SDK/bin WASI=$PWD/$SDK/share/wasi-sysroot
       - run: make check-core
       - run: make check-xpub
       - run: make check-seedqr
       - run: make check-ui
-      - name: A full PSBT round (WAMR plus the native core, signatures verified independently with embit)
+      - name: PSBT round trips (WAMR, native core, and Node WebAssembly)
         run: |
-          SDK=$(./tools/toolchain.sh)
-          make check-psbt LLVM=$PWD/$SDK/bin WASI=$PWD/$SDK/share/wasi-sysroot \
+          SDK=$(./tools/build/toolchain.sh)
+          make check-psbt check-e2e-wasm LLVM=$PWD/$SDK/bin WASI=$PWD/$SDK/share/wasi-sysroot \
             RTLIB=$PWD/$SDK/lib/clang/23/lib/wasm32-unknown-wasi \
             WASM_OPT=$PWD/build/toolchain/binaryen-version_132/bin/wasm-opt
       # Bitcoin Core as the oracle: it decides what a PSBT means, and our signatures have to equal
@@ -77,4 +77,3 @@ jobs:
           bitcoind --version | head -1
       - name: Compare against Core (the parse, and the signatures byte for byte)
         run: make check-core-diff
-

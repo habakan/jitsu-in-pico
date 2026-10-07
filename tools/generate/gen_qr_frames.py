@@ -37,7 +37,7 @@ def main():
                 name = f"f{frag}_s{span}_b{int(blur * 10)}"
                 cases.append((name, qr.version, modules, span, text, camera_shot(qr, span, 5, blur, 4, nrng)))
     out = open(sys.argv[1], "w")
-    out.write(f"/* tools/gen_qr_frames.py が生成 */\n#define FRAME_W {W}\n#define FRAME_H {H}\n")
+    out.write(f"/* tools/generate/gen_qr_frames.py が生成 */\n#define FRAME_W {W}\n#define FRAME_H {H}\n")
     out.write("struct frame { const char *name; int version; const char *text; const unsigned char *pix; };\n")
     for i, (name, ver, modules, span, text, pix) in enumerate(cases):
         out.write(f"static const unsigned char frame{i}[] = {{" + ",".join(map(str, pix.flatten())) + "};\n")

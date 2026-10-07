@@ -30,7 +30,7 @@ at 150MHz. Synthetic camera-like images were stored in Flash and run with
 
 ### Synthetic image generation
 
-`tools/gen_qr_frames.py` puts one UR QR code (`UR:CRYPTO-PSBT/12-30/...`, uppercase alphanumeric mode,
+`tools/generate/gen_qr_frames.py` puts one UR QR code (`UR:CRYPTO-PSBT/12-30/...`, uppercase alphanumeric mode,
 ECC L) into a 320×240 grayscale image. It applies a 5° rotation, Gaussian blur, noise σ=4, 25% side
 and 15% top/bottom illumination variation, and contrast from 40 to 210.
 

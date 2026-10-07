@@ -2,7 +2,7 @@
 # dependencies = ["pyserial"]
 # ///
 """Debug Probe の UART を受けて表示し、build/monitor.log にも残す。
-使い方: uv run tools/monitor.py [秒数]（省略すると Ctrl-C まで）。ポートは自動で選ぶ。"""
+使い方: uv run tools/device/monitor.py [秒数]（省略すると Ctrl-C まで）。ポートは自動で選ぶ。"""
 import sys, time
 import serial
 from serial.tools import list_ports
