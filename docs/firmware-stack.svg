@@ -25,16 +25,16 @@
 <text x="70" y="409" fill="#6b7280" font-size="11.5">components/qr/ · fixed point</text>
 
 <rect x="346" y="270" width="248" height="172" rx="9" fill="#faf8ff" stroke="#654FF0" stroke-width="1.5"/>
-<text x="366" y="297" fill="#654FF0" font-size="14">Untrusted-data parser</text>
+<text x="366" y="297" fill="#654FF0" font-size="14">Parser · jitsu-in</text>
 <line x1="366" y1="310" x2="574" y2="310" stroke="#654FF0" stroke-width="1" opacity="0.25"/>
 <text x="366" y="337" fill="#1a1d24" font-size="12.5">parser.wasm · jitsu-in</text>
 <text x="366" y="357" fill="#6b7280" font-size="11.5">UR · CBOR · PSBT</text>
 <text x="366" y="388" fill="#1a1d24" font-size="12.5">WAMR classic interpreter</text>
 <text x="366" y="409" fill="#6b7280" font-size="11.5">checked C host ABI · src/runtime/</text>
 
-<rect x="642" y="270" width="248" height="172" rx="9" fill="#fff8ed" stroke="#d97706" stroke-width="1.5"/>
-<text x="662" y="297" fill="#9a4d00" font-size="14">Signing core · native C</text>
-<line x1="662" y1="310" x2="870" y2="310" stroke="#d97706" stroke-width="1" opacity="0.25"/>
+<rect x="642" y="270" width="248" height="172" rx="9" fill="#faf8ff" stroke="#654FF0" stroke-width="1.5"/>
+<text x="662" y="297" fill="#654FF0" font-size="14">Signer · jitsu-in · native C</text>
+<line x1="662" y1="310" x2="870" y2="310" stroke="#654FF0" stroke-width="1" opacity="0.25"/>
 <text x="662" y="337" fill="#1a1d24" font-size="12.5">Plan checks · BIP32 · sighash</text>
 <text x="662" y="357" fill="#6b7280" font-size="11.5">review data · key ownership</text>
 <text x="662" y="388" fill="#1a1d24" font-size="12.5">ECDSA · Schnorr</text>
@@ -44,7 +44,6 @@
 <path d="M337 350 L345 354 L337 358" fill="none" stroke="#2f9e5e" stroke-width="1.8"/>
 <line x1="594" y1="354" x2="633" y2="354" stroke="#2f9e5e" stroke-width="1.8" opacity="0.65"/>
 <path d="M633 350 L641 354 L633 358" fill="none" stroke="#2f9e5e" stroke-width="1.8"/>
-<text x="318" y="339" fill="#6b7280" font-size="9.5" text-anchor="middle">UR payload</text>
 <text x="614" y="339" fill="#6b7280" font-size="9.5" text-anchor="middle">Plan</text>
 
 <rect x="50" y="465" width="840" height="125" rx="9" fill="#f5f7fa" stroke="#9aa4b2" stroke-width="1.4"/>
@@ -52,10 +51,12 @@
 <line x1="70" y1="503" x2="870" y2="503" stroke="#9aa4b2" stroke-width="1" opacity="0.35"/>
 <text x="70" y="528" fill="#1a1d24" font-size="12.5">Pico SDK · CMake</text>
 <text x="70" y="550" fill="#6b7280" font-size="11.5">RP2350 · 520KB SRAM · 4MB flash</text>
-<text x="356" y="528" fill="#1a1d24" font-size="12.5">Camera · OV7675</text>
-<text x="356" y="550" fill="#6b7280" font-size="11.5">8-bit parallel · I²C · PIO capture</text>
-<text x="624" y="528" fill="#1a1d24" font-size="12.5">Display · ST7789V</text>
-<text x="624" y="550" fill="#6b7280" font-size="11.5">SPI · two buttons via GPIO</text>
+<text x="300" y="528" fill="#1a1d24" font-size="12.5">Camera · OV7675</text>
+<text x="300" y="550" fill="#6b7280" font-size="11.5">8-bit parallel · I²C · PIO capture</text>
+<text x="520" y="528" fill="#1a1d24" font-size="12.5">Display · ST7789V</text>
+<text x="520" y="550" fill="#6b7280" font-size="11.5">SPI · two buttons via GPIO</text>
+<svg x="790" y="505" width="52" height="72" viewBox="850 650 1300 3250" preserveAspectRatio="xMidYMid slice"><image href="pico-2-cc0.jpg" x="0" y="0" width="3024" height="4032"/></svg>
+<text x="816" y="584" fill="#6b7280" font-size="10.5" text-anchor="middle">Pico 2 H</text>
 
-<text x="50" y="642" fill="#6b7280" font-size="11.5">Only parser.wasm runs in WAMR. The signing core and QR decoder are native firmware.</text>
+<text x="50" y="642" fill="#6b7280" font-size="11.5">jitsu-in code: parser.wasm, signer, and SeedQR parser under components/parts/. Pico-specific code lives in this repository.</text>
 </svg>

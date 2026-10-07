@@ -13,6 +13,8 @@
 UI and camera code, hardware documentation, and device integration checks. The reusable modules and
 cross-platform examples live in jitsu-in.
 
+![Firmware stack: Pico 2 hardware, native firmware, WAMR, and jitsu-in modules](docs/firmware-stack.svg)
+
 The [browser viewer](https://github.com/habakan/jitsu-in/tree/main/examples/viewer) is maintained in jitsu-in.
 
 The device runs `parser.wasm` from jitsu-in. Its `Parser hash` screen shows the module's SHA-256;

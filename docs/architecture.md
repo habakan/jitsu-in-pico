@@ -5,7 +5,7 @@ The current device architecture. Detailed checks and the reason for the parser b
 
 The firmware stack at a glance:
 
-![Firmware stack: Pico 2 hardware, native firmware, WAMR, and parser.wasm](firmware-stack.svg)
+![Firmware stack: Pico 2 hardware, native firmware, WAMR, and jitsu-in modules](firmware-stack.svg)
 
 ## 1. The trust boundary
 
