@@ -87,27 +87,7 @@ sequenceDiagram
     L-->>W: an animated QR to read back
 ```
 
-## 3. The same `.wasm`, verifiable anywhere
-
-The parser runs as the identical bytes in six places. That isolates bugs that only reproduce on the
-hardware, and it lets someone else verify the same artifact independently.
-
-```mermaid
-flowchart LR
-    src["components/parts/parser/src/*.c<br/>jitsu-in"] --> wasm["parser.wasm<br/>15,570 bytes"]
-    wasm --> mac["native on a Mac<br/>make check-psbt"]
-    wasm --> qemu["QEMU RV32<br/>counts instructions"]
-    wasm --> dev["RP2350 hardware<br/>WAMR interpreter"]
-    wasm --> browser["a browser<br/>the single-file viewer"]
-    wasm --> other["Kotlin / Swift<br/>components/parts/parser/hosts"]
-    mac --> ref["checked against reference implementations<br/>embit / @ngraveio/bc-ur /<br/>Bitcoin Core's rpc_psbt.json"]
-    qemu --> ref
-    dev --> ref
-    browser --> ref
-    other --> ref
-```
-
-## 4. Memory: what the 520KB goes on
+## 3. Memory: what the 520KB goes on
 
 ```mermaid
 flowchart LR
@@ -128,7 +108,7 @@ flowchart LR
   times slower — which pushes the pool to 277KB and no longer leaves room for the camera. With the
   parser this light, a full round only changes by 8%, so **the interpreter stays**
 
-## 5. Measured (Pico 2 H, 150MHz)
+## 4. Measured (Pico 2 H, 150MHz)
 
 | step | where it runs | time |
 |---|---|---|
