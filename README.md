@@ -113,7 +113,7 @@ Host and QEMU checks live under `tests/`.
 | | | TCB |
 |---|---|---|
 | `components/parts/` | Pinned [jitsu-in](https://github.com/habakan/jitsu-in) submodule: reusable parser and signer modules. Their specifications and host examples are maintained in jitsu-in | **outside** |
-| `components/qr/` | QR decoder (submodule: [quirc](https://github.com/habakan/quirc), `mcu` branch, made fixed-point for CPUs without an FPU) | outside |
+| `components/qr/` | QR decoder ([quirc](https://github.com/habakan/quirc) submodule) | outside |
 | `src/` | The firmware's entry point (`main.c`) and the pin assignment (`board_pins.h`) | inside |
 | `src/drivers/` | Display (ST7789), buttons, camera (PIO + DMA). Runs only on the board | inside |
 | `src/ui/` | Builds the 240x240 screens, independent of where they are shown | inside |
@@ -125,29 +125,18 @@ Host and QEMU checks live under `tests/`.
 Dependencies (`third_party/`, gitignored) are cloned by `make deps`: libsecp256k1, WAMR 2.4.3,
 pico-sdk 2.3.1, QR-Code-generator, the spleen font, and a RISC-V toolchain.
 
-## The record
+## Documentation
 
-Measurements and mistakes are kept as they happened (currently in Japanese): AOT with XIP running
-7× slower on real hardware, WAMR's unaligned `i64.store`, `wasm-opt` changing the artifact by 2.7KB
-merely by being on `PATH`, quirc failing to read a display from a distance.
-
-[architecture](docs/architecture.md) ·
-[design](docs/design.md) ·
-[signing architecture](docs/signing-architecture.md) ·
-[reproducible build](docs/reproducible-build.md) ·
-[verification](docs/verification.md) ·
-[fit on RP2350](docs/feasibility.md) ·
-[BIP39/BIP32 speed](docs/kdf-feasibility.md) ·
-[AOT](docs/aot-feasibility.md) ·
-[QR](docs/qr-feasibility.md) ·
-[hardware](docs/hardware.md)
-
-## Upstream
-
-- **WAMR**: fixed the classic interpreter assuming 4-byte alignment for `i64.store`
-  ([PR #5123](https://github.com/wasm-micro-runtime/wasm-micro-runtime/pull/5123), merged 2026-09-30).
-  It bites on CPUs that disallow unaligned access, and does not reproduce under QEMU
-- **quirc**: the `mcu` fork carries the fixed-point work, unmerged security fixes, UBSan and fuzzing
+| If you want to... | Read |
+|---|---|
+| Understand how the device works | [System architecture](docs/architecture.md) |
+| Review the parser boundary and signing path | [Signing architecture](docs/signing-architecture.md) |
+| Check supported transactions and known risks | [Limitations](docs/limitations.md) |
+| Rebuild and verify the published artifacts | [Reproducible build](docs/reproducible-build.md) |
+| Repeat the signet transaction procedure | [Verification](docs/verification.md) |
+| See performance and feasibility measurements | [Feasibility and performance](docs/feasibility.md) (English) |
+| Identify parts and wire the device | [Hardware](docs/hardware.md), [breadboard](docs/breadboard.md) |
+| Read the design history | [Design notes](docs/design.md) |
 
 ## Contributing
 

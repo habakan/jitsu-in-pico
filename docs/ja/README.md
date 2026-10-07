@@ -140,11 +140,10 @@ pico-sdk 2.3.1、QR-Code-generator、spleen フォント、RISC-V ツールチ�
 | [signing architecture](../signing-architecture.md)（英語） | 現在の解析・署名構成と信頼境界 |
 | [再現可能ビルド](reproducible-build.md) | ビルド成果物の再現方法 |
 | [verification](../verification.md)（英語） | signet での送金とビルド・検証手順 |
-| [feasibility](../feasibility.md) ほか（日本語） | RP2350 のサイズ・速度、BIP39 / BIP32、AOT、QR の計測 |
+| [Feasibility and performance measurements](../feasibility.md)（英語） | RP2350 のメモリ・速度、QR、BIP39 / BIP32、WASM / AOT の計測 |
 | [hardware](../hardware.md)（英語）・[breadboard](../breadboard.md)（英語）・[breadboard](breadboard.md)（日本語） | 部品と配線、実配線図 |
 
-AOT の XIP が 7 倍遅いこと、WAMR の非整列 `i64.store`、`wasm-opt` が PATH にあるだけで成果物が
-2.7KB 変わること、quirc が液晶の遠景を読めないことも、その経緯とともに記録しています。
+計測条件と再現手順は [Feasibility and performance measurements](../feasibility.md)（英語）にまとめています。
 
 ## 外部プロジェクトへの貢献
 
