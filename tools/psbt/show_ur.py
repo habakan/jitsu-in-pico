@@ -2,7 +2,7 @@
 # dependencies = ["segno", "pillow"]
 # ///
 """UR のパート（1 行 1 パート）をアニメーション GIF にして、実機のカメラに読ませる。
-使い方: uv run tools/show_ur.py build/psbt/scan.ur [出力.gif] [1 枚あたりのミリ秒]
+使い方: uv run tools/psbt/show_ur.py build/psbt/scan.ur [出力.gif] [1 枚あたりのミリ秒]
 
 パートは純粋なものだけを周回させる。実機側（app）の出し方と同じで、どの受信側でも完成できる。"""
 import os

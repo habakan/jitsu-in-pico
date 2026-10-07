@@ -32,7 +32,7 @@ own SSH tunnel for a different host.
    descriptor with the one from the device:
 
    ```sh
-   tools/watchonly.sh init 'wpkh([fingerprint/84h/1h/0h]tpub.../<0;1>/*)'
+   tools/device/watchonly.sh init 'wpkh([fingerprint/84h/1h/0h]tpub.../<0;1>/*)'
    ```
 
    The helper imports the receive (`/0/*`) and change (`/1/*`) branches separately, marks the latter
@@ -41,14 +41,14 @@ own SSH tunnel for a different host.
 2. Get a receive address, fund it from a signet faucet, and check the balance:
 
    ```sh
-   tools/watchonly.sh addr
-   tools/watchonly.sh balance
+   tools/device/watchonly.sh addr
+   tools/device/watchonly.sh balance
    ```
 
 3. Create a PSBT and the animated QR file to show to the device:
 
    ```sh
-   tools/watchonly.sh send DESTINATION_ADDRESS 0.0005 1
+   tools/device/watchonly.sh send DESTINATION_ADDRESS 0.0005 1
    ```
 
    Replace `DESTINATION_ADDRESS` with the address to pay.
@@ -63,13 +63,13 @@ own SSH tunnel for a different host.
 5. Finalize and broadcast the signed PSBT:
 
    ```sh
-   tools/watchonly.sh broadcast /tmp/run.log
+   tools/device/watchonly.sh broadcast /tmp/run.log
    ```
 
 ### Notes
 
 - Faucet transactions can have more than 2,000 outputs. Including their full previous transactions
-  can make a PSBT 77KB, or about 770 QR frames. `tools/strip_psbt.py` removes `non_witness_utxo` for
+  can make a PSBT 77KB, or about 770 QR frames. `tools/psbt/strip_psbt.py` removes `non_witness_utxo` for
   SegWit inputs and reduces this example to about 339 bytes. This procedure uses single-signature
   P2WPKH; do not apply that shortcut to multisig.
 - Import receive and change descriptors separately. Node versions differ in their handling of the

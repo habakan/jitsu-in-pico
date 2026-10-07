@@ -205,7 +205,7 @@ Tests: 71 checks, passing on both the Mac and RV32:
   every hash type
 - BIP84 and BIP86: with the key derived from `abandon ... about`, review and signing pass and the
   signature verifies. The expected scripts are computed independently with embit and cross-checked
-  against the values in BIP86 (`tools/gen_core_vectors.py`)
+  against the values in BIP86 (`tools/generate/gen_core_vectors.py`)
 - Addresses: BIP350's eight valid vectors; that invalid program lengths (1 and 41 bytes, and 16 and 21
   at v0) produce nothing; base58check, with embit for the expected values; the known addresses from
   BIP84 and BIP86
@@ -237,7 +237,7 @@ Verification (`make check-psbt`, `make check-qemu-psbt`):
 
 - Six PSBTs built with embit for our own seed — P2WPKH with one and two inputs, P2TR with two, a mix,
   one including someone else's input, and two inputs with no `non_witness_utxo` — go through a full
-  round, and the signed PSBT is verified independently with embit (`tools/check_signed_psbt.py`). The
+  round, and the signed PSBT is verified independently with embit (`tests/host/check_signed_psbt.py`). The
   ECDSA signatures match embit's own byte for byte, and the Schnorr ones verify against embit's BIP341
   sighash. The two-input case with no `non_witness_utxo` is refused with `CORE_ERR_PREVTX_MISSING`
 - Against Bitcoin Core's `test/functional/data/rpc_psbt.json` — 84 invalid and 48 valid, two of which
@@ -404,7 +404,7 @@ sign -> signed PSBT -> 10 UR parts out
 - While reading, the camera image goes to the panel with how many of how many parts, and what is being
   detected (`no QR in view` / `QR found, cannot read`), on the first line. Without being able to aim it
   is not usable
-- `tools/show_ur.py` turns the UR's parts into an animated GIF, so a PC screen can present it to the
+- `tools/psbt/show_ur.py` turns the UR's parts into an animated GIF, so a PC screen can present it to the
   camera. The UR for an unsigned PSBT comes from `psbt_host bin2ur`
 - The menu is `Scan PSBT`, `Sign test PSBT` (only in a TEST_SEED build) and `Lock`
 
@@ -419,7 +419,7 @@ seed's.
 - Both a standard SeedQR, 48 or 96 digits of four-digit word indices, and a CompactSeedQR, 16 or 32
   bytes of entropy
 - The word list is generated only after checking the official `english.txt` against its SHA-256
-  (`tools/gen_bip39_words.py`, 20KB of flash)
+  (`tools/generate/gen_bip39_words.py`, 20KB of flash)
 - The mnemonic and the seed are cleared with `wipe()` once finished with
 - Tested by `make check-seedqr`, 10 checks confirmed independently with embit. **Build it with ASan**:
   an input like index 2048, whose low 11 bits equal a valid value, passes the checksum and reads past
@@ -472,7 +472,7 @@ What goes to the UART is the fingerprint and some timings — never the seed or 
 
 #### Measured (2026-10-04)
 
-What had been written as an assumption was checked on the hardware. `tools/ram_scan.py` and OpenOCD
+What had been written as an assumption was checked on the hardware. `tools/security/ram_scan.py` and OpenOCD
 dump all 520KB of SRAM, and the values derived from the test seed were searched for in it.
 
 | route | result |
@@ -497,7 +497,7 @@ both confirmed present in the same dump — which is how we know the dump is rea
 #### Searching without knowing the value: a structural scan
 
 The check above searches for **known values**, so it cannot find a remnant nobody thought of. So
-`tools/ram_keys.py` takes every 32-byte window as if it were a private key and asks whether the public
+`tools/security/ram_keys.py` takes every 32-byte window as if it were a private key and asks whether the public
 key it derives is one we recognise. **That finds a key by its properties, without knowing its value.**
 
 The one that matters most is **a signature's nonce, k**. If 32 bytes satisfying `k*G == R` for a

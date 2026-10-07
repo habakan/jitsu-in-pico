@@ -36,14 +36,14 @@
 - シードは RAM のみに保持し、フラッシュには書きません。電源を入れ直した後は SeedQR を再度読み込む必要があります。
 - ロック解除中は、署名に必要なマスター鍵と chain code も RAM にあります。**接続したデバッグプローブ（SWD）から読み取れる**ことを実測しています。[signing-architecture.md](../signing-architecture.md)（英語）をご覧ください。実際に使うときはプローブを外してください。
 - `Lock (wipe seed)` は鍵をゼロ化します。前後の RAM ダンプで確認しています。
-- mnemonic、BIP39 seed、SeedQR のペイロード、カメラ画像、導出した子鍵は使用後に消去します。署名 nonce も残りません。`tools/ram_keys.py` で確認しています。
+- mnemonic、BIP39 seed、SeedQR のペイロード、カメラ画像、導出した子鍵は使用後に消去します。署名 nonce も残りません。`tools/security/ram_keys.py` で確認しています。
 - USB ブートローダー（BOOTSEL）に入ると SRAM 全体が消去されるため、残った鍵を読み出す経路にはなりません。
 - 任意に電圧異常を起こしたりチップを調査したりできる攻撃者は防げません。署名前の署名検証と、署名セッションごとの secp256k1 コンテキスト再ランダム化で攻撃コストを上げますが、耐タンパー性を実現するものではありません。
 
 ## QR とデータ転送
 
 - アニメーション QR は UR（BCR-2020-005）の fountain encoding を使います。各フレームを QR version 8 に収め、240x240 の画面をスマートフォンで読み取れるよう、断片を 100 byte にしています。
-- 前トランザクションが大きい PSBT は収まらないことがあります。SegWit 入力の `non_witness_utxo` は `tools/strip_psbt.py` で削れます。faucet の入力に出力が 2,323 件ある場合、PSBT は 77KB、QR は 770 枚になりました。
+- 前トランザクションが大きい PSBT は収まらないことがあります。SegWit 入力の `non_witness_utxo` は `tools/psbt/strip_psbt.py` で削れます。faucet の入力に出力が 2,323 件ある場合、PSBT は 77KB、QR は 770 枚になりました。
 - デバイスの QR デコーダ quirc は、QR が画面の大部分を占めないと読み取れません。離れた場所から画面を読む用途には向きません。
 - QR デコーダは信頼境界ではありません。出力は解析器で解析し、再検証します。
 

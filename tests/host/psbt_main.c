@@ -152,7 +152,7 @@ static int write_ur(const char *out_path, uint32_t len, const char *preview) {
     return 0;
 }
 
-/* The plan as JSON, so tools/check_against_core.py can diff it against Bitcoin Core's decodepsbt.
+/* The plan as JSON, so tests/host/check_against_core.py can diff it against Bitcoin Core's decodepsbt.
  * Only what Core also reports is printed; comparing anything else would prove nothing */
 static void put_hex(const uint8_t *b, size_t n) {
     for (size_t i = 0; i < n; i++) printf("%02x", b[i]);

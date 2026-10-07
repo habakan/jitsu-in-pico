@@ -51,7 +51,7 @@ Not reviewed by a third party. signet only. See [Disclaimer](../README.md#discla
   [docs/signing-architecture.md](signing-architecture.md). Disconnect the probe for real use.
 - `Lock (wipe seed)` zeroes them; this was verified by dumping RAM before and after.
 - The mnemonic, the BIP39 seed, the SeedQR payload, the camera frame and derived child keys are
-  wiped after use, and signing nonces do not survive — all verified with `tools/ram_keys.py`.
+  wiped after use, and signing nonces do not survive — all verified with `tools/security/ram_keys.py`.
 - Entering the USB bootloader (BOOTSEL) clears SRAM entirely, so that path cannot read a leftover key.
 - Nothing defends against an attacker who can glitch or probe the chip at will. Signatures are
   verified before they leave the device and the secp256k1 context is re-randomized per signing
@@ -62,7 +62,7 @@ Not reviewed by a third party. signet only. See [Disclaimer](../README.md#discla
 - Animated QR uses UR (BCR-2020-005) fountain encoding; fragments are 100 bytes so each frame stays
   at QR version 8, which is what a phone camera can read from a 240x240 display.
 - A PSBT whose previous transactions are large may not fit. Strip `non_witness_utxo` for segwit
-  inputs (`tools/strip_psbt.py`); a faucet transaction with 2,323 outputs made a PSBT of 77KB,
+  inputs (`tools/psbt/strip_psbt.py`); a faucet transaction with 2,323 outputs made a PSBT of 77KB,
   which is 770 QR frames.
 - The device's quirc decoder needs the code to fill most of the frame and cannot read a display from
   across a room.

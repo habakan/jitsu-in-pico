@@ -128,7 +128,7 @@ QEMU_CPU := rv32,f=off,d=off,zfa=off,zba=on,zbb=on,zbs=on,zbkb=on,zcb=on,zcmp=on
 QUIRC   ?= components/qr/quirc/lib
 QUIRC_DEFS ?= -DQUIRC_FIXED_POINT_FITNESS -DQUIRC_FLOAT_TYPE=float -DQUIRC_USE_TGMATH
 QRGEN   := third_party/QR-Code-generator/c
-build/qr_frames.h: tools/gen_qr_frames.py
+build/qr_frames.h: tools/generate/gen_qr_frames.py
 	mkdir -p build && uv run -q $< $@
 
 # Use only standard extensions: -O2 may emit Hazard3-specific Xh3bextm instructions that QEMU cannot run.
@@ -150,14 +150,14 @@ build/qr_bench_mac: tests/host/qr_bench.c build/qr_frames.h $(QUIRC)/identify.c
 
 check-qr-mac: build/qr_bench_mac
 	build/qr_bench_mac | awk '{print $$1, $$4}'
-	uv run -q tools/zxing_check.py build/qr_frames | sed 's/^/zxing /'
+	uv run -q tests/host/zxing_check.py build/qr_frames | sed 's/^/zxing /'
 .PHONY: check-qr-mac
 
 # Native signing core for architecture B (docs/architecture-b.md).
 # tx.c and sha256.c are shared with the jitsu-in submodule.
 CORE_SRC := components/parts/signer/core.c components/parts/signer/address.c components/parts/signer/bip32.c components/parts/signer/sighash.c components/parts/parser/c/src/tx.c components/parts/parser/c/src/sha256.c components/parts/signer/ripemd160.c components/parts/signer/sha512.c \
             components/parts/signer/secp_callbacks.c
-build/core_vectors.h: tools/gen_core_vectors.py test-vectors/bip341-wallet-test-vectors.json
+build/core_vectors.h: tools/generate/gen_core_vectors.py test-vectors/bip341-wallet-test-vectors.json
 	mkdir -p build && uv run -q $< test-vectors/bip341-wallet-test-vectors.json $@
 
 build/test_core: components/parts/signer/tests/test_core.c $(CORE_SRC) components/parts/signer/*.h components/parts/parser/c/include/*.h build/core_vectors.h components/parts/signer/secp256k1_unity.c
@@ -207,15 +207,15 @@ build/parser.wasm: components/parts/parser/c/src/*.c components/parts/parser/c/i
 	cp components/parts/parser/build/parser.wasm $@
 
 # Rebuild the WASM artifacts used by the device with pinned tools and compare their hashes.
-SDK = $(shell ./tools/toolchain.sh)
+SDK = $(shell ./tools/build/toolchain.sh)
 REPRO_WASM := build/parser.wasm build/signer.wasm
 
 # Check that the distributable WASM modules have the expected shape; requires wasm-tools.
 check-wasm: $(REPRO_WASM)
-	uv run -q tools/check_wasm.py $(REPRO_WASM)
+	uv run -q tests/host/check_wasm.py $(REPRO_WASM)
 .PHONY: check-wasm
 
-check-repro: tools/toolchain.sh checksums.txt
+check-repro: tools/build/toolchain.sh checksums.txt
 	rm -f $(REPRO_WASM) components/parts/parser/build/parser.wasm
 	$(MAKE) $(REPRO_WASM) \
 	  LLVM=$(CURDIR)/$(SDK)/bin WASI=$(CURDIR)/$(SDK)/share/wasi-sysroot \
@@ -242,10 +242,10 @@ build/parser.aot: build/parser.wasm $(WAMRC)
 build/parser_wasm.h: $(PARSER_BIN)
 	xxd -i -n parser_wasm $< | sed 's/^unsigned char/const unsigned char/' > $@
 
-build/psbt/own_p2wpkh_1in.psbt: tools/gen_psbt_vectors.py
+build/psbt/own_p2wpkh_1in.psbt: tools/generate/gen_psbt_vectors.py
 	rm -rf build/psbt && uv run -q $< build/psbt
 
-build/font8x16.h: tools/gen_font.py
+build/font8x16.h: tools/generate/gen_font.py
 	mkdir -p build && python3 $< third_party/spleen/spleen-8x16.bdf $@
 
 build/host-classic/psbt_host: build/parser_wasm.h build/font8x16.h tests/host/psbt_main.c tests/host/CMakeLists.txt \
@@ -311,9 +311,9 @@ check-core-diff: build/host-classic/psbt_host build/psbt/own_p2wpkh_1in.psbt
 	  $(BTCCLI) getblockchaininfo >/dev/null 2>&1 && break; sleep 1; done
 	@$(BTCCLI) getblockchaininfo >/dev/null || { echo "regtest node did not come up"; exit 1; }
 	@rc=0; \
-	uv run -q --with embit tools/check_against_core.py "$(BTCCLI)" ./build/host-classic/psbt_host \
+	uv run -q --with embit tests/host/check_against_core.py "$(BTCCLI)" ./build/host-classic/psbt_host \
 	  components/parts/parser/tests/rpc_psbt.json build/psbt/*.psbt || rc=1; \
-	uv run -q --with embit tools/check_sigs_against_core.py "$(BTCCLI)" ./build/host-classic/psbt_host \
+	uv run -q --with embit tests/host/check_sigs_against_core.py "$(BTCCLI)" ./build/host-classic/psbt_host \
 	  build/psbt/own_*.psbt || rc=1; \
 	$(BTCCLI) stop >/dev/null 2>&1 || true; \
 	exit $$rc
@@ -327,9 +327,13 @@ check-psbt: build/host-classic/psbt_host build/psbt/own_p2wpkh_1in.psbt build/ps
 	# Decoding the signed-PSBT UR, including mixed fragments, must recover the signed PSBT byte for byte.
 	build/host-classic/psbt_host ur2bin build/psbt/own_mixed_nwu_ur.out.ur build/psbt/roundtrip.out
 	cmp build/psbt/roundtrip.out build/psbt/own_mixed_nwu.signed && echo "signed PSBT survives the UR round trip"
-	uv run -q tools/check_qr_screen.py build/psbt/qr build/psbt/own_mixed_nwu_ur.out.ur
-	uv run -q tools/check_signed_psbt.py build/psbt
+	uv run -q tests/host/check_qr_screen.py build/psbt/qr build/psbt/own_mixed_nwu_ur.out.ur
+	uv run -q tests/host/check_signed_psbt.py build/psbt
 .PHONY: check-psbt
+
+check-e2e-wasm: build/signer.wasm build/parser.wasm build/psbt/own_p2wpkh_1in.psbt
+	node tests/host/e2e_wasm.mjs
+.PHONY: check-e2e-wasm
 
 check-qemu-psbt: build/parser_wasm.h build/font8x16.h build/psbt/own_mixed_nwu.ur
 	cmake -S tests/qemu -B build/qemu-psbt -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \
@@ -346,7 +350,7 @@ build/test_ui: tests/ui/test_ui.c src/ui/ui.c src/ui/ui.h build/font8x16.h compo
 	cc -O2 -Wall -Wextra -Icomponents/parts/signer -Icomponents/parts/parser/c/include -Isrc/ui -Ibuild -I$(QRGEN) -o $@ tests/ui/test_ui.c src/ui/ui.c $(QRGEN)/qrcodegen.c $(CORE_SRC) \
 	  components/parts/signer/secp256k1_unity.c -I$(SECP)/include -I$(SECP)/src $(SECP_DEFS) -Wno-unused-function
 
-build/bip39_words.h: tools/gen_bip39_words.py
+build/bip39_words.h: tools/generate/gen_bip39_words.py
 	mkdir -p build && uv run -q $< $@
 
 # SeedQR is untrusted input; run this check with sanitizers to catch out-of-bounds access.
@@ -394,7 +398,7 @@ build/rp2350/camera_test.elf: bringup/camera_test.c src/drivers/camera.c src/dri
 
 # Check camera.pio without hardware by running pioasm-generated instructions in a minimal PIO simulator.
 check-camera-sim: build/rp2350/camera_test.elf
-	python3 tools/sim_dvp_pio.py build/rp2350/camera.pio.h
+	python3 tests/host/sim_dvp_pio.py build/rp2350/camera.pio.h
 .PHONY: check-camera-sim
 
 # To start the device, hold BOOTSEL while connecting USB, then copy the UF2 to the RP2350 drive.
@@ -423,14 +427,14 @@ wiring: docs/wiring.yml
 	cp build/wiring/wiring.svg docs/wiring.svg
 	open build/wiring/wiring.html
 
-breadboard: docs/breadboard.yml tools/draw_breadboard.py
-	uv run -q tools/draw_breadboard.py $< docs/breadboard.svg
+breadboard: docs/breadboard.yml tools/generate/draw_breadboard.py
+	uv run -q tools/generate/draw_breadboard.py $< docs/breadboard.svg
 	open docs/breadboard.svg
 .PHONY: wiring breadboard
 
 # Read the Debug Probe UART at 115200bps; set a duration with SECONDS=10.
 monitor:
-	mkdir -p build && uv run -q tools/monitor.py $(SECONDS)
+	mkdir -p build && uv run -q tools/device/monitor.py $(SECONDS)
 
 # Flash over the Debug Probe's SWD; this does not require BOOTSEL or reconnecting USB.
 # Use Raspberry Pi's OpenOCD fork because upstream lacks a RISC-V DAP driver for Hazard3 (make deps-openocd builds it).
@@ -453,6 +457,6 @@ flash-swd: $(ELF)
 run: $(ELF)
 	@mkdir -p build
 	$(OPENOCD) -c "program $(ELF) verify exit" 2>&1 | tail -3
-	@uv run -q tools/monitor.py $(SECONDS) & \
+	@uv run -q tools/device/monitor.py $(SECONDS) & \
 	  sleep 2; $(OPENOCD) -c "init; reset run; exit" >/dev/null 2>&1; wait
 .PHONY: flash flash-swd monitor run

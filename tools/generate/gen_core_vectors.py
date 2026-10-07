@@ -12,7 +12,7 @@ root = bip32.HDKey.from_seed(seed)
 def c_bytes(b):
     return "{" + ",".join(f"0x{x:02x}" for x in b) + "}"
 
-out = ["/* tools/gen_core_vectors.py が生成 */", f"static const uint8_t TV_SEED[64] = {c_bytes(seed)};",
+out = ["/* tools/generate/gen_core_vectors.py が生成 */", f"static const uint8_t TV_SEED[64] = {c_bytes(seed)};",
        f"static const uint32_t TV_FP = 0x{root.my_fingerprint.hex()};"]
 
 spks = {}
