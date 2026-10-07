@@ -3,6 +3,10 @@
 The current device architecture. Detailed checks and the reason for the parser boundary are in
 [signing-architecture.md](signing-architecture.md).
 
+The firmware stack at a glance:
+
+![Firmware stack: Pico 2 hardware, native firmware, WAMR, and parser.wasm](firmware-stack.svg)
+
 ## 1. The trust boundary
 
 UR and PSBT data are parsed inside a WASM module that holds no keys. Camera frames are decoded by
