@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  workflow_call:
+
+jobs:
+  # That the artifacts can be rebuilt from public source. It is the basis of everything this project
+  # claims, so it goes first
+  reproducible-build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with: { submodules: recursive }
+      - uses: astral-sh/setup-uv@v10.2.0
+        with: { enable-cache: false }
+      - name: Dependencies (only what building the wasm needs)
+        run: make deps-host
+      - name: Are the dependencies at their pinned commits
+        run: make check-deps
+      - name: Fetch the toolchain (pinned by version and by hash)
+        run: ./tools/build/toolchain.sh
+      - name: Rebuild the two tracked wasm artifacts and compare against the recorded hashes
+        run: make check-repro
+      - name: Is what we ship the right shape (no imports, fixed memory, no mutable global exported)
+        run: |
+          V=1.261.0
+          curl -sL -o /tmp/wt.tar.gz \
+            https://github.com/bytecodealliance/wasm-tools/releases/download/v$V/wasm-tools-$V-x86_64-linux.tar.gz
+          tar xzf /tmp/wt.tar.gz -C /tmp
+          sudo install /tmp/wasm-tools-$V-x86_64-linux/wasm-tools /usr/local/bin/
+          wasm-tools --version
+          make check-wasm
+
+  # The checks that run on a host
+  tests:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+        with: { submodules: recursive }
+      - uses: astral-sh/setup-uv@v10.2.0
+        with: { enable-cache: false }
+      - name: Dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq cmake ninja-build clang lld
+          make deps-host
+          ./tools/build/toolchain.sh   # needed to build parser.wasm
+      - name: C formatting and static analysis
+        run: |
+          SDK=$(./tools/build/toolchain.sh)
+          make check-c-format check-c-tidy LLVM=$PWD/$SDK/bin WASI=$PWD/$SDK/share/wasi-sysroot
+      - run: make check-core
+      - run: make check-xpub
+      - run: make check-seedqr
+      - run: make check-ui
+      - name: PSBT round trips (WAMR, native core, and Node WebAssembly)
+        run: |
+          SDK=$(./tools/build/toolchain.sh)
+          make check-psbt check-e2e-wasm LLVM=$PWD/$SDK/bin WASI=$PWD/$SDK/share/wasi-sysroot \
+            RTLIB=$PWD/$SDK/lib/clang/23/lib/wasm32-unknown-wasi \
+            WASM_OPT=$PWD/build/toolchain/binaryen-version_132/bin/wasm-opt
+      # Bitcoin Core as the oracle: it decides what a PSBT means, and our signatures have to equal
+      # its signatures byte for byte. Pinned and hash-checked like every other tool here
+      - name: Bitcoin Core (pinned by version and by hash)
+        run: |
+          V=28.1
+          curl -sL -o /tmp/btc.tar.gz \
+            https://bitcoincore.org/bin/bitcoin-core-$V/bitcoin-$V-x86_64-linux-gnu.tar.gz
+          echo "07f77afd326639145b9ba9562912b2ad2ccec47b8a305bd075b4f4cb127b7ed7  /tmp/btc.tar.gz" \
+            | sha256sum -c -
+          tar xzf /tmp/btc.tar.gz -C /tmp
+          sudo install /tmp/bitcoin-$V/bin/bitcoind /tmp/bitcoin-$V/bin/bitcoin-cli /usr/local/bin/
+          bitcoind --version | head -1
+      - name: Compare against Core (the parse, and the signatures byte for byte)
+        run: make check-core-diff

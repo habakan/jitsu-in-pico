@@ -1,0 +1,125 @@
+# 実配線の定義。WireViz で図と部品表にする: make wiring
+#
+# ブレッドボードの行と穴は docs/breadboard.md を見る。ここでは「どの部品のどのピンが、
+# どの信号で、どこに繋がっているか」だけを持つ。配線を変えたらここと breadboard.md の両方を直す。
+
+connectors:
+  Pico:
+    pinlabels:
+      - GP0 (UART TX)
+      - GP2 (cam D0)
+      - GP3 (cam D1)
+      - GP4 (cam D2)
+      - GP5 (cam D3)
+      - GP6 (cam D4)
+      - GP7 (cam D5)
+      - GP8 (cam D6)
+      - GP9 (cam D7)
+      - GP10 (cam PCLK)
+      - GP11 (cam HREF)
+      - GP12 (cam VSYNC)
+      - GP14 (cam SDA)
+      - GP15 (cam SCL)
+      - GP16 (lcd DC)
+      - GP17 (btn next)
+      - GP18 (lcd SCL)
+      - GP19 (lcd SDA)
+      - GP21 (cam XCLK)
+      - GP26 (btn ok)
+      - 3V3 OUT
+      - GND
+    notes: Raspberry Pi Pico 2 H。C 列と H 列の行 1〜20
+
+  LCD:
+    pinlabels: [GND, VCC, SCL, SDA, RES, DC, CS, BLK]
+    notes: M154-240240-RGB (ST7789V)。行 36〜43 の J 列
+
+  Camera:
+    pinlabels: [VCC, GND, SCL, SDA, VS, HS, PCLK, XCLK, D7, D6, D5, D4, D3, D2, D1, D0, PEN, PDN]
+    notes: OV7675 (Arducam B0070)。オス-メス線でぶら下げる
+
+  SW1:
+    pinlabels: [A, B]
+    notes: タクトスイッチ（進む）。行 24 / 26
+  SW2:
+    pinlabels: [A, B]
+    notes: タクトスイッチ（承認）。行 28 / 30
+
+  Rail3V3:
+    pinlabels: [row42, row45, row47]
+    notes: A 列外側の赤レール。Pico の 3V3 を液晶の行 42 から引く
+  RailGND:
+    pinlabels: [row9, row10, row13]
+    notes: A 列外側の青レール。Pico の GND（B13）から引く
+
+  Probe:
+    pinlabels: [U-RX, U-GND, D-SWD]
+    notes: Raspberry Pi Debug Probe。U は UART、D は SWD
+
+cables:
+  rail_3v3: {colors: [RD]}
+  rail_gnd: {colors: [BK]}
+  lcd_pwr: {colors: [RD, BK]}
+  lcd_spi: {colors: [YE, GN, BU]}
+  cam_vcc: {colors: [RD]}
+  cam_pen: {colors: [RD]}
+  cam_gnd: {colors: [BK]}
+  cam_pdn: {colors: [BK]}
+  cam_i2c: {colors: [YE, GN, WH]}
+  cam_data: {colors: [BN, RD, OG, YE, GN, BU, VT, GY, WH, PK, TQ]}
+  sw1: {colors: [WH, BK]}
+  sw2: {colors: [WH, BK]}
+  uart: {colors: [WH, BK]}
+
+connections:
+  # 電源レール（Pico から引き込む）
+  - - Pico: [3V3 OUT]
+    - rail_3v3: [1]
+    - Rail3V3: [row42]
+  - - Pico: [GND]
+    - rail_gnd: [1]
+    - RailGND: [row13]
+
+  # 液晶。RES と BLK は基板上の行で VCC と、CS は GND と同じ（図では 1 本にまとめている）
+  - - Pico: [3V3 OUT, GND]
+    - lcd_pwr: [1, 2]
+    - LCD: [VCC, GND]
+  - - Pico: [GP18 (lcd SCL), GP19 (lcd SDA), GP16 (lcd DC)]
+    - lcd_spi: [1, 2, 3]
+    - LCD: [SCL, SDA, DC]
+
+  # カメラの電源はレールから取る
+  - - Rail3V3: [row45]
+    - cam_vcc: [1]
+    - Camera: [VCC]
+  - - Rail3V3: [row47]
+    - cam_pen: [1]
+    - Camera: [PEN]
+  - - RailGND: [row9]
+    - cam_gnd: [1]
+    - Camera: [GND]
+  - - RailGND: [row10]
+    - cam_pdn: [1]
+    - Camera: [PDN]
+
+  # カメラの信号
+  - - Pico: [GP15 (cam SCL), GP14 (cam SDA), GP21 (cam XCLK)]
+    - cam_i2c: [1, 2, 3]
+    - Camera: [SCL, SDA, XCLK]
+  - - Pico: [GP2 (cam D0), GP3 (cam D1), GP4 (cam D2), GP5 (cam D3), GP6 (cam D4), GP7 (cam D5),
+             GP8 (cam D6), GP9 (cam D7), GP10 (cam PCLK), GP11 (cam HREF), GP12 (cam VSYNC)]
+    - cam_data: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    - Camera: [D0, D1, D2, D3, D4, D5, D6, D7, PCLK, HS, VS]
+
+  # ボタン（片側を GND、もう片側を GPIO へ）
+  - - Pico: [GP17 (btn next), GND]
+    - sw1: [1, 2]
+    - SW1: [B, A]
+  - - Pico: [GP26 (btn ok), GND]
+    - sw2: [1, 2]
+    - SW2: [B, A]
+
+  # Debug Probe（SWD の 3 ピンケーブルは別系統なので図に出さない）
+  - - Pico: [GP0 (UART TX), GND]
+    - uart: [1, 2]
+    - Probe: [U-RX, U-GND]

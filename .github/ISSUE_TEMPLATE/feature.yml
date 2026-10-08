@@ -1,0 +1,20 @@
+name: Feature request
+description: Something this should do and does not
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do that you cannot do now
+    validations: { required: true }
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What you would like instead
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: I have read docs/limitations.md and this is not listed there as out of scope
+        - label: This affects what is signed or displayed (rather than convenience)
