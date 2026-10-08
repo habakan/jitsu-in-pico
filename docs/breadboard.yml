@@ -1,0 +1,83 @@
+# ブレッドボードの実配線（穴の位置まで）。tools/generate/draw_breadboard.py が SVG にする: make breadboard
+#
+# 穴の書き方: A1〜J63 が普通の穴、"+42" が赤レール、"-9" が青レール（数字は目安の行）。
+# 繋ぎ先が穴でない文字列なら、基板の外にぶら下がる部品として右端に書き出す。
+# 信号の対応だけ見たいときは docs/wiring.yml（WireViz）。
+
+rows: 50
+
+components:
+  - name: Pico 2 H
+    columns: [C, H]
+    rows: [1, 20]
+    note: USB side is row 1
+  - name: LCD
+    columns: [J, J]
+    rows: [36, 43]
+    extend: right
+  - name: SW1 (next)
+    columns: [E, F]
+    rows: [24, 26]
+  - name: SW2 (ok)
+    columns: [E, F]
+    rows: [28, 30]
+
+# 基板の外にぶら下がる部品。pins はピン番号の順（カメラは奇数が左列、偶数が右列）
+external:
+  - name: Camera OV7675
+    id: Camera
+    side: left
+    at: 3
+    columns: 2
+    pins: [VCC, GND, SCL, SDA, VS, HS, PCLK, XCLK, D7, D6, D5, D4, D3, D2, D1, D0, NC, NC, PEN, PDN]
+  - name: Debug Probe
+    id: Probe
+    side: right
+    at: 1
+    columns: 1
+    pins: [U-RX, U-GND]
+
+wires:
+  # 電源レール
+  - {from: F42, to: "+42", net: 3V3}
+  - {from: B13, to: "-13", net: GND}
+
+  # 液晶（行 42→39→36 で 3V3、43→37 で GND を渡す）
+  - {from: I42, to: I5, net: 3V3}
+  - {from: G42, to: G39, net: 3V3}
+  - {from: F39, to: H36, net: 3V3}
+  - {from: I43, to: J18, net: GND}
+  - {from: H43, to: H37, net: GND}
+  - {from: I41, to: I17, net: LCD SCL}
+  - {from: I40, to: I16, net: LCD SDA}
+  - {from: I38, to: I20, net: LCD DC}
+
+  # ボタン
+  - {from: I18, to: A24, net: GND}
+  - {from: B24, to: A28, net: GND}
+  - {from: J26, to: I19, net: BTN next}
+  - {from: J30, to: I10, net: BTN ok}
+
+  # カメラ（電源はレールから、信号は Pico から。本体は基板の外）
+  - {from: "+45", to: Camera.VCC, net: 3V3}
+  - {from: "+47", to: Camera.PEN, net: 3V3}
+  - {from: "-9", to: Camera.GND, net: GND}
+  - {from: "-10", to: Camera.PDN, net: GND}
+  - {from: B20, to: Camera.SCL, net: CAM SCL}
+  - {from: B19, to: Camera.SDA, net: CAM SDA}
+  - {from: I14, to: Camera.XCLK, net: CAM XCLK}
+  - {from: B16, to: Camera.VS, net: CAM VSYNC}
+  - {from: B15, to: Camera.HS, net: CAM HREF}
+  - {from: B14, to: Camera.PCLK, net: CAM PCLK}
+  - {from: B12, to: Camera.D7, net: CAM D7}
+  - {from: B11, to: Camera.D6, net: CAM D6}
+  - {from: B10, to: Camera.D5, net: CAM D5}
+  - {from: B9, to: Camera.D4, net: CAM D4}
+  - {from: B7, to: Camera.D3, net: CAM D3}
+  - {from: B6, to: Camera.D2, net: CAM D2}
+  - {from: B5, to: Camera.D1, net: CAM D1}
+  - {from: B4, to: Camera.D0, net: CAM D0}
+
+  # Debug Probe（SWD の 3 ピンケーブルは基板端のコネクタなので描かない）
+  - {from: A1, to: Probe.U-RX, net: UART}
+  - {from: A3, to: Probe.U-GND, net: GND}
