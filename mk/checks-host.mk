@@ -146,7 +146,7 @@ build/test_ui: tests/ui/test_ui.c src/ui/ui.c src/ui/ui.h build/font8x16.h compo
 	  components/parts/signer/secp256k1_unity.c -I$(SECP)/include -I$(SECP)/src $(SECP_DEFS) -Wno-unused-function
 
 # SeedQR is untrusted input; run this check with sanitizers to catch out-of-bounds access.
-build/test_seedqr: components/parts/signer/tests/test_seedqr.c components/parts/signer/seedqr.c components/parts/signer/seedqr.h build/bip39_words.h components/parts/parser/c/src/sha256.c
+build/test_seedqr: components/parts/signer/tests/test_seedqr.c components/parts/signer/seedqr.c components/parts/signer/seedqr.h components/parts/parser/c/src/sha256.c
 	cc -O1 -g -Wall -Wextra -fsanitize=address,undefined -fno-sanitize-recover=all \
 	  -Icomponents/parts/signer -Icomponents/parts/parser/c/include -Ibuild -o $@ components/parts/signer/tests/test_seedqr.c components/parts/signer/seedqr.c components/parts/parser/c/src/sha256.c
 

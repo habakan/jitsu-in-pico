@@ -391,7 +391,7 @@ static void show_xpub(void) {
     static ui_screen_t s;
     static char xpub[CORE_XPUB_MAX], desc[CORE_DESC_MAX];
 
-    if (!core_account_xpub(xpub, desc)) return message("xpub failed", NULL, 1);
+    if (core_account_xpub(84, 0, xpub, desc) != CORE_OK) return message("xpub failed", NULL, 1);
     ui_xpub(&s, xpub, core_fingerprint(), TESTNET);
     show(&s);
     printf("%s\n%s\n", xpub, desc);

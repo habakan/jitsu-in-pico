@@ -3,14 +3,11 @@ TESTNET ?= 0
 # Allow selecting the test seed; keep this at 0 for production builds.
 TEST_SEED ?= 0
 
-build/bip39_words.h: tools/generate/gen_bip39_words.py
-	mkdir -p build && uv run -q $< $@
-
 build/test_psbt.h: build/psbt/own_p2wpkh_1in.psbt
 	cp build/psbt/own_mixed_nwu.psbt build/test_psbt.bin && cd build && xxd -i -n test_psbt test_psbt.bin \
 	  | sed 's/^unsigned char/const unsigned char/' > test_psbt.h
 
-build/rp2350/app.elf: build/parser_wasm.h build/font8x16.h build/test_psbt.h build/bip39_words.h \
+build/rp2350/app.elf: build/parser_wasm.h build/font8x16.h build/test_psbt.h \
   src/main.c src/drivers/st7789.c src/drivers/buttons.c CMakeLists.txt \
   src/runtime/parser_host.c src/ui/ui.c $(CORE_SRC) components/parts/parser/c/include/*.h
 	cmake -S . -B build/rp2350 -G Ninja -DCMAKE_BUILD_TYPE=MinSizeRel \

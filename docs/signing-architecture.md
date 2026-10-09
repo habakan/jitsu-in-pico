@@ -418,10 +418,11 @@ seed's.
 - **The BIP39 checksum is always verified.** A single character misread is refused
 - Both a standard SeedQR, 48 or 96 digits of four-digit word indices, and a CompactSeedQR, 16 or 32
   bytes of entropy
-- The word list is generated only after checking the official `english.txt` against its SHA-256
-  (`tools/generate/gen_bip39_words.py`, 20KB of flash)
+- The word list comes from `components/parts`, generated only after checking the official
+  `english.txt` against its SHA-256 (16KB of flash)
 - The mnemonic and the seed are cleared with `wipe()` once finished with
-- Tested by `make check-seedqr`, 10 checks confirmed independently with embit. **Build it with ASan**:
+- Tested by `make check-seedqr`, 68 checks: 10 confirmed independently with embit, and the nine
+  published SeedQR vectors read and written, as digits and as compact bytes. **Build it with ASan**:
   an input like index 2048, whose low 11 bits equal a valid value, passes the checksum and reads past
   the end of the word list, so watching only the return value hides a missing range check
 
