@@ -7,7 +7,7 @@ RISCV_TC ?= $(CURDIR)/third_party/riscv-toolchain
 
 # COMB settings and ecmult_gen table sizes: 2,5=2KB / 11,6=22KB / 43,6=86KB; WASM loads this data segment into RAM
 COMB    ?= -DCOMB_BLOCKS=2 -DCOMB_TEETH=5
-SECP_DEFS := -DENABLE_MODULE_EXTRAKEYS=1 -DENABLE_MODULE_SCHNORRSIG=1 -DECMULT_WINDOW_SIZE=2 \
+SECP_DEFS := -DENABLE_MODULE_EXTRAKEYS=1 -DENABLE_MODULE_SCHNORRSIG=1 -DENABLE_MODULE_RECOVERY=1 -DECMULT_WINDOW_SIZE=2 \
              -DUSE_EXTERNAL_DEFAULT_CALLBACKS=1 $(COMB)
 
 # Lime1 is WebAssembly 1.0 plus seven phase-5 features, defined in WebAssembly/tool-conventions/Lime.md.
@@ -23,4 +23,4 @@ QRGEN       := third_party/QR-Code-generator/c
 
 # tx.c and sha256.c are shared with the jitsu-in submodule.
 CORE_SRC := components/parts/signer/core.c components/parts/signer/address.c components/parts/signer/bip32.c components/parts/signer/sighash.c components/parts/parser/c/src/tx.c components/parts/parser/c/src/sha256.c components/parts/signer/ripemd160.c components/parts/signer/sha512.c \
-            components/parts/signer/secp_callbacks.c
+            components/parts/signer/secp_callbacks.c components/parts/signer/seedqr.c components/parts/signer/bip85.c

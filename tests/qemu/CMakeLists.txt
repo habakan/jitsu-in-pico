@@ -30,9 +30,10 @@ include(${WAMR_ROOT_DIR}/build-scripts/runtime_lib.cmake)
 set(SECP ${ROOT}/third_party/secp256k1)
 add_executable(psbt.elf ${ROOT}/tests/host/psbt_main.c ${ROOT}/src/runtime/parser_host.c ${ROOT}/src/ui/ui.c ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c ${ROOT}/components/parts/signer/core.c ${ROOT}/components/parts/signer/address.c ${ROOT}/components/parts/signer/bip32.c
   ${ROOT}/components/parts/signer/sighash.c ${ROOT}/components/parts/parser/c/src/tx.c ${ROOT}/components/parts/parser/c/src/sha256.c ${ROOT}/components/parts/signer/ripemd160.c ${ROOT}/components/parts/signer/sha512.c
-  ${ROOT}/components/parts/signer/secp_callbacks.c ${ROOT}/components/parts/signer/secp256k1_unity.c ${CMAKE_CURRENT_LIST_DIR}/start.S ${WAMR_RUNTIME_LIB_SOURCE})
+  ${ROOT}/components/parts/signer/secp_callbacks.c ${ROOT}/components/parts/signer/secp256k1_unity.c
+  ${ROOT}/components/parts/signer/seedqr.c ${ROOT}/components/parts/signer/bip85.c ${CMAKE_CURRENT_LIST_DIR}/start.S ${WAMR_RUNTIME_LIB_SOURCE})
 target_include_directories(psbt.elf PRIVATE ${SIGNER_WASM_H_DIR} ${ROOT}/components/parts/signer ${ROOT}/src/runtime ${ROOT}/components/parts/parser/c/include ${ROOT}/src/ui ${ROOT}/third_party/QR-Code-generator/c ${SECP}/include ${SECP}/src)
-target_compile_definitions(psbt.elf PRIVATE QEMU_BUILD=1 ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1
+target_compile_definitions(psbt.elf PRIVATE QEMU_BUILD=1 ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1 ENABLE_MODULE_RECOVERY=1
   ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1 COMB_BLOCKS=2 COMB_TEETH=5)
 # -mcpu=hazard3-rp2350 can emit Xh3bextm, which QEMU does not implement, so only the standard
 # extensions are named

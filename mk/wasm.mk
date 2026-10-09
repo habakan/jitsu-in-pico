@@ -1,8 +1,9 @@
 # The signer module validates, displays, and signs a plan_t; it pairs with parser.wasm.
 # The device runs the same core.c natively so keys stay on the native side.
 SIGNER_WASM_SRC := components/parts/signer/wasm_main.c components/parts/signer/core.c components/parts/signer/address.c \
-  components/parts/signer/bip32.c components/parts/signer/sighash.c components/parts/signer/ripemd160.c \
-  components/parts/signer/sha512.c components/parts/signer/secp_callbacks.c components/parts/signer/secp256k1_unity.c \
+  components/parts/signer/bip32.c components/parts/signer/sighash.c components/parts/signer/seedqr.c components/parts/signer/bip85.c \
+  components/parts/signer/ripemd160.c components/parts/signer/sha512.c components/parts/signer/secp_callbacks.c \
+  components/parts/signer/secp256k1_unity.c \
   components/parts/parser/c/src/tx.c components/parts/parser/c/src/sha256.c
 
 build/signer.wasm: $(SIGNER_WASM_SRC) components/parts/signer/*.h components/parts/parser/c/include/*.h

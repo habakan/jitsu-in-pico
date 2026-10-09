@@ -46,12 +46,12 @@ set(APP_SRC ${SRC}/main.c ${SRC}/drivers/st7789.c
   ${SRC}/drivers/buttons.c ${SRC}/runtime/parser_host.c ${SRC}/ui/ui.c ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c
   ${ROOT}/components/parts/signer/core.c ${ROOT}/components/parts/signer/address.c ${ROOT}/components/parts/signer/bip32.c ${ROOT}/components/parts/signer/sighash.c ${ROOT}/components/parts/parser/c/src/tx.c
   ${ROOT}/components/parts/parser/c/src/sha256.c ${ROOT}/components/parts/signer/ripemd160.c ${ROOT}/components/parts/signer/sha512.c ${ROOT}/components/parts/signer/secp_callbacks.c ${ROOT}/components/parts/signer/seedqr.c
-  ${ROOT}/components/parts/signer/secp256k1_unity.c ${SRC}/drivers/camera.c ${SRC}/drivers/camera_ov7670.c
+  ${ROOT}/components/parts/signer/bip85.c ${ROOT}/components/parts/signer/secp256k1_unity.c ${SRC}/drivers/camera.c ${SRC}/drivers/camera_ov7670.c
   ${QUIRC_SRC} ${WAMR_RUNTIME_LIB_SOURCE})
 foreach(t app app_nolcd)
   add_executable(${t} ${APP_SRC})
   pico_generate_pio_header(${t} ${SRC}/drivers/camera.pio)
-  target_compile_definitions(${t} PRIVATE PICO_BUILD=1 ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1
+  target_compile_definitions(${t} PRIVATE PICO_BUILD=1 ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1 ENABLE_MODULE_RECOVERY=1
     ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1 COMB_BLOCKS=2 COMB_TEETH=5 PICO_STACK_SIZE=0x8000
     NO_LCD=$<STREQUAL:${t},app_nolcd> TEST_SEED=${TEST_SEED} TESTNET=${TESTNET}
     QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH
@@ -102,14 +102,15 @@ pico_add_extra_outputs(button_test)
 add_executable(psbt_bench ${BRINGUP}/psbt_bench.c ${SRC}/runtime/parser_host.c ${SRC}/ui/ui.c
   ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c ${ROOT}/components/parts/signer/core.c ${ROOT}/components/parts/signer/address.c ${ROOT}/components/parts/signer/bip32.c
   ${ROOT}/components/parts/signer/sighash.c ${ROOT}/components/parts/parser/c/src/tx.c ${ROOT}/components/parts/parser/c/src/sha256.c ${ROOT}/components/parts/signer/ripemd160.c
-  ${ROOT}/components/parts/signer/sha512.c ${ROOT}/components/parts/signer/secp_callbacks.c ${ROOT}/components/parts/signer/secp256k1_unity.c ${QUIRC_SRC}
+  ${ROOT}/components/parts/signer/sha512.c ${ROOT}/components/parts/signer/secp_callbacks.c ${ROOT}/components/parts/signer/secp256k1_unity.c
+  ${ROOT}/components/parts/signer/seedqr.c ${ROOT}/components/parts/signer/bip85.c ${QUIRC_SRC}
   ${WAMR_RUNTIME_LIB_SOURCE})
 if(NOT DEFINED PARSER_POOL_KB)
   set(PARSER_POOL_KB 256)
 endif()
 target_compile_definitions(psbt_bench PRIVATE PICO_BUILD=1 POOL_KB=${PARSER_POOL_KB} PICO_STACK_SIZE=0x8000
   QUIRC_FIXED_POINT_FITNESS QUIRC_FLOAT_TYPE=float QUIRC_USE_TGMATH
-  ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1 ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1
+  ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1 ENABLE_MODULE_RECOVERY=1 ECMULT_WINDOW_SIZE=2 USE_EXTERNAL_DEFAULT_CALLBACKS=1
   COMB_BLOCKS=2 COMB_TEETH=5)
 target_compile_options(psbt_bench PRIVATE -Wno-unused-function)
 target_include_directories(psbt_bench PRIVATE ${SIGNER_WASM_H_DIR} ${SRC} ${SRC}/drivers ${ROOT}/components/parts/signer ${QUIRC}
