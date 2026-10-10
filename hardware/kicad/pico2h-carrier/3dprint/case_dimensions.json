@@ -1,0 +1,24 @@
+{
+  "case": {"face_thickness": 2.4, "wall": 2.4, "fit_clearance": 0.3},
+  "carrier": {"size": [58, 38], "thickness": 1.6, "screw_inset": 3},
+  "lcd": {"xy": [7, 3], "size": [43.72, 32], "pcb_thickness": 1.2, "glass_height": 2.3, "face_gap": 0.3, "active_origin": [7.11, 2.14], "active_size": 27.72, "window_margin": 0.54, "rear_connector_depth": 11.3},
+  "camera": {"xy": [10, 4], "size": 30.5, "pcb_thickness": 1.6, "lens_height": 3, "lens_diameter": 7, "lens_offset": [15.25, 15.25], "face_gap": 0.6, "window_diameter": 18, "rear_connector_depth": 11},
+  "pico": {"xy": [2.5, 8.5], "socket_height": 8.5, "header_height": 2.5, "pcb_thickness": 1, "usb_height": 3.5, "component_gap": 2},
+  "buttons": {"centers": [[53.8, 12], [53.8, 26]], "switch_height": 7.3, "free_gap": 0.2},
+  "connectors": {
+    "J3 LCD harness": {"rect": [12.5, 8, 2.5, 20.32], "side": "front"},
+    "J5 UART": {"rect": [17.5, 8, 2.5, 5.08], "side": "front"},
+    "J4 CAM harness": {"rect": [14, 1.5, 25.4, 5.08], "side": "back"}
+  },
+  "assumptions": [
+    "User approved an adjustable prototype on 2026-10-10; physical measurements are pending.",
+    "Rev C (2026-10-10): carrier shrunk to 58 x 38 mm, Pico 2 H moved to the carrier back, camera moved to the rear case. All XY values here are PCB coordinates.",
+    "LCD AA offset [7.11, 2.14] uses a landscape interpretation of the published drawing; verify orientation and header side against the actual module.",
+    "Camera lens height ~2-3 mm and diameter ~6-7 mm were estimated from a photo on 2026-10-10 (modelled 3 / 7 mm); lens center, rear header orientation (assumed along the upper edge) remain provisional.",
+    "Camera harness: 2x10 pin socket with short wires (11 mm deep). Dupont jumper housings need ~16.5 mm plus bend room and do not fit.",
+    "Camera clamp contacts 1.2 mm along the left/right edges; confirm these contact areas are free of components.",
+    "Pico 2 H socket plus male header plastic is provisionally 11 mm; adjust to the actual socket stack.",
+    "Switch height is 7.3 mm with the supplied key cap removed; verify before fitting printed plungers.",
+    "Carrier PCB placement is mechanical only; electrical routing and KiCad ERC/DRC remain unfinished."
+  ]
+}
