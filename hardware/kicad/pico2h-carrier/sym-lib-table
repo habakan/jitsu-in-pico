@@ -1,0 +1,1 @@
+(sym_lib_table (lib (name "PicoCarrier") (type "KiCad") (uri "${KIPRJMOD}/PicoCarrier.kicad_sym") (options "") (descr "Pico 2 H carrier project symbols")))
