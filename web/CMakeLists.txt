@@ -43,4 +43,4 @@ target_compile_options(signer PRIVATE -Wno-unused-function)
 # nothing reached that way sleeps
 target_link_options(signer PRIVATE -sASYNCIFY -sASYNCIFY_IGNORE_INDIRECT -sALLOW_MEMORY_GROWTH -sSTACK_SIZE=262144
   -sSINGLE_FILE -sENVIRONMENT=web --shell-file ${CMAKE_CURRENT_LIST_DIR}/shell.html)
-set_target_properties(signer PROPERTIES SUFFIX .html)
+set_target_properties(signer PROPERTIES SUFFIX .html LINK_DEPENDS ${CMAKE_CURRENT_LIST_DIR}/shell.html)

@@ -29,7 +29,7 @@ canvas#lcd { width: 360px; max-width: 100%; aspect-ratio: 1; image-rendering: pi
 button { background: var(--key); color: var(--key-fg); border: 0; border-radius: 10px; font: 600 14px system-ui;
   cursor: pointer; touch-action: manipulation; }
 button:active { filter: brightness(1.4); }
-.keys button { width: 52px; height: 44px; border-radius: 22px; }
+.keys button { width: 64px; height: 44px; border-radius: 22px; }
 .side { flex: 1; min-width: 280px; }
 .help { font-size: 14px; color: var(--muted); }
 .help kbd { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font-size: 12px; }
@@ -53,12 +53,13 @@ the same WAMR interpreter, compiled to WebAssembly. Only the LCD, buttons and ca
         <button data-key="2" aria-label="Left">&#9664;</button><button data-key="4">OK</button><button data-key="3" aria-label="Right">&#9654;</button>
         <span></span><button data-key="1" aria-label="Down">&#9660;</button><span></span>
       </div>
-      <div class="keys"><button data-key="5">A</button><button data-key="6">B</button><button data-key="7">C</button></div>
+      <!-- B and C have no role in the firmware yet, so only A is shown -->
+      <div class="keys"><button data-key="5">Close</button></div>
     </div>
   </div>
   <div class="side">
     <div class="help">Joystick: <kbd>&larr;</kbd><kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&rarr;</kbd>, push: <kbd>Enter</kbd>.
-      Keys: <kbd>A</kbd>/<kbd>Esc</kbd> back or reject, <kbd>B</kbd>, <kbd>C</kbd>.
+      Close: <kbd>Esc</kbd>, back or reject.
       Start with "Use test seed", then "Sign test PSBT". "Scan PSBT" reads an animated QR from the camera.</div>
     <pre id="log"></pre>
   </div>
@@ -102,7 +103,7 @@ var Module = {
   },
 };
 
-const keymap = { ArrowUp: 0, ArrowDown: 1, ArrowLeft: 2, ArrowRight: 3, Enter: 4, ' ': 4, a: 5, Escape: 5, b: 6, c: 7 };
+const keymap = { ArrowUp: 0, ArrowDown: 1, ArrowLeft: 2, ArrowRight: 3, Enter: 4, ' ': 4, Escape: 5 };
 addEventListener('keydown', e => {
   const k = keymap[e.key.length === 1 ? e.key.toLowerCase() : e.key];
   if (k === undefined || e.repeat) return;
