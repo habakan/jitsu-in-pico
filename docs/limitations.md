@@ -11,8 +11,10 @@ Not reviewed by a third party. signet only. See [Disclaimer](../README.md#discla
 ## Transactions
 
 - **PSBT v0 only** (BIP174). v2 is rejected.
-- **Single-signature only.** The firmware supports P2WPKH (BIP84) and P2TR key-path (BIP86).
-  Multisig support is planned, but the script formats have not been decided.
+- The firmware signs P2WPKH (BIP84), P2TR key-path (BIP86) and **P2WSH multisig of at most three keys**
+  (BIP48, `m/48'/coin'/account'/2'`). The device holds no cosigner keys, so P2WSH change is shown as an
+  external address to check by eye, and the Core wallet combines the cosigners' PSBTs.
+  A P2WSH spend of two or more inputs needs `non_witness_utxo`, as P2WPKH does.
 - **[BIP39](https://github.com/bitcoin/bips/blob/master/bip-0039.mediawiki) passphrase input is planned but not available in the firmware yet.** The shared `signer.wasm`
   interface accepts a passphrase; the Pico firmware currently derives the seed with an empty passphrase.
 - At most **16 inputs and 16 outputs**, and a PSBT of at most **32,768 bytes**.
@@ -21,8 +23,8 @@ Not reviewed by a third party. signet only. See [Disclaimer](../README.md#discla
 - Every input must carry `witness_utxo` or `non_witness_utxo`. When both are present, the previous
   transaction must hash to the stated txid and its output must match the `witness_utxo`.
 - Signatures are **deterministic**: the same PSBT always produces the same bytes. BIP340 `aux_rand`
-  is zero, as in Bitcoin Core, Trezor, Jade and BDK. Before adding multisig, the nonce strategy must
-  change: [BIP340](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki) says multisignature schemes are insecure with deterministic nonce generation.
+  is zero, as in Bitcoin Core, Trezor, Jade and BDK. P2WSH multisig is unaffected: each cosigner makes its
+  own ECDSA signature. Before MuSig2 or FROST, the nonce strategy must change: [BIP340](https://github.com/bitcoin/bips/blob/master/bip-0340.mediawiki) says multisignature schemes are insecure with deterministic nonce generation.
 
 ## What the device checks before it signs
 

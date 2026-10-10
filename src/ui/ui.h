@@ -61,8 +61,8 @@ void ui_message(ui_screen_t *s, const char *title, const char *body, int warn);
 #define UI_UR_FRAGMENT 100
 #define UI_QR_MAX_VERSION 12
 /* Encodes text as a QR, or returns 0 if it does not fit */
-/* The account xpub screen; the string is wrapped so all of it is shown */
-void ui_xpub(ui_screen_t *s, const char *xpub, uint32_t fp, int testnet);
+/* The account xpub screen; the string is wrapped so all of it is shown. purpose 48 is m/48h/coin/0h/2h */
+void ui_xpub(ui_screen_t *s, const char *xpub, uint32_t fp, int testnet, unsigned purpose);
 
 /* Shows the hash of the wasm actually loaded */
 void ui_hash(ui_screen_t *s, const char *name, unsigned len, const uint8_t h[32]);
