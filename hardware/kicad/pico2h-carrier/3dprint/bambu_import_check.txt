@@ -1,0 +1,28 @@
+[bambu_plate_01_base.3mf]
+size_x = 63.400002
+size_y = 43.400002
+size_z = 39.900002
+manifold = yes
+number_of_parts =  1
+[bambu_plate_02_front.3mf]
+size_x = 63.400002
+size_y = 43.400002
+size_z = 17.500000
+manifold = yes
+number_of_parts =  1
+[bambu_plate_03_small_parts.3mf]
+size_x = 6.799995
+size_y = 6.799999
+size_z = 11.000000
+manifold = yes
+number_of_parts =  1
+size_x = 6.800003
+size_y = 6.799999
+size_z = 11.000000
+manifold = yes
+number_of_parts =  1
+size_x = 40.900002
+size_y = 31.900002
+size_z = 1.600000
+manifold = yes
+number_of_parts =  1
