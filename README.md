@@ -81,6 +81,16 @@ make run TESTNET=1 SECONDS=180    # signet
 Only a build with `TEST_SEED=1` can select the BIP39 test vector seed (the default is 0). Never put funds on it.
 Known limitations and operational constraints are in [docs/limitations.md](docs/limitations.md).
 
+### In the browser
+
+```sh
+make web                          # needs Emscripten; writes build/web/signer.html
+```
+
+The same `main.c`, review screens, signing core and `parser.wasm` on WAMR, compiled to WebAssembly. Only
+the LCD, buttons and camera are replaced (`web/hal.c`). It is built with `TEST_SEED=1` and is a demo, not
+a signing device: never scan a real SeedQR into it.
+
 ## Check it yourself
 
 ```sh
