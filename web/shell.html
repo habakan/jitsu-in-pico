@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>jitsu-in-pico Demo</title>
+<style>
+:root { --bg: #f4f2ee; --fg: #1d1c1a; --muted: #6b6760; --panel: #ffffff; --line: #d9d5cd;
+  --body: #2b2a28; --key: #3d3b38; --key-fg: #f4f2ee; --warn-bg: #fdecc8; --warn-fg: #6a4500; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg: #161514; --fg: #ece9e3;
+  --muted: #9c978e; --panel: #201f1d; --line: #34322f; --body: #0d0d0c; --key: #3a3835;
+  --warn-bg: #3b2c0c; --warn-fg: #f3d290; } }
+:root[data-theme="dark"] { --bg: #161514; --fg: #ece9e3; --muted: #9c978e; --panel: #201f1d;
+  --line: #34322f; --body: #0d0d0c; --key: #3a3835; --warn-bg: #3b2c0c; --warn-fg: #f3d290; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 system-ui, sans-serif; }
+main { max-width: 980px; margin: 0 auto; padding: 24px 16px 48px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+p { margin: 0 0 12px; color: var(--muted); }
+.warn { background: var(--warn-bg); color: var(--warn-fg); border-radius: 8px; padding: 10px 14px; margin: 12px 0 20px; }
+.layout { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+.device { background: var(--body); border-radius: 20px; padding: 20px; display: flex; gap: 20px;
+  align-items: center; flex-wrap: wrap; justify-content: center; max-width: 100%; }
+canvas#lcd { width: 360px; max-width: 100%; aspect-ratio: 1; image-rendering: pixelated; background: #000;
+  border-radius: 4px; display: block; }
+.controls { display: flex; gap: 20px; align-items: center; }
+.pad { display: grid; grid-template-columns: repeat(3, 44px); grid-template-rows: repeat(3, 44px); gap: 4px; }
+.keys { display: flex; flex-direction: column; gap: 10px; }
+button { background: var(--key); color: var(--key-fg); border: 0; border-radius: 10px; font: 600 14px system-ui;
+  cursor: pointer; touch-action: manipulation; }
+button:active { filter: brightness(1.4); }
+.keys button { width: 64px; height: 44px; border-radius: 22px; }
+.side { flex: 1; min-width: 280px; }
+.help { font-size: 14px; color: var(--muted); }
+.help kbd { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font-size: 12px; }
+pre#log { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px; height: 320px;
+  overflow: auto; font: 12px/1.4 ui-monospace, monospace; white-space: pre-wrap; word-break: break-all; margin: 8px 0 0; }
+video { display: none; }
+</style>
+</head>
+<body>
+<main>
+<h1>jitsu-in-pico in the browser</h1>
+<p>The Pico 2 firmware's <code>main.c</code>, review screens and signing core, with <code>parser.wasm</code> running on
+the same WAMR interpreter, compiled to WebAssembly. Only the LCD, buttons and camera are replaced.</p>
+<div class="warn">Demo only. Use the test seed. Never scan a real SeedQR here: a browser tab is not a signing device.</div>
+<div class="layout">
+  <div class="device">
+    <canvas id="lcd" width="240" height="240"></canvas>
+    <div class="controls">
+      <div class="pad">
+        <span></span><button data-key="0" aria-label="Up">&#9650;</button><span></span>
+        <button data-key="2" aria-label="Left">&#9664;</button><button data-key="4">OK</button><button data-key="3" aria-label="Right">&#9654;</button>
+        <span></span><button data-key="1" aria-label="Down">&#9660;</button><span></span>
+      </div>
+      <!-- B and C have no role in the firmware yet, so only A is shown -->
+      <div class="keys"><button data-key="5">Close</button></div>
+    </div>
+  </div>
+  <div class="side">
+    <div class="help">Joystick: <kbd>&larr;</kbd><kbd>&uarr;</kbd><kbd>&darr;</kbd><kbd>&rarr;</kbd>, push: <kbd>Enter</kbd>.
+      Close: <kbd>Esc</kbd>, back or reject.
+      Start with "Use test seed", then "Sign test PSBT". "Scan PSBT" reads an animated QR from the camera.</div>
+    <pre id="log"></pre>
+  </div>
+</div>
+<video id="cam" playsinline muted></video>
+</main>
+<script>
+const lcd = document.getElementById('lcd').getContext('2d');
+const img = lcd.createImageData(240, 240);
+const log = document.getElementById('log');
+const video = document.getElementById('cam');
+const grab = Object.assign(document.createElement('canvas'), { width: 320, height: 240 }).getContext('2d', { willReadFrequently: true });
+let stream = null, idle = 0;
+
+function camera() {
+  if (stream) return;
+  stream = navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: 640, height: 480 } })
+    .then(s => { video.srcObject = s; video.play(); return s; })
+    .catch(e => { Module.print('camera: ' + e.message); stream = null; });
+}
+/* The scan loops stop calling capture when they end, so the camera is released after a second */
+function release() {
+  if (stream) stream.then(s => s && s.getTracks().forEach(t => t.stop()));
+  stream = null;
+}
+
+var Module = {
+  keys: [],
+  print: t => { log.textContent += t + '\n'; log.scrollTop = log.scrollHeight; },
+  printErr: t => console.warn(t),
+  present(rgba) { img.data.set(rgba); lcd.putImageData(img, 0, 0); },
+  capture(buf) {
+    camera();
+    clearTimeout(idle);
+    idle = setTimeout(release, 1000);
+    if (video.readyState < 2) return 0;
+    grab.drawImage(video, 0, 0, 320, 240);
+    const d = grab.getImageData(0, 0, 320, 240).data;
+    for (let i = 0; i < buf.length; i++) buf[i] = (d[i * 4] * 77 + d[i * 4 + 1] * 150 + d[i * 4 + 2] * 29) >> 8;
+    return 1;
+  },
+};
+
+const keymap = { ArrowUp: 0, ArrowDown: 1, ArrowLeft: 2, ArrowRight: 3, Enter: 4, ' ': 4, Escape: 5 };
+addEventListener('keydown', e => {
+  const k = keymap[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+  if (k === undefined || e.repeat) return;
+  e.preventDefault();
+  Module.keys.push(k);
+});
+document.querySelectorAll('button[data-key]').forEach(b =>
+  b.addEventListener('click', () => Module.keys.push(+b.dataset.key)));
+</script>
+{{{ SCRIPT }}}
+</body>
+</html>

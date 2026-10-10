@@ -91,7 +91,9 @@ void os_dcache_flush(void) {
 void os_icache_flush(void *start, size_t len) {
     (void)start;
     (void)len;
+#ifdef __riscv /* the web demo builds this platform for wasm32 */
     __asm__ volatile("fence.i" ::: "memory");
+#endif
 }
 os_raw_file_handle os_invalid_raw_handle(void) {
     return -1;

@@ -8,3 +8,4 @@ include mk/checks-qemu.mk
 include mk/firmware.mk
 include mk/device.mk
 include mk/docs.mk
+include mk/web.mk
