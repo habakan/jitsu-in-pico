@@ -71,6 +71,16 @@ make run TESTNET=1 SECONDS=180    # signet 用
 `TEST_SEED=1` でビルドした場合だけ BIP39 のテストベクタを選べます（既定は 0）。このビルドでは資金を扱わないでください。
 実機の運用上の制約は[制約一覧](limitations.md)をご覧ください。
 
+### ブラウザ
+
+```sh
+make web                          # Emscripten が必要。build/web/signer.html を出力
+```
+
+実機と同じ `main.c`、レビュー画面、署名コア、WAMR 上の `parser.wasm` を WebAssembly にしたものです。
+置き換えているのは LCD、ボタン、カメラだけです（`web/hal.c`）。`TEST_SEED=1` のデモで署名デバイスではないため、
+本物の SeedQR は読ませないでください。
+
 ## ビルドと検証
 
 ```sh
