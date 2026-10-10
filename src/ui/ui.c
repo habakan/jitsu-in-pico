@@ -249,15 +249,16 @@ void ui_qr_render_line(int y, uint16_t line[UI_W]) {
 }
 
 /* The account xpub, shown in full with nothing trimmed from either end, so it can be compared by eye */
-void ui_xpub(ui_screen_t *s, const char *xpub, uint32_t fp, int testnet) {
+void ui_xpub(ui_screen_t *s, const char *xpub, uint32_t fp, int testnet, unsigned purpose) {
     writer_t w = {s, 0};
     char line[UI_COLS + 1];
     size_t n = strlen(xpub);
 
     memset(s, 0, sizeof(*s));
     put_header(&w);
-    put(&w, C_TITLE, "Account xpub (watch-only)");
-    snprintf(line, sizeof(line), "m/84h/%dh/0h  fp %08lx", testnet ? 1 : 0, (unsigned long)fp);
+    put(&w, C_TITLE, purpose == 48 ? "Multisig xpub (P2WSH)" : "Account xpub (watch-only)");
+    snprintf(line, sizeof(line), "m/%uh/%dh/0h%s  fp %08lx", purpose, testnet ? 1 : 0, purpose == 48 ? "/2h" : "",
+             (unsigned long)fp);
     put(&w, C_HINT, line);
     put(&w, C_TEXT, "");
     for (size_t i = 0; i < n; i += UI_COLS) {

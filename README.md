@@ -57,8 +57,8 @@ went through that way ([verification procedure](docs/verification.md#signet-tran
 
 Verified in this repository on RP2350 hardware, macOS hosts, and QEMU.
 
-The firmware currently supports single-signature P2WPKH and P2TR only. BIP39 passphrase input and
-multisig are planned, but are not available yet. The multisig script formats have not been decided.
+The firmware supports P2WPKH, P2TR key-path and P2WSH multisig of at most three keys (BIP48). BIP39
+passphrase input is planned, but is not available yet.
 PSBT v2 is not supported.
 
 ## Try it

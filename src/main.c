@@ -386,13 +386,14 @@ static void seed_menu(void) {
     }
 }
 
-/* Shows the account xpub and descriptor. That is all the PC needs to watch the wallet, with no key */
-static void show_xpub(void) {
+/* Shows the account xpub and descriptor. That is all the PC needs to watch the wallet, with no key. For
+ * purpose 48 the descriptor is this cosigner's key expression, which the PC puts into wsh(sortedmulti()) */
+static void show_xpub(unsigned purpose) {
     static ui_screen_t s;
     static char xpub[CORE_XPUB_MAX], desc[CORE_DESC_MAX];
 
-    if (core_account_xpub(84, 0, xpub, desc) != CORE_OK) return message("xpub failed", NULL, 1);
-    ui_xpub(&s, xpub, core_fingerprint(), TESTNET);
+    if (core_account_xpub(purpose, 0, xpub, desc) != CORE_OK) return message("xpub failed", NULL, 1);
+    ui_xpub(&s, xpub, core_fingerprint(), TESTNET, purpose);
     show(&s);
     printf("%s\n%s\n", xpub, desc);
     wait_key();
@@ -426,22 +427,25 @@ static void show_parser_hash(void) {
 }
 
 static void main_menu(void) {
-    static const char *const items[] = {"Scan PSBT", "Show xpub", "Parser hash", "Sign test PSBT", "Lock (wipe seed)"};
-    static const char *const items_notest[] = {"Scan PSBT", "Show xpub", "Parser hash", "Lock (wipe seed)"};
+    static const char *const items[] = {"Scan PSBT",   "Show xpub",      "Show multisig xpub",
+                                        "Parser hash", "Sign test PSBT", "Lock (wipe seed)"};
+    static const char *const items_notest[] = {"Scan PSBT", "Show xpub", "Show multisig xpub", "Parser hash",
+                                               "Lock (wipe seed)"};
     static char title[UI_COLS + 1];
 
     snprintf(title, sizeof(title), "%s fp %08x", TESTNET ? "Signet" : "Signer", (unsigned)core_fingerprint());
-    ui_menu_init(&menu, title, TEST_SEED ? items : items_notest, TEST_SEED ? 5 : 4);
+    ui_menu_init(&menu, title, TEST_SEED ? items : items_notest, TEST_SEED ? 6 : 5);
     show(&menu.screen);
     for (;;) {
         int sel = ui_menu_key(&menu, wait_key());
         if (sel == 0) scan_and_sign();
-        if (sel == 1) show_xpub();
-        if (sel == 2) show_parser_hash();
+        if (sel == 1) show_xpub(84);
+        if (sel == 2) show_xpub(48);
+        if (sel == 3) show_parser_hash();
 #if TEST_SEED
-        if (sel == 3) sign_flow(test_psbt, sizeof(test_psbt));
+        if (sel == 4) sign_flow(test_psbt, sizeof(test_psbt));
 #endif
-        if (sel == (TEST_SEED ? 4 : 3)) {
+        if (sel == (TEST_SEED ? 5 : 4)) {
             core_unload();
             printf("locked (seed wiped)\n");
             return;
