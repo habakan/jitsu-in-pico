@@ -74,6 +74,15 @@ int parser_host_parse(const uint8_t *psbt, uint32_t len, uint32_t fingerprint, u
     return 1;
 }
 
+int parser_host_nonces(uint8_t nonces[PLAN_MAX_INPUTS][33]) {
+    uint32_t a[1] = {0};
+    return call("parser_nonces", 0, a) && copy_out(a[0], PLAN_MAX_INPUTS * 33, nonces);
+}
+
+int parser_host_set_points(const uint8_t points[PLAN_MAX_INPUTS][33]) {
+    return copy_in("parser_nonce_points", points, PLAN_MAX_INPUTS * 33);
+}
+
 int parser_host_finalize(const core_sig_t *sigs, unsigned n, uint8_t *out, size_t cap, uint32_t *out_len) {
     uint32_t a[1] = {n};
     if (n > PLAN_MAX_INPUTS || !copy_in("parser_sigs", sigs, (uint32_t)(sizeof(core_sig_t) * n))) return 0;

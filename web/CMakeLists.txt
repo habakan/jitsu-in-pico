@@ -28,7 +28,7 @@ add_executable(signer ${CMAKE_CURRENT_LIST_DIR}/hal.c ${SRC}/main.c ${SRC}/runti
   ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c ${ROOT}/components/parts/signer/core.c ${ROOT}/components/parts/signer/address.c
   ${ROOT}/components/parts/signer/bip32.c ${ROOT}/components/parts/signer/sighash.c ${ROOT}/components/parts/parser/c/src/tx.c
   ${ROOT}/components/parts/parser/c/src/sha256.c ${ROOT}/components/parts/signer/ripemd160.c ${ROOT}/components/parts/signer/sha512.c
-  ${ROOT}/components/parts/signer/secp_callbacks.c ${ROOT}/components/parts/signer/seedqr.c ${ROOT}/components/parts/signer/bip85.c
+  ${ROOT}/components/parts/signer/secp_callbacks.c ${ROOT}/components/parts/signer/seedqr.c ${ROOT}/components/parts/signer/bip85.c ${ROOT}/components/parts/signer/cbor.c ${ROOT}/components/parts/signer/multisig.c
   ${ROOT}/components/parts/signer/secp256k1_unity.c ${QUIRC}/decode.c ${QUIRC}/identify.c ${QUIRC}/quirc.c ${QUIRC}/version_db.c
   ${WAMR_RUNTIME_LIB_SOURCE})
 target_compile_definitions(signer PRIVATE ENABLE_MODULE_EXTRAKEYS=1 ENABLE_MODULE_SCHNORRSIG=1 ENABLE_MODULE_RECOVERY=1

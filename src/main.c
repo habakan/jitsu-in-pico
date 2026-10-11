@@ -240,6 +240,7 @@ static void sign_flow(const uint8_t *in, uint32_t in_len) {
     core_review_t review;
     core_display_t display;
     core_sig_t sigs[PLAN_MAX_INPUTS];
+    uint8_t nonces[PLAN_MAX_INPUTS][33]; /* the coordinator's n going in, then Q coming out */
     uint32_t rc = 0, out_len = 0;
     unsigned n_sigs = 0;
     uint64_t t;
@@ -277,12 +278,16 @@ static void sign_flow(const uint8_t *in, uint32_t in_len) {
     if (decision == UI_REJECTED) return sign_buffers_give(), message("Canceled", NULL, 0);
 
     t = time_us_64();
+    if (!parser_host_nonces(nonces)) return sign_buffers_give(), message("Finalize failed", NULL, 1);
+    for (unsigned i = 0; i < PLAN_MAX_INPUTS; i++)
+        if (nonces[i][0] == 1) core_set_host_nonce(i, nonces[i] + 1);
     if ((err = core_sign(&plan, trng, sigs, &n_sigs)) != CORE_OK) {
         printf("sign err=%d\n", err);
         return sign_buffers_give(), message("Sign failed", NULL, 1);
     }
     printf("sign %llu us (%u inputs)\n", (unsigned long long)(time_us_64() - t), n_sigs);
-    if (!parser_host_finalize(sigs, n_sigs, signed_psbt, SIGNED_PSBT_MAX, &out_len))
+    for (unsigned k = 0; k < PLAN_MAX_INPUTS; k++) memcpy(nonces[k], core_nonce_point(k), 33);
+    if (!parser_host_set_points(nonces) || !parser_host_finalize(sigs, n_sigs, signed_psbt, SIGNED_PSBT_MAX, &out_len))
         return sign_buffers_give(), message("Finalize failed", NULL, 1);
 
     printf("signed psbt (%u bytes):\n", (unsigned)out_len);

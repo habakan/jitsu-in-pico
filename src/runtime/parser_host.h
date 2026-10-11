@@ -15,6 +15,10 @@ int parser_host_init(const uint8_t *wasm, uint32_t wasm_len, void *pool, uint32_
  * are only filled in when it was accepted, and prev[i].raw points into the arena */
 int parser_host_parse(const uint8_t *psbt, uint32_t len, uint32_t fingerprint, uint32_t *rc, plan_t *plan,
                       core_prevtx_t prev[PLAN_MAX_INPUTS], uint8_t *arena, size_t arena_cap);
+/* Anti-exfil: the coordinator's n per input as parser.wasm read it (1 then n, 16 x 33 bytes), and the Q of
+ * each signature for parser_host_finalize to add (zero for none). 1 on success */
+int parser_host_nonces(uint8_t nonces[PLAN_MAX_INPUTS][33]);
+int parser_host_set_points(const uint8_t points[PLAN_MAX_INPUTS][33]);
 /* Hands the signatures to parser.wasm and takes the signed PSBT in out. 1 on success */
 int parser_host_finalize(const core_sig_t *sigs, unsigned n, uint8_t *out, size_t cap, uint32_t *out_len);
 

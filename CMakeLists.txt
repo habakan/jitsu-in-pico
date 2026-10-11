@@ -46,7 +46,7 @@ set(APP_SRC ${SRC}/main.c ${SRC}/drivers/st7789.c
   ${SRC}/drivers/buttons.c ${SRC}/runtime/parser_host.c ${SRC}/ui/ui.c ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c
   ${ROOT}/components/parts/signer/core.c ${ROOT}/components/parts/signer/address.c ${ROOT}/components/parts/signer/bip32.c ${ROOT}/components/parts/signer/sighash.c ${ROOT}/components/parts/parser/c/src/tx.c
   ${ROOT}/components/parts/parser/c/src/sha256.c ${ROOT}/components/parts/signer/ripemd160.c ${ROOT}/components/parts/signer/sha512.c ${ROOT}/components/parts/signer/secp_callbacks.c ${ROOT}/components/parts/signer/seedqr.c
-  ${ROOT}/components/parts/signer/bip85.c ${ROOT}/components/parts/signer/secp256k1_unity.c ${SRC}/drivers/camera.c ${SRC}/drivers/camera_ov7670.c
+  ${ROOT}/components/parts/signer/bip85.c ${ROOT}/components/parts/signer/cbor.c ${ROOT}/components/parts/signer/multisig.c ${ROOT}/components/parts/signer/secp256k1_unity.c ${SRC}/drivers/camera.c ${SRC}/drivers/camera_ov7670.c
   ${QUIRC_SRC} ${WAMR_RUNTIME_LIB_SOURCE})
 foreach(t app app_nolcd)
   add_executable(${t} ${APP_SRC})
@@ -103,7 +103,7 @@ add_executable(psbt_bench ${BRINGUP}/psbt_bench.c ${SRC}/runtime/parser_host.c $
   ${ROOT}/third_party/QR-Code-generator/c/qrcodegen.c ${ROOT}/components/parts/signer/core.c ${ROOT}/components/parts/signer/address.c ${ROOT}/components/parts/signer/bip32.c
   ${ROOT}/components/parts/signer/sighash.c ${ROOT}/components/parts/parser/c/src/tx.c ${ROOT}/components/parts/parser/c/src/sha256.c ${ROOT}/components/parts/signer/ripemd160.c
   ${ROOT}/components/parts/signer/sha512.c ${ROOT}/components/parts/signer/secp_callbacks.c ${ROOT}/components/parts/signer/secp256k1_unity.c
-  ${ROOT}/components/parts/signer/seedqr.c ${ROOT}/components/parts/signer/bip85.c ${QUIRC_SRC}
+  ${ROOT}/components/parts/signer/seedqr.c ${ROOT}/components/parts/signer/bip85.c ${ROOT}/components/parts/signer/cbor.c ${ROOT}/components/parts/signer/multisig.c ${QUIRC_SRC}
   ${WAMR_RUNTIME_LIB_SOURCE})
 if(NOT DEFINED PARSER_POOL_KB)
   set(PARSER_POOL_KB 256)

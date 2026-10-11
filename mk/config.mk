@@ -23,4 +23,4 @@ QRGEN       := third_party/QR-Code-generator/c
 
 # tx.c and sha256.c are shared with the jitsu-in submodule.
 CORE_SRC := components/parts/signer/core.c components/parts/signer/address.c components/parts/signer/bip32.c components/parts/signer/sighash.c components/parts/parser/c/src/tx.c components/parts/parser/c/src/sha256.c components/parts/signer/ripemd160.c components/parts/signer/sha512.c \
-            components/parts/signer/secp_callbacks.c components/parts/signer/seedqr.c components/parts/signer/bip85.c
+            components/parts/signer/secp_callbacks.c components/parts/signer/seedqr.c components/parts/signer/bip85.c components/parts/signer/cbor.c components/parts/signer/multisig.c
